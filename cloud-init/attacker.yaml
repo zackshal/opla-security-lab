@@ -3,14 +3,19 @@ hostname: attacker
 users:
   - name: student
     sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
     ssh_authorized_keys:
       - __SSH_KEY__
-package_update: true
-packages:
-  - hping3
-  - python3-scapy
-  - tcpdump
-  - iputils-ping
+ssh_pwauth: false
+disable_root: true
+package_update: false
+package_upgrade: false
 runcmd:
-  - ip addr add __IP__/29 dev eth0
-  - ip route add default via __GW__ || true
+  - |
+    IFACE=$(ip -o link show | awk -F': ' '$2 != "lo" {print $2; exit}')
+    if [ -n "$IFACE" ]; then
+      ip link set "$IFACE" up
+      ip addr add __IP__/29 dev "$IFACE"
+      ip route add default via __GW__ || true
+      echo "configured $IFACE with __IP__" > /tmp/net-setup.log
+    fi
