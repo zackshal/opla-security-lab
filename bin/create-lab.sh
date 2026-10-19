@@ -206,7 +206,7 @@ META
 
 create_vm attacker debian-12-xdp.qcow2 1024 1 "52:54:00:00:00:02" "$ATTACKER_IP"
 create_vm victim   debian-12-xdp.qcow2 2048 2 "52:54:00:00:00:03" "$VICTIM_IP"
-create_vm client   alpine-base.qcow2      256 1 "52:54:00:00:00:04" "$CLIENT_IP"
+create_vm client   debian-12-xdp.qcow2  512 1 "52:54:00:00:00:04" "$CLIENT_IP"
 
 # ============================================================
 # state.env

@@ -1,21 +1,27 @@
 #cloud-config
 hostname: attacker
+network: {config: disabled}
 users:
   - name: student
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
       - __SSH_KEY__
-ssh_pwauth: false
+    lock_passwd: false
+chpasswd:
+  expire: false
+  list: |
+    student:debugpass
+ssh_pwauth: true
 disable_root: true
 package_update: false
 package_upgrade: false
+bootcmd:
+  - systemctl mask systemd-networkd-wait-online.service systemd-networkd-wait-online@.service || true
 runcmd:
   - |
-    IFACE=$(ip -o link show | awk -F': ' '$2 != "lo" {print $2; exit}')
-    if [ -n "$IFACE" ]; then
-      ip link set "$IFACE" up
-      ip addr add __IP__/29 dev "$IFACE"
-      ip route add default via __GW__ || true
-      echo "configured $IFACE with __IP__" > /tmp/net-setup.log
-    fi
+    ip link set ens3 up 2>/dev/null || true
+    ip addr replace __IP__/29 dev ens3
+    ip route replace default via __GW__ 2>/dev/null || true  
+  - ip -4 a > /tmp/net-setup.log 2>&1
+  - ip route >> /tmp/net-setup.log 2>&1

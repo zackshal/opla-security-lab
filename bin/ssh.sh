@@ -21,4 +21,5 @@ esac
 exec ssh -o StrictHostKeyChecking=no \
          -o UserKnownHostsFile=/dev/null \
          -o LogLevel=ERROR \
+         -o ConnectTimeout=5 \
          -i ~/.ssh/id_ed25519 "student@${IP}"
