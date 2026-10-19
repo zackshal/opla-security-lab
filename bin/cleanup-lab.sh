@@ -14,11 +14,10 @@ LAB_DIR="${1:-}"
 source "${LAB_DIR}/state.env"
 
 echo "[+] Останавливаю ВМ..."
-for pidfile in "${LAB_DIR}"/*.pid; do
-    [[ -f "$pidfile" ]] || continue
-    pid=$(cat "$pidfile" 2>/dev/null || true)
-    [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+for unit in $(systemctl list-units --plain --no-legend "qemu-${LAB_ID}-*" 2>/dev/null | awk "{print \$1}"); do
+    systemctl stop "$unit" 2>/dev/null || true
 done
+sleep 2
 sleep 2
 
 echo "[+] Останавливаю dnsmasq..."

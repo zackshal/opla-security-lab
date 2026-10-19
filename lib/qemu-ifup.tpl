@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
-IFACE="$1"
-ip link set "$IFACE" up
-ip link set "$IFACE" master __BRIDGE__
+IFACE="${1:-}"
+[ -z "$IFACE" ] && { echo "qemu-ifup: пустой \$1" >&2; exit 1; }
+IP_BIN="$(command -v ip || echo /sbin/ip)"
+"$IP_BIN" link set "$IFACE" up
+"$IP_BIN" link set "$IFACE" master __BRIDGE__

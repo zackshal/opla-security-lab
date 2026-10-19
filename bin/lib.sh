@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Подключается через `source` из create-lab.sh и cleanup-lab.sh
 
 find_free_bridge() {
     local i=0
@@ -10,22 +9,17 @@ find_free_bridge() {
 }
 
 find_free_subnet() {
-    local second=64
-    while [ $second -le 127 ]; do
-        local third=0
-        while [ $third -le 255 ]; do
-            local fourth=0
-            while [ $fourth -le 248 ]; do
-                local gw="100.${second}.${third}.${fourth}.1"
+    local s t f
+    for s in $(seq 64 127); do
+        for t in $(seq 0 255); do
+            for f in $(seq 0 8 248); do
+                local gw="100.${s}.${t}.$((f + 1))"
                 if ! ip -4 addr show | grep -qF "${gw}/"; then
-                    echo "100.${second}.${third}.${fourth}"
+                    echo "100.${s}.${t}.${f}"
                     return 0
                 fi
-                fourth=$((fourth + 8))
             done
-            third=$((third + 1))
         done
-        second=$((second + 1))
     done
     return 1
 }

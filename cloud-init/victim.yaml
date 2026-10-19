@@ -3,29 +3,19 @@ hostname: victim
 users:
   - name: student
     sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
     ssh_authorized_keys:
       - __SSH_KEY__
-package_update: true
-packages:
-  - clang
-  - llvm
-  - libbpf-dev
-  - bpftool
-  - linux-tools-generic
-  - xdp-tools
-  - git
-  - make
-  - gcc
-write_files:
-  - path: /opt/xdp/xdp_ddos_protect.c
-    permissions: '0644'
-    content: |
-      __XDP_SOURCE__
-  - path: /opt/xdp/Makefile
-    permissions: '0644'
-    content: |
-      __MAKEFILE__
+ssh_pwauth: false
+disable_root: true
+package_update: false
+package_upgrade: false
 runcmd:
-  - ip addr add __IP__/29 dev eth0
-  - ip route add default via __GW__ || true
-  - cd /opt/xdp && make
+  - |
+    IFACE=$(ip -o link show | awk -F': ' '$2 != "lo" {print $2; exit}')
+    if [ -n "$IFACE" ]; then
+      ip link set "$IFACE" up
+      ip addr add __IP__/29 dev "$IFACE"
+      ip route add default via __GW__ || true
+      echo "configured $IFACE with __IP__" > /tmp/net-setup.log
+    fi

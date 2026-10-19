@@ -1,3 +1,4 @@
+port=0
 interface=__BRIDGE__
 bind-interfaces
 dhcp-range=__ATTACKER_IP__,__RESERVE_6__,__MASK__,12h
