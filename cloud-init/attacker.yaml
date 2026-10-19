@@ -1,0 +1,16 @@
+#cloud-config
+hostname: attacker
+users:
+  - name: student
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __SSH_KEY__
+package_update: true
+packages:
+  - hping3
+  - python3-scapy
+  - tcpdump
+  - iputils-ping
+runcmd:
+  - ip addr add __IP__/29 dev eth0
+  - ip route add default via __GW__ || true

@@ -1,0 +1,11 @@
+#cloud-config
+hostname: client
+users:
+  - name: student
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __SSH_KEY__
+runcmd:
+  - ip addr add __IP__/29 dev eth0
+  - ip route add default via __GW__ || true
+  - apk add --no-cache curl tcpdump

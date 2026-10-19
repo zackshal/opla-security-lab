@@ -1,0 +1,31 @@
+#cloud-config
+hostname: victim
+users:
+  - name: student
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __SSH_KEY__
+package_update: true
+packages:
+  - clang
+  - llvm
+  - libbpf-dev
+  - bpftool
+  - linux-tools-generic
+  - xdp-tools
+  - git
+  - make
+  - gcc
+write_files:
+  - path: /opt/xdp/xdp_ddos_protect.c
+    permissions: '0644'
+    content: |
+      __XDP_SOURCE__
+  - path: /opt/xdp/Makefile
+    permissions: '0644'
+    content: |
+      __MAKEFILE__
+runcmd:
+  - ip addr add __IP__/29 dev eth0
+  - ip route add default via __GW__ || true
+  - cd /opt/xdp && make
