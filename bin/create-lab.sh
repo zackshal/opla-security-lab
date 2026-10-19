@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Домашняя директория вызывающего пользователя (sudo → не /root)
+if [[ -n "${SUDO_USER:-}" ]]; then
+    USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+else
+    USER_HOME="$HOME"
+fi
+
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
@@ -23,22 +31,26 @@ for f in debian-12-base.qcow2 alpine-base.qcow2; do
     [[ -f "${POOL}/${f}" ]] || die "Нет ${POOL}/${f}. Запустите ./bootstrap.sh"
 done
 
-SSH_PUB="$(cat ~/.ssh/id_ed25519.pub 2>/dev/null || cat ~/.ssh/id_rsa.pub 2>/dev/null || true)"
+SSH_PUB="$(cat "${USER_HOME}/.ssh/id_ed25519.pub" 2>/dev/null || cat "${USER_HOME}/.ssh/id_rsa.pub" 2>/dev/null || true)"
 [[ -n "$SSH_PUB" ]] || die "Нет ~/.ssh/id_ed25519.pub или ~/.ssh/id_rsa.pub"
 
 # ---------- 1. Мост и подсеть ----------
 BRIDGE=$(find_free_bridge)
 BASE=$(find_free_subnet) || die "Нет свободных /29 в 100.64.0.0/10"
+# BASE = 100.64.0.0 (сетевой адрес /29) — вычисляем .1–.6
+NET3="$(echo "$BASE" | awk -F. '{print $1"."$2"."$3}')"
+NET4="$(echo "$BASE" | awk -F. '{print $4}')"
+GW="${NET3}.$((NET4 + 1))"
+ATTACKER_IP="${NET3}.$((NET4 + 2))"
+VICTIM_IP="${NET3}.$((NET4 + 3))"
+CLIENT_IP="${NET3}.$((NET4 + 4))"
+RESERVE_6="${NET3}.$((NET4 + 6))"
 
-GW="${BASE}.1"
-ATTACKER_IP="${BASE}.2"
-VICTIM_IP="${BASE}.3"
-CLIENT_IP="${BASE}.4"
-RESERVE_6="${BASE}.6"
+# BASE = 100.64.0.0 (сетевой адрес /29)
 MASK="255.255.255.248"
 
 log "LAB_ID=${LAB_ID}"
-log "BRIDGE=${BRIDGE}  SUBNET=${BASE}.0/29"
+log "BRIDGE=${BRIDGE}  SUBNET=${BASE}/29"
 log "GW=${GW}  attacker=${ATTACKER_IP}  victim=${VICTIM_IP}  client=${CLIENT_IP}"
 
 # ---------- 2. Директория лабы ----------
@@ -113,7 +125,7 @@ create_vm client   alpine-base.qcow2      256 1 "52:54:00:00:00:04" "$CLIENT_IP"
 cat > "${LAB_DIR}/state.env" <<STATE
 LAB_ID=${LAB_ID}
 BRIDGE=${BRIDGE}
-SUBNET=${BASE}.0/29
+SUBNET=${BASE}/29
 GW=${GW}
 ATTACKER_IP=${ATTACKER_IP}
 VICTIM_IP=${VICTIM_IP}
