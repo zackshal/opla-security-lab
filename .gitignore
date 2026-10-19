@@ -49,6 +49,10 @@ __pycache__/
 .venv/
 
 # Отчёты (генерируются студентом)
-dumps/
+dumps/*
 !dumps/.gitkeep
 reports/
+
+# Отчёты студента (директория есть, файлы игнорируются)
+dumps/*
+!dumps/.gitkeep
