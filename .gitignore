@@ -13,3 +13,5 @@ dumps/*
 *.swp
 *.sock
 *.pid
+docs/.render-assets/
+.venv-docs/

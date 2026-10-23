@@ -7,13 +7,13 @@ import re
 import sys
 
 def latest():
-    files = list(Path('/run/opla').glob('lab-*/state.env'))
+    files = list(Path('/var/lib/opla').glob('lab-*/state.env'))
     return str(max(files, key=lambda p:p.stat().st_mtime).parent) if files else ''
 
 def load(directory):
     p=Path(directory).resolve()
-    if p.parent != Path('/run/opla') or not re.fullmatch(r'lab-[A-Za-z0-9]+',p.name):
-        raise ValueError('Ожидается /run/opla/lab-...')
+    if p.parent != Path('/var/lib/opla') or not re.fullmatch(r'lab-[A-Za-z0-9]+',p.name):
+        raise ValueError('Ожидается /var/lib/opla/lab-...')
     for item in [p, p/'state.env']:
         st=item.stat()
         if st.st_uid != 0 or st.st_mode & 0o022:
