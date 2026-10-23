@@ -1,12 +1,18 @@
-CC = clang
-CFLAGS = -O2 -g -Wall -target bpf -I/usr/include/x86_64-linux-gnu
+# Явно clang (не ?=, т.к. make имеет встроенный CC=cc)
+CC      := clang
+CFLAGS  := -O2 -g -Wall -target bpf \
+           -I/usr/include/x86_64-linux-gnu \
+           -I/usr/include/bpf \
+           -D__TARGET_ARCH_x86
 
-all: xdp_ddos_protect.o
+OBJS := xdp_ddos_protect.o
 
-xdp_ddos_protect.o: xdp_ddos_protect.c
+.PHONY: all clean
+
+all: $(OBJS)
+
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o
-
-.PHONY: all clean
+	rm -f $(OBJS) *.ll
