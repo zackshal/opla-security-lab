@@ -1,25 +1,17 @@
 #!/usr/bin/env bash
-
 find_free_bridge() {
     local i=0
-    while ip link show "br-lab${i}" &>/dev/null; do
-        i=$((i + 1))
-    done
-    echo "br-lab${i}"
+    while ip link show "br-op$i" >/dev/null 2>&1; do i=$((i+1)); done
+    echo "br-op$i"
 }
-
 find_free_subnet() {
-    local s t f
-    for s in $(seq 64 127); do
-        for t in $(seq 0 255); do
-            for f in $(seq 0 8 248); do
-                local gw="100.${s}.${t}.$((f + 1))"
-                if ! ip -4 addr show | grep -qF "${gw}/"; then
-                    echo "100.${s}.${t}.${f}"
-                    return 0
-                fi
-            done
-        done
-    done
-    return 1
+    python3 - <<'PYCODE'
+import ipaddress,json,subprocess
+routes=json.loads(subprocess.check_output(['ip','-j','-4','route','show','table','all']))
+occupied=[ipaddress.ip_network(r['dst'],strict=False) for r in routes if r.get('dst','default')!='default']
+for net in ipaddress.ip_network('100.64.0.0/10').subnets(new_prefix=29):
+    if not any(net.overlaps(n) for n in occupied):
+        print(net.network_address); break
+else: raise SystemExit('Нет свободной /29')
+PYCODE
 }
