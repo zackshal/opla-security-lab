@@ -14,7 +14,7 @@ for p in R.rglob('*.py'):
     if '.git' not in p.parts:ast.parse(p.read_text(),filename=str(p))
 subprocess.run([sys.executable,'-m','unittest','discover','-s','tests','-p','test_*.py','-v'],cwd=R,check=True)
 if not shutil.which('cc'):sys.exit('Нужен C-компилятор для теста пакетов')
-with tempfile.TemporaryDirectory() as tmp:
+with tempfile.TemporaryDirectory(prefix='.opla-check-',dir=R) as tmp:
     target=str(Path(tmp)/'packets')
     subprocess.run(['cc','-O2','-Wall','-Werror','-Wno-unknown-pragmas','-Itests/stubs','tests/packet_harness.c','-o',target],cwd=R,check=True)
     subprocess.run([target],check=True)

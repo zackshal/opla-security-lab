@@ -27,6 +27,8 @@ def collect(ip,lab):
     data=json.loads(result.stdout)
     if any(type(data.get(k)) is not int or data[k]<0 for k in METRICS):
         raise ValueError('Некорректный снимок метрик')
+    if not isinstance(data.get('mode'), str):
+        raise ValueError('Режим XDP должен быть строкой; обновите collect.py на victim')
     return data
 
 def recv_exact(sock,n):

@@ -26,6 +26,9 @@ case "$ACTION" in
     monitoring-start)
         [[ -f "monitoring/runtime/$LAB_ID/provisioned.json" ]] || { echo 'Сначала make monitoring-configure'; exit 1; }
         ./bin/control.sh deploy
+        # Повторный запуск обновляет процесс, чтобы он прочитал новый код.
+        systemctl --user stop "opla-monitor-$LAB_ID.service" 2>/dev/null || true
+        systemctl --user reset-failed "opla-monitor-$LAB_ID.service" 2>/dev/null || true
         systemd-run --user --collect --unit="opla-monitor-$LAB_ID" \
             --working-directory="$PWD" --setenv="SSH_KEY=${SSH_KEY:-$HOME/.ssh/id_ed25519}" \
             /usr/bin/python3 "$PWD/monitoring/bridge.py" --lab "$LAB_DIR"
