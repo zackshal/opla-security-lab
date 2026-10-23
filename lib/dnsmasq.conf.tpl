@@ -1,0 +1,12 @@
+port=0
+interface=__BRIDGE__
+bind-interfaces
+dhcp-range=__ATTACKER_IP__,__RESERVE_6__,__MASK__,12h
+dhcp-option=3,__GW__
+dhcp-option=6,__GW__
+dhcp-host=52:54:00:00:00:02,__ATTACKER_IP__
+dhcp-host=52:54:00:00:00:03,__VICTIM_IP__
+dhcp-host=52:54:00:00:00:04,__CLIENT_IP__
+dhcp-authoritative
+log-facility=__LAB_DIR__/dnsmasq.log
+pid-file=__LAB_DIR__/dnsmasq.pid

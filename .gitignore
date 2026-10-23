@@ -1,0 +1,80 @@
+# Образы (скачиваются через bootstrap.sh)
+images/*.qcow2
+images/*.img
+images/*.iso
+images/*.part
+
+# Генерируемые артефакты
+*.pid
+*.log
+*.sock
+state.env
+seed.iso
+*-seed.iso
+*.qcow2
+!images/.gitkeep
+
+# XDP: скомпилированные объекты
+xdp/*.o
+xdp/*.ll
+xdp/vmlinux.h
+
+# Секреты и локальные настройки
+.env
+.env.local
+ssh_authorized_keys
+*.pem
+*.key
+client.yaml
+*client*.yaml
+!cloud-init/client.yaml
+
+# Временные файлы
+/tmp/
+tmp/
+.cache/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Редакторы
+.vscode/
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Отчёты (генерируются студентом)
+dumps/*
+!dumps/.gitkeep
+reports/
+
+# Отчёты студента (директория есть, файлы игнорируются)
+dumps/*
+!dumps/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Overlay-диски лабораторных (создаются create-lab.sh)
+
+# Временные артефакты XDP
+xdp/__pycache__/
+xdp/*.pyc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Временные артефакты XDP
+xdp/__pycache__/
+xdp/*.pyc
