@@ -4,7 +4,7 @@ network: {config: disabled}
 users:
   - name: student
     sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/ash
+    shell: /bin/bash
     ssh_authorized_keys:
       - __SSH_KEY__
     lock_passwd: false
@@ -19,13 +19,8 @@ package_upgrade: false
 bootcmd:
   - systemctl mask systemd-networkd-wait-online.service systemd-networkd-wait-online@.service || true
 runcmd:
-  - |
-    for i in $(seq 1 30); do
-      [ -d /sys/class/net/eth0 ] && break
-      sleep 0.5
-    done
-    ip link set eth0 up
-    ip addr add __IP__/29 dev eth0
-    ip route add default via __GW__ || true
-    ip -4 a > /tmp/net-setup.log 2>&1
-    ip route >> /tmp/net-setup.log 2>&1
+  - ip link set ens3 up
+  - ip addr add __IP__/29 dev ens3
+  - ip route add default via __GW__ || true
+  - ip -4 a > /tmp/net-setup.log 2>&1
+  - ip route >> /tmp/net-setup.log 2>&1
