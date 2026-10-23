@@ -29,6 +29,18 @@ class MonitoringTests(unittest.TestCase):
     def test_wrong_program_rejected(self):
         with patch.object(collect,'run',side_effect=[[{'xdp':{'attached':'drv','prog':{'id':9}}}],{'id':4}]):
             with self.assertRaises(ValueError): collect.snapshot()
+    def test_iproute_attached_list(self):
+        link={'mode':1,'attached':[{'mode':1,'prog':{'id':57}}]}
+        replies=[[{'xdp':link}], {'id':57}, []]
+        with patch.object(collect,'run',side_effect=replies):
+            data=collect.snapshot()
+            self.assertEqual(data['mode'],'native')
+            self.assertEqual(data['loaded'],1)
+    def test_generic_mode_string(self):
+        self.assertEqual(collect.attachment_mode({'attached':'generic','prog':{'id':4}},4),'generic')
+    def test_nested_wrong_program_rejected(self):
+        with self.assertRaises(ValueError):
+            collect.attachment_mode({'attached':[{'mode':1,'prog':{'id':3}}]},4)
     def exchange(self,reply):
         listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen(1)
         got=[]

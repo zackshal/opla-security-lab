@@ -46,6 +46,8 @@ int main(void) {
     reset();tcp->ack=1;assert(xdp_ddos_protect(&ctx)==XDP_PASS && counters[0]==0);
     reset();full=1;assert(xdp_ddos_protect(&ctx)==XDP_DROP && counters[3]==1);
     reset();ctx.data_end-=1;assert(xdp_ddos_protect(&ctx)==XDP_DROP);
+    reset();ip->tot_len=bpf_htons(65535);assert(xdp_ddos_protect(&ctx)==XDP_DROP);
+    reset();ip->tot_len=bpf_htons(41);assert(xdp_ddos_protect(&ctx)==XDP_DROP);
     reset();ip->ihl=4;assert(xdp_ddos_protect(&ctx)==XDP_DROP);
     reset();ip->frag_off=bpf_htons(1);assert(xdp_ddos_protect(&ctx)==XDP_DROP && counters[4]==1);
     reset();ip->frag_off=bpf_htons(0x2000);assert(xdp_ddos_protect(&ctx)==XDP_DROP);
