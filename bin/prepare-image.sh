@@ -5,8 +5,9 @@ command -v virt-customize >/dev/null || { echo 'Установите libguestfs-
 [[ -f debian-12-base.qcow2 ]] || { echo 'Сначала make bootstrap' >&2; exit 1; }
 [[ ! -e debian-12-xdp.qcow2 ]] || { echo 'Образ уже существует; не изменяем используемый backing file' >&2; exit 1; }
 # Подготовка с доступом к сети выполняется до запуска изолированной лабораторной.
-cp --reflink=auto debian-12-base.qcow2 debian-12-xdp.qcow2.part
 trap 'rm -f debian-12-xdp.qcow2.part' ERR
+qemu-img create -f qcow2 debian-12-xdp.qcow2.part 10G
+virt-resize --expand /dev/sda1 debian-12-base.qcow2 debian-12-xdp.qcow2.part
 virt-customize -a debian-12-xdp.qcow2.part --network \
     --install clang,llvm,libbpf-dev,linux-libc-dev,bpftool,iproute2,python3,nginx,hping3,curl,tcpdump,cloud-init,openssh-server,gcc,make \
     --run-command 'dpkg-query -W > /etc/opla-packages.txt' \

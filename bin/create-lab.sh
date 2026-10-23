@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 022
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/lib.sh"
@@ -9,14 +10,14 @@ for cmd in qemu-system-x86_64 qemu-img cloud-localds dnsmasq ip nft flock python
 done
 [[ -c /dev/kvm ]] || { echo 'Нужен доступный KVM (/dev/kvm)' >&2; exit 1; }
 [[ -f "$PROJECT_DIR/images/debian-12-xdp.qcow2" ]] || { echo 'Сначала make image' >&2; exit 1; }
-install -d -m 755 /run/opla
-exec 9>/run/opla/create.lock
+install -d -m 755 /var/lib/opla
+exec 9>/var/lib/opla/create.lock
 flock -n 9 || { echo 'Другой процесс создаёт стенд' >&2; exit 1; }
 CALLER="${SUDO_USER:-root}"
 CALLER_HOME="$(getent passwd "$CALLER" | cut -d: -f6)"
 SSH_PUB="$(cat "${SSH_KEY_PUB:-$CALLER_HOME/.ssh/id_ed25519.pub}")"
 [[ "$SSH_PUB" == ssh-* ]] || { echo 'Нужен SSH public key' >&2; exit 1; }
-LAB_DIR="$(mktemp -d /run/opla/lab-XXXXXXXX)"
+LAB_DIR="$(mktemp -d /var/lib/opla/lab-XXXXXXXX)"
 chmod 755 "$LAB_DIR"
 LAB_ID="${LAB_DIR##*/}"
 BRIDGE="$(find_free_bridge)"

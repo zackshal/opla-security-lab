@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 find_free_bridge() {
     local i=0
-    while ip link show "br-op$i" >/dev/null 2>&1; do i=$((i+1)); done
+    while ip link show "br-op$i" >/dev/null 2>&1 ||
+        grep -qsx "BRIDGE=br-op$i" /var/lib/opla/lab-*/state.env 2>/dev/null; do
+        i=$((i+1))
+    done
     echo "br-op$i"
 }
 find_free_subnet() {

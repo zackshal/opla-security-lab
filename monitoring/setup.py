@@ -62,11 +62,11 @@ def provision(api,name):
     for index,graph in enumerate(graphs):
         widgets.append({'type':'graph','name':['SYN / s','Cumulative SYN'][index],
             'x':index*36,'y':0,'width':36,'height':5,
-            'fields':[field('source_type',0),field('graphid',graph,6),field('rf_rate',10)]})
+            'fields':[field('source_type',0),field('graphid.0',graph,6),field('reference','GRAA'+str(index),1),field('rf_rate',10)]})
     widgets.append({'type':'itemhistory','name':'XDP events','x':0,'y':5,'width':72,'height':5,
-        'fields':[field('itemids.0',ids['events'],4),field('show_lines',20),field('rf_rate',10)]})
+        'fields':[field('columns.0.itemid',ids['events'],4),field('columns.0.name','Events',1),field('columns.0.monospace_font',1),field('show_timestamp',1),field('reference','LOGAA',1),field('show_lines',20),field('rf_rate',10)]})
     widgets.append({'type':'item','name':'XDP attached','x':0,'y':10,'width':24,'height':3,
-        'fields':[field('itemid',ids['loaded'],4),field('rf_rate',10)]})
+        'fields':[field('itemid.0',ids['loaded'],4),field('rf_rate',10)]})
     title='OPLA / '+name
     existing=api.call('dashboard.get',{'filter':{'name':[title]}})
     params={'name':title,'pages':[{'name':'XDP overview','widgets':widgets}]}

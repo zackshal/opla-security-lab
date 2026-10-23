@@ -9,7 +9,7 @@ help:
 	@echo 'Стенд: bootstrap image up ready ssh console down'
 	@echo 'XDP: xdp-all xdp-unload xdp-test xdp-dashboard xdp-stats (THRESHOLD=100)'
 	@echo 'Zabbix: monitoring-up monitoring-configure monitoring-start monitoring-stop monitoring-down'
-	@echo 'Проверка: check versions. Выбор стенда: LAB_DIR=/run/opla/lab-...'
+	@echo 'Проверка: check versions. Выбор стенда: LAB_DIR=/var/lib/opla/lab-...'
 bootstrap:
 	@./bootstrap.sh
 image:
