@@ -56,3 +56,25 @@ reports/
 # Отчёты студента (директория есть, файлы игнорируются)
 dumps/*
 !dumps/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Overlay-диски лабораторных (создаются create-lab.sh)
+
+# Временные артефакты XDP
+xdp/__pycache__/
+xdp/*.pyc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Временные артефакты XDP
+xdp/__pycache__/
+xdp/*.pyc
