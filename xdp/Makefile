@@ -1,18 +1,15 @@
-# Явно clang (не ?=, т.к. make имеет встроенный CC=cc)
-CC      := clang
-CFLAGS  := -O2 -g -Wall -target bpf \
-           -I/usr/include/x86_64-linux-gnu \
-           -I/usr/include/bpf \
-           -D__TARGET_ARCH_x86
-
-OBJS := xdp_ddos_protect.o
-
+CC := clang
+THRESHOLD ?= 100
+WINDOW_NS ?= 1000000000
+MULTIARCH := $(shell $(CC) -print-multiarch 2>/dev/null)
+ifeq ($(strip $(MULTIARCH)),)
+MULTIARCH := $(shell gcc -dumpmachine)
+endif
+CPPFLAGS += -I/usr/include/$(MULTIARCH) -DTHRESHOLD=$(THRESHOLD) -DWINDOW_NS=$(WINDOW_NS)ULL
+CFLAGS := -O2 -g -Wall -Werror -target bpf
 .PHONY: all clean
-
-all: $(OBJS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
+all: xdp_ddos_protect.o
+xdp_ddos_protect.o: xdp_ddos_protect.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 clean:
-	rm -f $(OBJS) *.ll
+	rm -f xdp_ddos_protect.o
