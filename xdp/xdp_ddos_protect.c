@@ -65,7 +65,9 @@ int xdp_ddos_protect(struct xdp_md *ctx)
     if (ip->frag_off & bpf_htons(0x3fff)) { inc(4); return XDP_DROP; }
     __u32 ihl = ip->ihl * 4;
     __u32 total = bpf_ntohs(ip->tot_len);
-    if (total < ihl + sizeof(struct tcphdr) || (void *)ip + total > end)
+    // Сравниваем длины без прибавления total к указателю пакета.
+    __u64 available = (char *)end - (char *)ip;
+    if (total < ihl + sizeof(struct tcphdr) || total > available)
         return XDP_DROP;
     struct tcphdr *tcp = (void *)ip + ihl;
     if ((void *)(tcp + 1) > end || tcp->doff < 5 ||
