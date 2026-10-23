@@ -1,27 +1,20 @@
 #cloud-config
 hostname: attacker
-network: {config: disabled}
 users:
   - name: student
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
+    lock_passwd: true
     ssh_authorized_keys:
       - __SSH_KEY__
-    lock_passwd: false
-chpasswd:
-  expire: false
-  list: |
-    student:debugpass
-ssh_pwauth: true
+ssh_pwauth: false
 disable_root: true
 package_update: false
 package_upgrade: false
-bootcmd:
-  - systemctl mask systemd-networkd-wait-online.service systemd-networkd-wait-online@.service || true
+write_files:
+  - path: /etc/sysctl.d/99-opla.conf
+    content: |
+      net.ipv6.conf.all.disable_ipv6=1
+      net.ipv6.conf.default.disable_ipv6=1
 runcmd:
-  - |
-    ip link set ens3 up 2>/dev/null || true
-    ip addr replace __IP__/29 dev ens3
-    ip route replace default via __GW__ 2>/dev/null || true  
-  - ip -4 a > /tmp/net-setup.log 2>&1
-  - ip route >> /tmp/net-setup.log 2>&1
+  - [sysctl, --system]
