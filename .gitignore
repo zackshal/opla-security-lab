@@ -28,3 +28,14 @@ backups/
 *.part
 ansible/private.yml
 .venv-ops/
+
+# Local publication outputs and credentials
+*.eml
+*.sqlite3
+*.p12
+*.pfx
+*.key
+*.pem
+.opla-check-*/
+opla-source-review-*.tar.gz
+bridge-backup-*/

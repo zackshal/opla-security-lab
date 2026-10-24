@@ -1,39 +1,90 @@
-name: Portable and BPF checks
+name: Security lab checks
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   portable:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    container: debian:13-slim
+    timeout-minutes: 20
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - uses: actions/checkout@v4
       - name: Install portable dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc make python3-yaml qemu-utils
+        run: |
+          apt-get -o APT::Update::Error-Mode=any update
+          apt-get install -y --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils
       - name: Run portable checks
-        run: make check
-  bpf-build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install BPF build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang make libbpf-dev linux-libc-dev
-      - name: Build BPF object
-        run: make -C xdp THRESHOLD=100
-
+        shell: bash
+        run: |
+          mkdir -p reports/ci
+          set -o pipefail
+          make check 2>&1 | tee reports/ci/check.log
+      - name: Preserve check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-log
+          path: reports/ci/check.log
+          retention-days: 14
   configuration:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    container: debian:13-slim
+    timeout-minutes: 20
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - uses: actions/checkout@v4
-      - name: Install IDS validators
-        run: sudo apt-get update && sudo apt-get install -y suricata python3-yaml
-      - name: Validate Suricata rules and config
-        run: sudo python3 tools/check-suricata.py
-      - name: Install Ansible controller
-        run: python3 -m venv /tmp/ansible-venv && /tmp/ansible-venv/bin/pip install ansible-core==2.19.3
-      - name: Validate server playbook
-        run: /tmp/ansible-venv/bin/ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
+      - name: Install configuration validators
+        run: |
+          apt-get -o APT::Update::Error-Mode=any update
+          apt-get install -y --no-install-recommends python3 python3-yaml suricata ansible-core
+      - name: Validate Suricata and Ansible
+        run: |
+          suricata -V
+          python3 tools/check-suricata.py
+          ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
+  bpf-build:
+    needs: [portable, configuration]
+    runs-on: ubuntu-24.04
+    container: debian:12-slim
+    timeout-minutes: 20
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install BPF toolchain
+        run: |
+          apt-get -o APT::Update::Error-Mode=any update
+          apt-get install -y --no-install-recommends clang gcc make libbpf-dev linux-libc-dev llvm
+      - name: Compile and package
+        shell: bash
+        env:
+          CI_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          make -C xdp clean
+          make -C xdp THRESHOLD=100 MAX_SOURCES=4096
+          llvm-objdump -h xdp/xdp_ddos_protect.o
+          mkdir -p dist
+          cp xdp/xdp_ddos_protect.o dist/
+          clang --version > dist/compiler.txt
+          dpkg-query -W clang libbpf-dev linux-libc-dev > dist/packages.txt
+          sha256sum dist/xdp_ddos_protect.o > dist/SHA256SUMS
+          bash ci/package.sh
+      - name: Upload BPF package
+        uses: actions/upload-artifact@v4
+        with:
+          name: opla-bpf-${{ github.sha }}
+          path: |
+            dist/opla-bpf-*.tar.gz
+            dist/delivery.sha256
+          if-no-files-found: error
+          retention-days: 30

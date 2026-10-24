@@ -1,54 +1,19 @@
-# Мониторинг OPLA
+# Мониторинг
 
-Поддерживаемый путь: pinned BPF maps и HTTP/sysfs victim → SSH JSON → Python bridge на хосте → Zabbix trapper → PostgreSQL → dashboard. ВМ не нужен доступ в Интернет. Zabbix API используется для настройки, пароль API не нужен процессу отправки метрик.
+Полный порядок запуска: [README](../README.md#метрики-и-панели-zabbix).
 
-## Автоматический запуск
+Источники: pinned BPF maps, sysfs, nginx JSON log/probe, Suricata EVE и пассивный scan detector. Host bridge получает данные по SSH и отправляет в Zabbix trapper. Пароль API нужен provisioning, а не collector.
 
-Из корня проекта после make ready и make xdp-all:
-
-```bash
-make monitoring-up
-export LAB_DIR="$(python3 bin/state.py --latest)"
-bash bin/observability-up.sh
-```
-
-Предварительно смените начальный пароль веб-интерфейса. observability-up устанавливает HTTP-политику, deploy сборщика, API-конфигурацию и запускает службу. Dashboard текущего стенда обновляется целиком; свою панель клонируйте под другим именем.
-
-## Каталог
-
-monitoring/catalog.py: 24 входных значения и 13 зависимых скоростей, всего 37 items. monitoring/setup.py: 17 triggers, 5 graphs, dashboard с XDP/events, HTTP, интерфейсом и IDS/IPS. monitoring/policy.json задаёт временные окна и пороги обнаружения. Эти пороги не меняют предотвращение в C или nginx.
-
-Показатель loaded=1 означает одну подключённую программу. Режим хранится строкой native/generic. SYN/pass/drop относятся только к начальным SYN. HTTP-отказы учитываются по limit_req=REJECTED. Локальная HTTP-проверка не заменяет проверку с client. Счётчики sysfs не гарантируют учёт пакетов до native XDP.
-
-## Диагностика
+`catalog.py` содержит 34 исходных значения и 15 скоростей: всего 49 items. `setup.py` управляет 23 triggers, 5 graphs и dashboard из 5 страниц. Повторная настройка обновляет управляемые объекты; свою панель клонируйте отдельно. Политика Zabbix из `policy.json` не меняет предотвращение в XDP или nginx.
 
 ```bash
 make monitoring-stop
 python3 monitoring/diagnose.py --lab "$LAB_DIR"
 make monitoring-start
-lab_id="$(python3 bin/state.py "$LAB_DIR" LAB_ID)"
-journalctl --user -u "opla-monitor-$lab_id.service" -n 40 --no-pager
-tail -n 3 "monitoring/runtime/$lab_id/events.jsonl"
 ```
 
-Ожидается 24 ACCEPTED. Сборщик использует flock: диагностика и фоновый процесс не работают одновременно. Отсутствующая служба при monitoring-stop допустима. После изменения preprocessing нужны два свежих снимка для скорости; серверу может потребоваться время обновить кеш конфигурации.
+Диагностика и фоновый collector разделяют блокировку. Смотрите свежесть Latest data и дельты counters; скорости требуют свежих отсчётов. `xdp.loaded=1` — boolean одной подключённой программы. Счётчики capture/sysfs не являются полным учётом native XDP DROP.
 
-В UI сбросьте старые фильтры Latest data, выберите текущий opla-ID. Смотрите свежесть времени, три страницы dashboard и историю Problems. События не означают доставленные внешние уведомления: media type и получатель настраиваются отдельно.
+SQL в `sql/` читает БД. Runtime, `.env` и локальные секреты не публикуются. Web/receiver слушают localhost 8080/10051; PostgreSQL port наружу не опубликован. Не удаляйте Docker volume ради исправления графика.
 
-## БД и журналы
-
-```bash
-lab_id="$(python3 bin/state.py "$LAB_DIR" LAB_ID)"
-docker compose --env-file monitoring/.env -f monitoring/compose.yaml exec -T db psql -U zabbix -d zabbix -v "host_name=opla-$lab_id" < monitoring/sql/security-overview.sql
-docker compose --env-file monitoring/.env -f monitoring/compose.yaml logs --tail 40 server web db
-```
-
-SQL только читает данные. inspect.sql показывает прежний xdp-каталог, security-overview.sql - все три пространства, aggregate-10s.sql - среднее отсчётов SYN-скоростей.
-
-Полный локальный JSONL: ротация 5 MiB и одна предыдущая часть. Событийная очередь в памяти ограничена 1000 записями, после перезапуска не восстанавливается. Гарантии доставки всех событий нет. Индивидуальные nginx-строки и пакеты в БД не отправляются; счётчики и агрегированные события отправляются примерно раз в 2 секунды. HTTP-курсор находится внутри victim в /var/lib/opla-telemetry; непрочитанный хвост при ротации nginx может потеряться.
-
-## Разделение доступа
-
-8080 и 10051 опубликованы только на localhost. Это необходимое условие нынешней отправки без TLS. Пароль БД в monitoring/.env, SSH-ключи и runtime не входят в Git. Docker-группа эквивалентна широкому административному доступу к хосту; используйте выделенную учебную машину. Не очищайте db-data ради исправления графика.
-
-[Метрики и панели](../README.md#метрики-и-панели-zabbix) · [Suricata](../README.md#suricata)
+Уведомления Gmail + Proton: `alert_delivery.py` и `alerts_service.py`; конфигурация в `~/.config/opla/alerts.json`, очередь в `~/.local/state/opla-alerts/`. Gmail/Tor — общий SMTP-транспорт двух получателей. `configure-mail.py` — альтернативный provisioning штатного Zabbix media type; не включайте оба пути одновременно без намеренного дублирования.
