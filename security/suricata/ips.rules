@@ -1,0 +1,3 @@
+drop http any any -> $HOME_NET any (msg:"OPLA harmless IPS acceptance marker"; flow:established,to_server; http.uri; content:"/__opla_block_test__"; startswith; sid:9001200; rev:1;)
+drop http any any -> $HOME_NET any (msg:"OPLA block raw path traversal"; flow:established,to_server; http.uri.raw; content:"../"; sid:9001201; rev:1;)
+drop http any any -> $HOME_NET any (msg:"OPLA block CONNECT on static HTTP service"; flow:established,to_server; http.method; content:"CONNECT"; startswith; endswith; sid:9001202; rev:1;)

@@ -1,6 +1,12 @@
 """Единые имена, типы и единицы управляемых метрик Zabbix."""
 # Имя в SSH JSON, ключ Zabbix, название, тип Zabbix, единица.
 DEFINITIONS = [
+    ('ids_enabled', 'ids.enabled', 'Suricata configured (0/1)', 3, ''),
+    ('ids_up', 'ids.up', 'Suricata running (0/1)', 3, ''),
+    ('ids_alerts', 'ids.alerts', 'Suricata alerts', 3, ''),
+    ('ids_blocked', 'ids.blocked', 'Suricata blocked alert decisions', 3, ''),
+    ('ids_parse_errors', 'ids.parse_errors', 'EVE parse errors', 3, ''),
+    ('ids_kernel_drops', 'ids.kernel_drops', 'Capture kernel drops (engine epoch)', 3, ''),
     ('loaded', 'xdp.loaded', 'XDP attached (0/1)', 3, ''),
     ('mode', 'xdp.mode', 'XDP attachment mode', 1, ''),
     ('syn', 'xdp.syn', 'SYN observed', 3, ''),
@@ -22,7 +28,7 @@ DEFINITIONS = [
 ]
 BY_NAME = {row[0]: row for row in DEFINITIONS}
 METRICS = [row[0] for row in DEFINITIONS if row[3] == 3]
-RATES = ['syn', 'pass', 'drop', 'map_full', 'fragment_drop', 'rx_packets', 'rx_bytes',
+RATES = ['ids_alerts', 'ids_blocked', 'ids_kernel_drops', 'syn', 'pass', 'drop', 'map_full', 'fragment_drop', 'rx_packets', 'rx_bytes',
          'http_requests', 'http_limited', 'http_5xx']
 
 
