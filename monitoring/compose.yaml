@@ -1,7 +1,8 @@
 name: opla-monitoring
 services:
   db:
-    image: postgres:16.10-alpine
+    restart: unless-stopped
+    image: postgres:${POSTGRES_TAG:-16.10-alpine}
     environment:
       POSTGRES_USER: zabbix
       POSTGRES_DB: zabbix
@@ -13,7 +14,8 @@ services:
       timeout: 3s
       retries: 30
   server:
-    image: zabbix/zabbix-server-pgsql:alpine-7.0.19
+    restart: unless-stopped
+    image: zabbix/zabbix-server-pgsql:${ZABBIX_TAG:-alpine-7.0.19}
     environment:
       DB_SERVER_HOST: db
       POSTGRES_USER: zabbix
@@ -23,7 +25,8 @@ services:
       db: {condition: service_healthy}
     ports: ['127.0.0.1:10051:10051']
   web:
-    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0.19
+    restart: unless-stopped
+    image: zabbix/zabbix-web-nginx-pgsql:${ZABBIX_TAG:-alpine-7.0.19}
     environment:
       DB_SERVER_HOST: db
       POSTGRES_USER: zabbix

@@ -1,0 +1,10 @@
+{
+  "server": "smtp.example.org",
+  "port": 587,
+  "security": "starttls",
+  "sender": "opla@example.org",
+  "recipient": "alerts@example.org",
+  "username": "opla@example.org",
+  "password": "REPLACE_WITH_APP_PASSWORD",
+  "zabbix_user": "Admin"
+}
