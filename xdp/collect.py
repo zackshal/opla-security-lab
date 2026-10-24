@@ -94,6 +94,37 @@ def ids_snapshot(log_path=Path('/var/log/opla-suricata/eve.json'),
         temporary.replace(state_file)
         return dict(ids_enabled=enabled, ids_up=up, **counters)
 
+def scan_snapshot(status_path=Path('/run/opla-scan/status.json'),
+                  marker=Path('/etc/opla-scan/enabled'),
+                  counters_path=Path('/var/lib/opla-scan/counters.json'), now=None):
+    result = dict(scan_enabled=int(marker.exists()), scan_up=0, scan_active=0,
+                  scan_alerts=0, scan_capture_drops=0, scan_evictions=0,
+                  scan_details='Detector unavailable or disabled')
+    def counters(data):
+        for source, dest in [('alerts', 'scan_alerts'), ('capture_drops', 'scan_capture_drops'), ('evictions', 'scan_evictions')]:
+            value = data.get(source, 0)
+            if type(value) is int and value >= 0:
+                result[dest] = value
+    try:
+        if counters_path.exists():
+            counters(json.loads(counters_path.read_text()))
+        if not result['scan_enabled']:
+            return result
+        status = json.loads(status_path.read_text())
+        age = (time.monotonic() if now is None else now) - float(status['monotonic'])
+        if not 0 <= age <= 10 or status.get('scan_up') != 1:
+            return result
+        keys = ['scan_active', 'scan_alerts', 'scan_capture_drops', 'scan_evictions']
+        if any(type(status.get(k)) is not int or status[k] < 0 for k in keys):
+            return result
+        result.update({k: status[k] for k in keys})
+        result['scan_up'] = 1
+        result['scan_details'] = str(status.get('scan_details', 'No event'))[:250]
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        pass
+    return result
+
+
 def full_snapshot():
     data = snapshot()
     # Это счётчики драйвера, а не гарантированное число пакетов до XDP.
@@ -102,6 +133,7 @@ def full_snapshot():
     data.update(http_probe())
     data.update(http_snapshot())
     data.update(ids_snapshot())
+    data.update(scan_snapshot())
     return data
 
 def http_probe():

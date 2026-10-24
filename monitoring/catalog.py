@@ -1,6 +1,13 @@
 """Единые имена, типы и единицы управляемых метрик Zabbix."""
 # Имя в SSH JSON, ключ Zabbix, название, тип Zabbix, единица.
 DEFINITIONS = [
+    ('scan_enabled', 'scan.enabled', 'Port-scan detector configured (0/1)', 3, ''),
+    ('scan_up', 'scan.up', 'Port-scan detector heartbeat (0/1)', 3, ''),
+    ('scan_active', 'scan.active', 'Sources exceeding distinct-port threshold', 3, ''),
+    ('scan_alerts', 'scan.alerts', 'Port-scan threshold crossings', 3, ''),
+    ('scan_capture_drops', 'scan.capture_drops', 'Passive detector socket drops', 3, ''),
+    ('scan_evictions', 'scan.evictions', 'Passive detector state evictions', 3, ''),
+    ('scan_details', 'scan.details', 'Last port-scan source and target', 4, ''),
     ('ids_enabled', 'ids.enabled', 'Suricata configured (0/1)', 3, ''),
     ('ids_up', 'ids.up', 'Suricata running (0/1)', 3, ''),
     ('ids_alerts', 'ids.alerts', 'Suricata alerts', 3, ''),
