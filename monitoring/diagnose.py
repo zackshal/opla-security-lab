@@ -41,11 +41,12 @@ def main():
                 'output': ['key_', 'type', 'value_type', 'status', 'state', 'error', 'lastclock', 'trapper_hosts'],
                 'selectPreprocessing': 'extend'})
             for item in sorted(items, key=lambda x: x['key_']):
-                if item['key_'].startswith(('xdp.', 'http.', 'net.')):
+                if item['key_'].startswith(('xdp.', 'http.', 'net.', 'ids.', 'scan.')):
                     print('ITEM', json.dumps(item, ensure_ascii=False))
             data = collect(state['VICTIM_IP'], args.lab)
             values = {item_key(k): str(data[k]) for k in METRICS}
             values['xdp.mode'] = data['mode']
+            values['scan.details'] = data['scan_details']
             values['xdp.events'] = json.dumps({'event': 'diagnostic_probe', 'metrics': data})
             failed = []
             for key, value in values.items():

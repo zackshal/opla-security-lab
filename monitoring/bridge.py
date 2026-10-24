@@ -27,6 +27,8 @@ def collect(ip,lab):
     data=json.loads(result.stdout)
     if any(type(data.get(k)) is not int or data[k]<0 for k in METRICS):
         raise ValueError('Некорректный снимок метрик')
+    if not isinstance(data.get('scan_details'), str):
+        raise ValueError('Port-scan details must be a string; deploy the new collector')
     if not isinstance(data.get('mode'), str):
         raise ValueError('Режим XDP должен быть строкой; обновите collect.py на victim')
     return data
@@ -84,10 +86,12 @@ def main():
             append_log(runtime/'events.jsonl',event)
             records=[{'host':name,'key':item_key(k),'value':str(data[k]),'clock':clock} for k in METRICS]
             records.append({'host':name,'key':'xdp.mode','value':data['mode'],'clock':clock})
+            records.append({'host':name,'key':'scan.details','value':data['scan_details'],'clock':clock})
             # Передаём агрегированные события интервала, а не каждый отброшенный пакет.
             event_keys=['loaded','mode','drop','map_full','fragment_drop',
                         'http_available','http_limited','http_5xx','http_parse_errors',
-                        'ids_enabled','ids_up','ids_alerts','ids_blocked','ids_parse_errors']
+                        'ids_enabled','ids_up','ids_alerts','ids_blocked','ids_parse_errors',
+                        'scan_enabled','scan_up','scan_active','scan_alerts','scan_capture_drops','scan_evictions']
             if previous is None or any(data[k]!=previous[k] for k in event_keys):
                 pending.append({'host':name,'key':'xdp.events','value':json.dumps(event),'clock':clock})
             send(records+list(pending)); pending.clear(); previous=data
