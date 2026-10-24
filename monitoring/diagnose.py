@@ -13,6 +13,7 @@ sys.path.insert(0, str(R / 'bin'))
 from state import load
 from bridge import METRICS, collect, send
 from setup import API
+from catalog import item_key
 
 
 def main():
@@ -40,20 +41,20 @@ def main():
                 'output': ['key_', 'type', 'value_type', 'status', 'state', 'error', 'lastclock', 'trapper_hosts'],
                 'selectPreprocessing': 'extend'})
             for item in sorted(items, key=lambda x: x['key_']):
-                if item['key_'].startswith('xdp.'):
+                if item['key_'].startswith(('xdp.', 'http.', 'net.')):
                     print('ITEM', json.dumps(item, ensure_ascii=False))
             data = collect(state['VICTIM_IP'], args.lab)
-            values = {k: str(data[k]) for k in METRICS}
-            values['mode'] = data['mode']
-            values['events'] = json.dumps({'event': 'diagnostic_probe', 'metrics': data})
+            values = {item_key(k): str(data[k]) for k in METRICS}
+            values['xdp.mode'] = data['mode']
+            values['xdp.events'] = json.dumps({'event': 'diagnostic_probe', 'metrics': data})
             failed = []
             for key, value in values.items():
                 try:
-                    send([{'host': name, 'key': 'xdp.' + key, 'value': value, 'clock': int(time.time())}])
-                    print('ACCEPTED xdp.' + key)
+                    send([{'host': name, 'key': key, 'value': value, 'clock': int(time.time())}])
+                    print('ACCEPTED ' + key)
                 except (OSError, ValueError) as error:
                     failed.append(key)
-                    print('FAILED xdp.' + key + ': ' + str(error))
+                    print('FAILED ' + key + ': ' + str(error))
             return int(bool(failed))
         finally:
             api.call('user.logout', [])

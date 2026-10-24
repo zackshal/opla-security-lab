@@ -16,8 +16,8 @@ import time
 R=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(R/'bin'))
 from state import load
+from catalog import METRICS, item_key
 
-METRICS=['loaded','syn','pass','drop','map_full','fragment_drop']
 def collect(ip,lab):
     cmd=['ssh','-i',os.environ.get('SSH_KEY',str(Path.home()/'.ssh/id_ed25519')),
          '-o','BatchMode=yes','-o','ConnectTimeout=3','-o','StrictHostKeyChecking=accept-new',
@@ -82,10 +82,12 @@ def main():
             event={'time':datetime.datetime.now(datetime.timezone.utc).isoformat(),
                    'lab':d['LAB_ID'],'event':'snapshot','metrics':data}
             append_log(runtime/'events.jsonl',event)
-            records=[{'host':name,'key':'xdp.'+k,'value':str(data[k]),'clock':clock} for k in METRICS]
+            records=[{'host':name,'key':item_key(k),'value':str(data[k]),'clock':clock} for k in METRICS]
             records.append({'host':name,'key':'xdp.mode','value':data['mode'],'clock':clock})
             # Передаём агрегированные события интервала, а не каждый отброшенный пакет.
-            if previous is None or data['loaded']!=previous['loaded'] or data['drop']!=previous['drop']:
+            event_keys=['loaded','mode','drop','map_full','fragment_drop',
+                        'http_available','http_limited','http_5xx','http_parse_errors']
+            if previous is None or any(data[k]!=previous[k] for k in event_keys):
                 pending.append({'host':name,'key':'xdp.events','value':json.dumps(event),'clock':clock})
             send(records+list(pending)); pending.clear(); previous=data
         except (OSError,ValueError,subprocess.SubprocessError) as e:
