@@ -16,5 +16,5 @@ with tempfile.TemporaryDirectory() as tmp:
         config['default-rule-path']=str(ROOT/'security/suricata')
         config['default-log-dir']=str(root)
         path=root/(mode+'.yaml')
-        path.write_text(yaml.safe_dump(config))
+        path.write_text(yaml.safe_dump(config, explicit_start=True, version=(1, 1)))
         subprocess.run(['suricata','-T','-c',str(path)],check=True)
