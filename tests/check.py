@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='.opla-check-',dir=R) as tmp:
     subprocess.run([target],check=True)
 try:
     import yaml
-    for p in list((R/'cloud-init').glob('*.yaml'))+[R/'monitoring/compose.yaml']:
+    for p in list((R/'cloud-init').glob('*.yaml'))+[R/'monitoring/compose.yaml']+list((R/'ansible').rglob('*.yml')):
         yaml.safe_load(p.read_text())
 except ImportError: print('SKIP: YAML parser unavailable; run docker compose config on host')
 print('PASS: shell syntax, Python syntax, monitoring tests, packet behavior')

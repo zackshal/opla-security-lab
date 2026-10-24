@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install portable dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc make python3-yaml
+        run: sudo apt-get update && sudo apt-get install -y gcc make python3-yaml qemu-utils
       - name: Run portable checks
         run: make check
   bpf-build:
@@ -23,3 +23,17 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang make libbpf-dev linux-libc-dev
       - name: Build BPF object
         run: make -C xdp THRESHOLD=100
+
+  configuration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install IDS validators
+        run: sudo apt-get update && sudo apt-get install -y suricata python3-yaml
+      - name: Validate Suricata rules and config
+        run: sudo python3 tools/check-suricata.py
+      - name: Install Ansible controller
+        run: python3 -m venv /tmp/ansible-venv && /tmp/ansible-venv/bin/pip install ansible-core==2.19.3
+      - name: Validate server playbook
+        run: /tmp/ansible-venv/bin/ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
