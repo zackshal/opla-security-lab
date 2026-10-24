@@ -88,7 +88,7 @@ def main():
             records.append({'host':name,'key':'xdp.mode','value':data['mode'],'clock':clock})
             records.append({'host':name,'key':'scan.details','value':data['scan_details'],'clock':clock})
             # Передаём агрегированные события интервала, а не каждый отброшенный пакет.
-            event_keys=['loaded','mode','drop','map_full','fragment_drop',
+            event_keys=['loaded','mode','drop','map_full','fragment_drop','xdp_scan_mode','xdp_scan_events','xdp_scan_drop',
                         'http_available','http_limited','http_5xx','http_parse_errors',
                         'ids_enabled','ids_up','ids_alerts','ids_blocked','ids_parse_errors',
                         'scan_enabled','scan_up','scan_active','scan_alerts','scan_capture_drops','scan_evictions']

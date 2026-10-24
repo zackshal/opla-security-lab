@@ -9,9 +9,11 @@ struct test_ctx { unsigned long data; unsigned long data_end; };
 #include "../xdp/xdp_ddos_protect.c"
 static struct window state;
 static int exists, full;
-static __u64 counters[5], clock_ns;
+static __u64 counters[7], clock_ns;
+static struct scan_policy policy;
 void *bpf_map_lookup_elem(void *map,const void *key) {
     if (map==&xdp_stats) return &counters[*(const __u32 *)key];
+    if (map==&xdp_policy) return &policy;
     return exists ? &state : NULL;
 }
 long bpf_map_update_elem(void *map,const void *key,const void *value,unsigned long long flags) {
@@ -29,8 +31,10 @@ static struct tcphdr *tcp;
 static void reset(void) {
     memset(frame,0,sizeof(frame)); memset(&state,0,sizeof(state));
     memset(counters,0,sizeof(counters));exists=full=0;clock_ns=1;
+    memset(&policy,0,sizeof(policy));
     struct ethhdr *eth=(void *)frame;eth->h_proto=bpf_htons(ETH_P_IP);
     ip=(void *)(eth+1);ip->version=4;ip->ihl=5;ip->protocol=6;ip->tot_len=bpf_htons(40);
+    ip->saddr=bpf_htonl(0x64400002);
     tcp=(void *)(ip+1);tcp->syn=1;tcp->doff=5;
     ctx.data=(unsigned long)frame;ctx.data_end=ctx.data+54;
 }
@@ -63,4 +67,27 @@ int main(void) {
     reset();((struct ethhdr *)frame)->h_proto=bpf_htons(ETH_P_IPV6);
     assert(xdp_ddos_protect(&ctx)==XDP_PASS && counters[0]==0);
     puts("PASS: threshold, window boundary, ACK, map capacity, truncation, IHL, TCP length, fragments, VLAN, IPv6 scope");
+    reset();policy.mode=1;
+    for (int i=1;i<=16;i++) { tcp->dest=bpf_htons(i); assert(xdp_ddos_protect(&ctx)==XDP_PASS); }
+    assert(counters[5]==1 && counters[6]==0);
+    reset();policy.mode=2;
+    for (int i=0;i<50;i++) { tcp->dest=bpf_htons(80); assert(xdp_ddos_protect(&ctx)==XDP_PASS); }
+    assert(counters[5]==0);
+    reset();policy.mode=2;
+    for (int i=1;i<8;i++) { tcp->dest=bpf_htons(i); assert(xdp_ddos_protect(&ctx)==XDP_PASS); }
+    tcp->dest=bpf_htons(8);assert(xdp_ddos_protect(&ctx)==XDP_DROP);
+    assert(counters[5]==1 && counters[6]==1 && counters[2]==1);
+    tcp->dest=bpf_htons(80);assert(xdp_ddos_protect(&ctx)==XDP_DROP);
+    tcp->ack=1;assert(xdp_ddos_protect(&ctx)==XDP_PASS);tcp->ack=0;
+    clock_ns+=SCAN_BLOCK_NS-1;assert(xdp_ddos_protect(&ctx)==XDP_DROP);
+    clock_ns++;assert(xdp_ddos_protect(&ctx)==XDP_PASS);
+    assert(state.port_count==1 && state.blocked_until_ns==0);
+    reset();policy.mode=2;ip->saddr=bpf_htonl(0x64400001);policy.trusted[0]=ip->saddr;
+    for (int i=1;i<=16;i++) { tcp->dest=bpf_htons(i); assert(xdp_ddos_protect(&ctx)==XDP_PASS); }
+    assert(counters[5]==0 && counters[6]==0);
+    reset();policy.mode=1;
+    for (int i=1;i<=7;i++) { tcp->dest=bpf_htons(i); assert(xdp_ddos_protect(&ctx)==XDP_PASS); }
+    clock_ns+=SCAN_WINDOW_NS;tcp->dest=bpf_htons(8);
+    assert(xdp_ddos_protect(&ctx)==XDP_PASS && counters[5]==0 && state.port_count==1);
+    puts("PASS: XDP scan observe/block, retransmits, eighth port, TTL boundary, ACK bypass, trusted source, fixed window");
 }

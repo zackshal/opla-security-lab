@@ -1,6 +1,9 @@
 """Единые имена, типы и единицы управляемых метрик Zabbix."""
 # Имя в SSH JSON, ключ Zabbix, название, тип Zabbix, единица.
 DEFINITIONS = [
+    ('xdp_scan_mode', 'xdp.scan_mode', 'XDP scan policy: off=0 observe=1 block=2', 3, ''),
+    ('xdp_scan_events', 'xdp.scan_events', 'XDP distinct-port threshold crossings', 3, ''),
+    ('xdp_scan_drop', 'xdp.scan_drop', 'New SYN packets blocked by XDP scan policy', 3, ''),
     ('scan_enabled', 'scan.enabled', 'Port-scan detector configured (0/1)', 3, ''),
     ('scan_up', 'scan.up', 'Port-scan detector heartbeat (0/1)', 3, ''),
     ('scan_active', 'scan.active', 'Sources exceeding distinct-port threshold', 3, ''),
@@ -35,7 +38,7 @@ DEFINITIONS = [
 ]
 BY_NAME = {row[0]: row for row in DEFINITIONS}
 METRICS = [row[0] for row in DEFINITIONS if row[3] == 3]
-RATES = ['ids_alerts', 'ids_blocked', 'ids_kernel_drops', 'syn', 'pass', 'drop', 'map_full', 'fragment_drop', 'rx_packets', 'rx_bytes',
+RATES = ['xdp_scan_events', 'xdp_scan_drop', 'ids_alerts', 'ids_blocked', 'ids_kernel_drops', 'syn', 'pass', 'drop', 'map_full', 'fragment_drop', 'rx_packets', 'rx_bytes',
          'http_requests', 'http_limited', 'http_5xx']
 
 
