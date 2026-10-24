@@ -1,6 +1,8 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
+LAB_DIR ?= $(shell python3 bin/state.py --latest)
 export LAB_DIR
+export MAX_SOURCES
 export THRESHOLD
 THRESHOLD ?= 100
 VM ?= victim
@@ -13,7 +15,7 @@ help:
 bootstrap:
 	@./bootstrap.sh
 image:
-	@./bin/prepare-image.sh
+	@./bin/prepare-image.sh "$(or $(ROLE),victim)"
 up:
 	@sudo ./bin/create-lab.sh
 ready ssh console down:
@@ -43,3 +45,37 @@ monitoring-up monitoring-down monitoring-configure monitoring-start monitoring-s
 	@./monitoring/manage.sh "$@"
 versions:
 	@./bin/versions.sh
+
+.PHONY: vm-snapshots vm-save vm-load vm-delete vm-backup vm-restore vm-resume backup-db
+vm-snapshots:
+	@sudo python3 bin/vm-state.py list --lab "$(LAB_DIR)" --vm "$(VM)"
+vm-save:
+	@sudo python3 bin/vm-state.py save --lab "$(LAB_DIR)" --vm "$(VM)" --tag "$(TAG)"
+vm-load:
+	@sudo python3 bin/vm-state.py load --lab "$(LAB_DIR)" --vm "$(VM)" --tag "$(TAG)" $(if $(filter yes,$(ROLLBACK)),--confirm-rollback,)
+vm-delete:
+	@sudo python3 bin/vm-state.py delete --lab "$(LAB_DIR)" --vm "$(VM)" --tag "$(TAG)"
+vm-backup:
+	@sudo python3 bin/vm-disk.py backup --lab "$(LAB_DIR)" --directory "$(BACKUP_DIR)"
+vm-restore:
+	@sudo python3 bin/vm-disk.py restore --lab "$(LAB_DIR)" --directory "$(BACKUP_DIR)" --vm "$(VM)" $(if $(filter yes,$(ROLLBACK)),--confirm-restore,)
+vm-resume:
+	@sudo python3 bin/vm-disk.py resume --lab "$(LAB_DIR)"
+backup-db:
+	@bash bin/backup-db.sh "$(BACKUP_DIR)"
+
+.PHONY: ids ips ids-off ids-status ids-test
+ids:
+	@bash bin/suricata.sh ids
+ips:
+	@bash bin/suricata.sh ips
+ids-off:
+	@bash bin/suricata.sh off
+ids-status:
+	@bash bin/suricata.sh status
+ids-test:
+	@bash bin/security-ids-test.sh
+
+.PHONY: source-map
+source-map:
+	@bash bin/source-map.sh
