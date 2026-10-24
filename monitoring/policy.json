@@ -1,0 +1,6 @@
+{
+  "event_hold": "30s",
+  "collector_timeout": "60s",
+  "syn_peak_pps": 500,
+  "drop_peak_pps": 100
+}

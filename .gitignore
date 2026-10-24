@@ -15,3 +15,8 @@ dumps/*
 *.pid
 docs/.render-assets/
 .venv-docs/
+
+# Печатные документы и экспорт релиза создаются вне дерева исходников.
+*.pdf
+*.docx
+release-artifacts/

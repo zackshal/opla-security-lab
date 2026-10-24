@@ -1,9 +1,79 @@
 #!/usr/bin/env python3
 """Один снимок pinned maps. trace_pipe не читаем: он общий и разрушающий."""
 import json
+import fcntl
+import http.client
+import time
+import os
 from pathlib import Path
 import subprocess
 import sys
+
+HTTP_COUNTERS = ['http_requests', 'http_limited', 'http_5xx', 'http_parse_errors']
+
+def http_snapshot(log_path=Path('/var/log/nginx/opla-security.jsonl'),
+                  state_dir=Path('/var/lib/opla-telemetry')):
+    """Читаем новые полные строки, а не весь журнал при каждом опросе."""
+    empty = dict.fromkeys(HTTP_COUNTERS, 0)
+    if not log_path.exists():
+        return dict(http_available=0, **empty)
+    state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with (state_dir/'http.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state_file = state_dir/'http.json'
+        state = json.loads(state_file.read_text()) if state_file.exists() else {}
+        counters = {k: int(state.get(k, 0)) for k in HTTP_COUNTERS}
+        with log_path.open('rb') as stream:
+            stat = os.fstat(stream.fileno())
+            identity = [stat.st_dev, stat.st_ino]
+            offset = int(state.get('offset', 0))
+            if state.get('identity') != identity or offset > stat.st_size:
+                offset = 0
+            stream.seek(offset)
+            chunk = stream.read(1024*1024)
+            complete = chunk.rfind(b'\n') + 1
+            for raw in chunk[:complete].splitlines():
+                try:
+                    row = json.loads(raw)
+                    status = int(row['status'])
+                    if not 100 <= status <= 599:
+                        raise ValueError('HTTP status outside range')
+                    counters['http_requests'] += 1
+                    counters['http_limited'] += int(row.get('limit_req') == 'REJECTED')
+                    counters['http_5xx'] += int(status >= 500)
+                except (ValueError, KeyError, TypeError):
+                    counters['http_parse_errors'] += 1
+            state = dict(counters, identity=identity, offset=offset+complete)
+        temporary = state_file.with_suffix('.tmp')
+        temporary.write_text(json.dumps(state))
+        temporary.replace(state_file)
+        return dict(http_available=1, **counters)
+
+def full_snapshot():
+    data = snapshot()
+    # Это счётчики драйвера, а не гарантированное число пакетов до XDP.
+    for key in ['rx_packets', 'rx_bytes']:
+        data[key] = int(Path('/sys/class/net/ens3/statistics', key).read_text())
+    data.update(http_probe())
+    data.update(http_snapshot())
+    return data
+
+def http_probe():
+    """Проверка внутри victim; внешнюю доступность с client измеряют отдельно."""
+    started = time.monotonic_ns()
+    connection = http.client.HTTPConnection('127.0.0.1', 80, timeout=1)
+    status = 0
+    try:
+        connection.request('GET', '/')
+        response = connection.getresponse()
+        status = response.status
+        response.read(4096)
+    except (OSError, http.client.HTTPException):
+        pass
+    finally:
+        connection.close()
+    return {'http_up': int(status == 200), 'http_status': status,
+            'http_latency_us': max(0, (time.monotonic_ns()-started)//1000)}
 
 PIN='/sys/fs/bpf/opla'
 KEYS=['syn','pass','drop','map_full','fragment_drop']
@@ -58,6 +128,6 @@ def snapshot():
     return dict(loaded=1,mode=mode,**stats)
 
 if __name__=='__main__':
-    try: print(json.dumps(snapshot()))
+    try: print(json.dumps(full_snapshot()))
     except (OSError,ValueError,subprocess.SubprocessError) as e:
         print(str(e),file=sys.stderr);sys.exit(1)

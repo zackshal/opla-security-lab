@@ -33,6 +33,12 @@ case "$ACTION" in
             --working-directory="$PWD" --setenv="SSH_KEY=${SSH_KEY:-$HOME/.ssh/id_ed25519}" \
             /usr/bin/python3 "$PWD/monitoring/bridge.py" --lab "$LAB_DIR"
         echo "Журнал службы: journalctl --user -u opla-monitor-$LAB_ID -f" ;;
-    monitoring-stop) systemctl --user stop "opla-monitor-$LAB_ID.service" ;;
+    monitoring-stop)
+        unit="opla-monitor-$LAB_ID.service"
+        if [[ "$(systemctl --user show "$unit" -p LoadState --value)" != not-found ]]; then
+            systemctl --user stop "$unit"
+        else
+            echo 'Сборщик уже остановлен'
+        fi ;;
     *) echo 'Неизвестная команда' >&2; exit 1;;
 esac

@@ -1,56 +1,54 @@
-# Zabbix для XDP стенда
+# Мониторинг OPLA
 
-Мониторинг запускается на хосте и не требует выхода учебных ВМ в Интернет.
-Контейнеры: PostgreSQL, Zabbix server и web. Порты опубликованы только на 127.0.0.1.
+Поддерживаемый путь: pinned BPF maps и HTTP/sysfs victim → SSH JSON → Python bridge на хосте → Zabbix trapper → PostgreSQL → dashboard. ВМ не нужен доступ в Интернет. Zabbix API используется для настройки, пароль API не нужен процессу отправки метрик.
+
+## Автоматический запуск
+
+Из корня проекта после make ready и make xdp-all:
 
 ```bash
 make monitoring-up
-# http://127.0.0.1:8080 — войти Admin/zabbix и сменить пароль.
-make monitoring-configure
-make monitoring-start
+export LAB_DIR="$(python3 bin/state.py --latest)"
+bash bin/observability-up.sh
 ```
 
-configure запрашивает пароль через getpass, создаёт узел конкретного LAB_ID,
-восемь trapper items, три dependent items скорости, три триггера и dashboard.
-Повторный configure использует найденные items, а страницу dashboard обновляет.
-Эти объекты предназначены для стенда; ручные изменения dashboard будут заменены повторным configure.
+Предварительно смените начальный пароль веб-интерфейса. observability-up устанавливает HTTP-политику, deploy сборщика, API-конфигурацию и запускает службу. Dashboard текущего стенда обновляется целиком; свою панель клонируйте под другим именем.
 
-## Что видно
+## Каталог
 
-- Скорости syn/pass/drop в пакетах в секунду.
-- Накопительные счётчики, сбрасываемые при перезагрузке XDP.
-- Журнал агрегированных снимков при первом сборе, изменении loaded и росте/сбросе drop.
-- Индикатор loaded и события об отбрасываниях, отключённой XDP и отсутствии данных 30 секунд.
+monitoring/catalog.py: 18 входных значений и 10 зависимых скоростей, всего 28 items. monitoring/setup.py: 12 triggers, 5 graphs, dashboard с XDP/events, HTTP и интерфейсом. monitoring/policy.json задаёт временные окна и пороги обнаружения. Эти пороги не меняют предотвращение в C или nginx.
 
-Полный локальный журнал снимков и ошибок: monitoring/runtime/LAB_ID/events.jsonl.
-Ротация: 5 МиБ плюс один предыдущий файл. Очередь повторной отправки событий
-в памяти ограничена 1000 элементами; при более долгом отказе старые события
-остаются в локальном JSONL до его ротации, а не гарантированно доставляются Zabbix.
-Автоматического восстановления очереди после перезапуска сборщика нет.
-Графики отражают опрос примерно раз в 2 секунды, без обещания покадровой точности.
+Показатель loaded=1 означает одну подключённую программу. Режим хранится строкой native/generic. SYN/pass/drop относятся только к начальным SYN. HTTP-отказы учитываются по limit_req=REJECTED. Локальная HTTP-проверка не заменяет проверку с client. Счётчики sysfs не гарантируют учёт пакетов до native XDP.
+
+## Диагностика
 
 ```bash
-journalctl --user -u opla-monitor-LAB_ID -f
-make xdp-stats
-docker compose --env-file monitoring/.env -f monitoring/compose.yaml logs --tail=100
 make monitoring-stop
-make monitoring-down
+python3 monitoring/diagnose.py --lab "$LAB_DIR"
+make monitoring-start
+lab_id="$(python3 bin/state.py "$LAB_DIR" LAB_ID)"
+journalctl --user -u "opla-monitor-$lab_id.service" -n 40 --no-pager
+tail -n 3 "monitoring/runtime/$lab_id/events.jsonl"
 ```
 
-Замените LAB_ID фактическим именем каталога lab-.... Пользовательская systemd-сессия
-обязательна для фонового режима; для диагностики можно запустить
-python3 monitoring/bridge.py --lab /var/lib/opla/lab-... --once в терминале.
-Одновременно для одного стенда работает только один сборщик (flock).
+Ожидается 18 ACCEPTED. Сборщик использует flock: диагностика и фоновый процесс не работают одновременно. Отсутствующая служба при monitoring-stop допустима. После изменения preprocessing нужны два свежих снимка для скорости; серверу может потребоваться время обновить кеш конфигурации.
 
-Сборщик проверяет число принятых значений Zabbix, а не только response=success.
-При ошибке SSH/API данные не заменяются нулями. API-конфигурация и отправка
-значений — разные каналы: пароль API сборщику не нужен. Отправка trapper
-без TLS допустима здесь только через localhost-публикацию; не публикуйте 10051 наружу.
+В UI сбросьте старые фильтры Latest data, выберите текущий opla-ID. Смотрите свежесть времени, три страницы dashboard и историю Problems. События не означают доставленные внешние уведомления: media type и получатель настраиваются отдельно.
 
-Файл monitoring/.env содержит случайный пароль БД, права 600 и исключение из Git.
-Первичный пароль Zabbix следует сменить в веб-интерфейсе. Данные остаются в volume
-после down. Автоматического удаления базы в скриптах нет.
+## БД и журналы
 
-Параметры виджетов сверены с API Zabbix 7.0: graphid.0, itemid.0 и
-columns.0.itemid. Реальный импорт, приём значений и отображение нужно подтвердить
-на запущенном Zabbix согласно docs/acceptance.md.
+```bash
+lab_id="$(python3 bin/state.py "$LAB_DIR" LAB_ID)"
+docker compose --env-file monitoring/.env -f monitoring/compose.yaml exec -T db psql -U zabbix -d zabbix -v "host_name=opla-$lab_id" < monitoring/sql/security-overview.sql
+docker compose --env-file monitoring/.env -f monitoring/compose.yaml logs --tail 40 server web db
+```
+
+SQL только читает данные. inspect.sql показывает прежний xdp-каталог, security-overview.sql - все три пространства, aggregate-10s.sql - среднее отсчётов SYN-скоростей.
+
+Полный локальный JSONL: ротация 5 MiB и одна предыдущая часть. Событийная очередь в памяти ограничена 1000 записями, после перезапуска не восстанавливается. Гарантии доставки всех событий нет. Индивидуальные nginx-строки и пакеты в БД не отправляются; счётчики и агрегированные события отправляются примерно раз в 2 секунды. HTTP-курсор находится внутри victim в /var/lib/opla-telemetry; непрочитанный хвост при ротации nginx может потеряться.
+
+## Разделение доступа
+
+8080 и 10051 опубликованы только на localhost. Это необходимое условие нынешней отправки без TLS. Пароль БД в monitoring/.env, SSH-ключи и runtime не входят в Git. Docker-группа эквивалентна широкому административному доступу к хосту; используйте выделенную учебную машину. Не очищайте db-data ради исправления графика.
+
+[Полная инструкция и метрики](../README.md#метрики-и-панели-zabbix) · [Проверки](../README.md#проверки-и-эксперименты)
