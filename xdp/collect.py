@@ -83,7 +83,9 @@ def ids_snapshot(log_path=Path('/var/log/opla-suricata/eve.json'),
                         counters['ids_alerts'] += 1
                         counters['ids_blocked'] += int(row.get('alert', {}).get('action') == 'blocked')
                     elif kind == 'stats':
-                        counters['ids_kernel_drops'] = int(row['stats']['capture']['kernel_drops'])
+                        capture = row.get('stats', {}).get('capture')
+                        if isinstance(capture, dict) and 'kernel_drops' in capture:
+                            counters['ids_kernel_drops'] = int(capture['kernel_drops'])
                 except (ValueError, TypeError, KeyError):
                     counters['ids_parse_errors'] += 1
             saved = dict(counters, identity=identity, offset=offset+complete)
