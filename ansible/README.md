@@ -1,5 +1,7 @@
 # Ansible
 
+**Русский** · [English](README.en.md)
+
 Подробный runbook: [локально, SSH, VPN и bastion](../docs/deployment.md).
 
 | Playbook | Назначение | Целевой узел |

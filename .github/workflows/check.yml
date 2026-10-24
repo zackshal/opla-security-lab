@@ -50,6 +50,7 @@ jobs:
         run: |
           suricata -V
           python3 tools/check-suricata.py
+          python3 tools/check-docs.py
           ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
           ansible-playbook -i ansible/inventory.lab-local.example.ini ansible/lab-host.yml --syntax-check
           ansible-playbook -i ansible/inventory.local.example.ini ansible/preflight.yml --syntax-check

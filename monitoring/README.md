@@ -1,6 +1,8 @@
 # Мониторинг
 
-Полный порядок запуска: [README](../README.md#метрики-и-панели-zabbix).
+**Русский** · [English](README.en.md)
+
+Полный порядок запуска: [README](../README.ru.md#метрики-и-панели-zabbix).
 
 Источники: pinned BPF maps, sysfs, nginx JSON log/probe, Suricata EVE и пассивный scan detector. Host bridge получает данные по SSH и отправляет в Zabbix trapper. Пароль API нужен provisioning, а не collector.
 

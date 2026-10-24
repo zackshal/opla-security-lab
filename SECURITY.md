@@ -1,7 +1,9 @@
-# Security
+# Безопасность
 
-OPLA is a release candidate with separate lab and dedicated-server profiles. Threat boundaries, fail-closed scope and outstanding acceptance checks are documented in the root README.
+**Русский** · [English](SECURITY.en.md)
 
-Do not publish private keys, SMTP credentials, monitoring/.env, runtime logs, packet captures or database backups. Native XDP and NFQUEUE change packet handling; test on an isolated data interface with a separate management path before deployment.
+OPLA — release candidate с отдельными лабораторным и серверным профилями. Модель угроз, границы fail-closed и незавершённые проверки описаны в корневом README.
 
-Report vulnerabilities privately through the repository owner's security contact or the hosting platform's private vulnerability reporting. No production SLA or independent security certification is claimed.
+Не публикуйте приватные ключи, SMTP passwords, monitoring/.env, runtime logs, packet captures и backups БД. XDP и NFQUEUE меняют обработку пакетов; сначала проверяйте их на изолированном data interface с отдельным управлением.
+
+Уязвимости сообщайте непублично через доступный контакт владельца или private vulnerability reporting платформы. Production SLA и независимая сертификация не заявлены.

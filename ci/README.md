@@ -1,13 +1,15 @@
-# CI and delivery
+# CI и доставка
 
-[Root README](../README.md#cicd) describes validation boundaries and observed pipeline results.
+**Русский** · [English](README.en.md)
 
-GitLab runs portable/configuration tests, BPF compilation and package generation. `bpf-build` has `dependencies: []`; `delivery` fetches only its BPF artifacts via `needs`. `FF_USE_DIRECT_DOWNLOAD=false` avoids requesting the direct download mode that produced an observed CDN 403.
+Границы проверок и наблюдавшиеся результаты описаны в [README](../README.ru.md#cicd).
 
-GitHub Actions uses hosted runners with Debian containers and read-only repository permissions. It runs equivalent portable/configuration checks, then builds and uploads the BPF package. GitHub's workflow is newly prepared; its first live run is not yet confirmed.
+GitLab выполняет portable/configuration tests, компиляцию BPF и упаковку. bpf-build имеет dependencies: []; delivery получает только BPF artifacts через needs. FF_USE_DIRECT_DOWNLOAD=false отключает прямой путь скачивания, на котором наблюдался CDN 403.
 
-`ci/package.sh` accepts `CI_COMMIT_SHA` (GitHub passes `github.sha` explicitly), verifies the object checksum and packages only object/build metadata. SHA-256 detects changes but is not a signature or independent provenance proof.
+GitHub Actions использует hosted runner, Debian containers и read-only permissions. Выполняются переносимые и конфигурационные проверки, затем сборка и загрузка BPF package. Результат новой редакции проверяется в её workflow; прежний успех GitLab не доказывает успех GitHub.
 
-GitLab staging deployment requires `OPLA_DEPLOY_ENABLED=1`, protected default branch, a manual job, and a separate runner tagged `opla-deploy`. Protected File variables are `OPLA_DEPLOY_INVENTORY`, `OPLA_DEPLOY_VARS`, `OPLA_SSH_PRIVATE_KEY`, `OPLA_SSH_KNOWN_HOSTS`; check `deploy.sh` before configuring them. Host key checking stays enabled. Deployment has not been accepted on a real server.
+ci/package.sh принимает CI_COMMIT_SHA; GitHub передаёт github.sha. Проверяются контрольные суммы object, упаковываются object/build metadata. SHA-256 не является подписью или независимым доказательством происхождения.
 
-The initial public release used a fresh Git history. Reviewed source-path history can be attached later with an ours merge, without changing the current public tree or pushing old PDF/report/runtime paths. See ../docs/git-history.md. The private GitLab history remains unchanged.
+Развёртывание GitLab требует OPLA_DEPLOY_ENABLED=1, protected default branch, manual job и отдельный runner с tag opla-deploy. Protected File variables: OPLA_DEPLOY_INVENTORY, OPLA_DEPLOY_VARS, OPLA_SSH_PRIVATE_KEY, OPLA_SSH_KNOWN_HOSTS. Перед настройкой изучите deploy.sh; проверка host keys включена. Реальное серверное развёртывание ещё не прошло приёмку.
+
+Исходная история уже присоединена к публичному репозиторию; атрибуция затем исправлена. Не повторяйте старый импорт и не сливайте приватную ветку целиком. См. [историю Git](../docs/git-history.md).

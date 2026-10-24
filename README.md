@@ -1,9 +1,10 @@
 # OPLA Security Lab
 
-**Воспроизводимые эксперименты с сетевой защитой Linux: eBPF/XDP, Suricata IDS/IPS, Zabbix и проверяемое восстановление стенда.**
+[Русский](README.ru.md) · **English**
+
+**Reproducible Linux network-security experiments with eBPF/XDP, Suricata IDS/IPS, Zabbix and verified recovery workflows.**
 
 [![GitHub Actions](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml/badge.svg)](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml)
-
 ![C/eBPF](https://img.shields.io/badge/C%20%2F%20eBPF-clang%2014.0.6-00599C?logo=c&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.13.5-3776AB?logo=python&logoColor=white)
 ![Bash](https://img.shields.io/badge/Bash-shell%20scripts-4EAA25?logo=gnubash&logoColor=white)
@@ -15,84 +16,73 @@
 ![Zabbix](https://img.shields.io/badge/Zabbix-7.0.19-D40000?logo=zabbix&logoColor=white)
 ![Ansible](https://img.shields.io/badge/Ansible%20core-2.19.3-EE0000?logo=ansible&logoColor=white)
 
-Версии отражают наблюдавшийся запуск, а не обещание актуальных security fixes или автоматическую фиксацию пакетов. Версия Bash не была записана в приложенных журналах. Ansible core 2.19.3 использован для syntax-check текущих playbooks; это не установленная версия на неизвестном сервере. [Окружение и сбор версий](docs/versions.md).
+Badges record the observed environment, not a recommended current security baseline or immutable package lock. Bash was not recorded; Ansible core 2.19.3 was used for syntax validation only. See [versions](docs/versions.en.md).
 
-[Быстрый старт](#быстрый-старт) · [XDP](#защита-ebpfxdp) · [Zabbix](#метрики-и-панели-zabbix) · [Испытания](#проверки-и-эксперименты) · [CI/CD](#cicd) · [Ограничения](#ограничения-и-модель-доверия)
+[Quick start](#quick-start) · [XDP](#ebpfxdp-protection) · [Zabbix](#zabbix) · [Deployment](docs/deployment.en.md)
 
-> **Статус: лабораторный release candidate.** Native XDP и отдельные защитные сценарии проверены на живом стенде. GitLab pipeline [#2985024140](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines/2985024140) прошёл для `96ef03bb`: тесты, проверка конфигураций, компиляция BPF и упаковка. Полная установка с нуля, восстановление после перезагрузки хоста и развёртывание Ansible на отдельном сервере остаются отдельными критериями приёмки. Проект не заявляет универсальную защиту L2–L7 или промышленную готовность.
+> **Status: laboratory release candidate.** Native XDP and selected defenses were tested live. GitLab pipeline [2985024140](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines/2985024140) passed for 96ef03bb. Cold installation, full host-reboot recovery and dedicated-server Ansible deployment require separate acceptance. This is not universal L2–L7 protection or a claim of production readiness.
 
-## Что делает проект
+## Capabilities
 
-OPLA связывает защитное решение с наблюдаемыми данными: пакетом, BPF-счётчиком, событием Suricata, HTTP-ответом, проблемой Zabbix и уведомлением. Три ВМ разделяют роли источника тестового трафика, защищаемого сервиса и независимого клиента.
+OPLA links a test packet to BPF counters, Suricata events, HTTP responses, Zabbix problems and notifications. Three VMs separate test generation, the protected service and an independent client.
 
-- XDP разбирает заголовки, ограничивает начальные TCP SYN и обнаруживает сканирование по различным портам источника.
-- Suricata обнаруживает события в режиме IDS или блокирует выбранный HTTP-трафик через NFQUEUE.
-- nginx ограничивает HTTP-запросы и пишет структурированный журнал.
-- Zabbix автоматически получает host, items, preprocessing, triggers, graphs и dashboard.
-- Очередь уведомлений отправляет Warning+ и восстановления на Gmail и Proton через Gmail SMTP/TLS и Tor.
-- QMP позволяет сохранить и откатить состояние отдельной ВМ; отдельные команды создают проверяемые дисковые копии и дамп БД.
-- CI проверяет переносимую логику, конфигурации и собирает BPF object с контрольными суммами.
+- XDP validates packet headers, limits initial TCP SYNs and detects distinct-port scans.
+- Suricata operates as AF_PACKET IDS or selected HTTP NFQUEUE IPS.
+- nginx limits HTTP requests and writes structured logs.
+- Zabbix provisions managed hosts, items, preprocessing, triggers, graphs and dashboards.
+- A persistent queue sends Warning+ and recovery events to Gmail and Proton through Gmail SMTP/TLS over Tor.
+- QMP handles individual VM snapshots; separate commands create validated standalone disk copies and database dumps.
+- CI checks portable logic/configuration and builds a checksummed BPF package.
 
-## Демонстрация
+## Demonstration
 
-![Воспроизведение сохранённого терминального вывода](assets/demo/terminal-replay.gif)
+![Replay of saved terminal output](assets/demo/terminal-replay.gif)
 
-[Видео MP4](assets/demo/terminal-replay.mp4) · [Исходные числовые результаты](assets/demo/observed-results.json)
+[MP4](assets/demo/terminal-replay.mp4) · [Recorded numerical results](assets/demo/observed-results.json)
 
-Ролик — воспроизведение ранее сохранённого терминального вывода, **не запись нового запуска**. Он показывает ранние SYN/HTTP-опыты; число метрик в его данных относится к той версии. Скорость кадров не является измерением производительности. Текущие XDP scan policy и CI описаны ниже. Реальные скриншоты новых панелей в этот релиз не добавлены.
+This is an editorial replay of previously captured output, not a new live recording or a performance benchmark. It shows earlier SYN/HTTP experiments and historical item counts. Current scan policy and CI differ; new dashboard screenshots are not included.
 
-## Архитектура
+## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph lab["QEMU/KVM · отдельная сеть /29"]
-        attacker["attacker"] --> bridge["Linux bridge"]
-        client["client · проверка HTTP"] --> bridge
-        bridge --> xdp["victim/ens3 · XDP"]
-        xdp -->|PASS| stack["Linux TCP/IP · nginx"]
-        xdp -->|решения| maps["BPF maps"]
-        stack --- ids["Suricata IDS / HTTP NFQUEUE IPS"]
+    subgraph lab["QEMU/KVM isolated lab"]
+        attacker["Traffic source"] --> bridge["Linux bridge"]
+        client["Independent HTTP client"] --> bridge
+        bridge --> xdp["Victim ens3: XDP"]
+        xdp -->|PASS| stack["Linux stack and nginx"]
+        xdp --> maps["BPF maps"]
+        stack --- ids["Suricata IDS or HTTP IPS"]
     end
-    collector["SSH collector на хосте"] --> maps
-    collector -->|sysfs · HTTP · EVE| stack
-    collector -->|trapper| zabbix["Zabbix · PostgreSQL · Web"]
-    mail["Очередь Warning+ / RECOVERY"] -->|API| zabbix
-    mail --> tor["Tor SOCKS на хосте"]
-    tor --> smtp["Gmail SMTP · STARTTLS"]
-    smtp --> recipients["Gmail и Proton"]
+    collector["Host SSH collector"] --> maps
+    collector --> stack
+    collector --> zabbix["Zabbix and PostgreSQL"]
+    alerts["Notification queue"] --> zabbix
+    alerts --> transport["Tor and Gmail SMTP"]
+    transport --> recipients["Gmail and Proton inboxes"]
 ```
 
-Сеть ВМ создаётся динамически; текущие адреса читаются из `LAB_DIR/state.env`. Для примеров ниже использован наблюдавшийся стенд `100.64.0.0/29`: host `.1`, attacker `.2`, victim `.3`, client `.4`. Эти адреса нельзя переносить на другой экземпляр без проверки.
+Read current VM addresses from the selected lab state. The observed /29 used host 100.64.0.1, attacker .2, victim .3 and client .4; these are not universal constants. IDS uses AF_PACKET; HTTP IPS queues selected HTTP/80 requests and replies to NFQUEUE 42. Native XDP can drop before ordinary packet capture sees traffic.
 
-В IDS используется AF_PACKET. В IPS выбранный входящий HTTP/80 и соответствующие ответы направляются в NFQUEUE 42. Это отдельный профиль, а не inline-фильтрация всех протоколов. Native XDP DROP происходит раньше обычного захвата пакетов; пассивный сенсор может его не увидеть.
+## Requirements
 
-## Требования
-
-| Компонент | Требование / проверенная среда |
+| Component | Requirement / observed environment |
 |---|---|
-| Хост | Linux amd64, systemd, доступный `/dev/kvm`, sudo и отдельная лабораторная машина |
-| Виртуализация | QEMU, qemu-img, cloud-image-utils, dnsmasq, libguestfs, socat |
-| Управление | Python 3, PyYAML, Bash, OpenSSH client, iproute2, nftables, curl, make, C compiler |
-| Мониторинг | Docker Engine и Docker Compose plugin |
-| Ресурсы | Практический минимум 8 GiB RAM и 20 GiB диска; копии и snapshots требуют дополнительного места |
-| Проверенный запуск | Host Debian 13/QEMU 10; guests Debian 12/kernel 6.1; clang 14, bpftool 7.1; Suricata 7.0.10 |
-| Переносимые тесты | Debian-пакеты `gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils` |
+| Host | Linux amd64, systemd, sudo, /dev/kvm, dedicated lab machine |
+| Virtualization | QEMU, qemu-img, cloud-image-utils, dnsmasq, libguestfs, socat |
+| Management | Python 3/PyYAML, Bash, OpenSSH, iproute2, nftables, curl, make, C compiler |
+| Monitoring | Docker Engine and Compose plugin |
+| Resources | Practical baseline: 8 GiB RAM and 20 GiB disk; backups need more |
+| Observed | Debian 13/QEMU 10 host; Debian 12/kernel 6.1 guests; clang 14, bpftool 7.1, Suricata 7.0.10 |
+| Portable checks | gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils |
 
-`bin/install-host.sh` рассчитан на **чистый Debian 12**. Это не универсальный установщик Debian 13, Ubuntu или Astra Linux. Не запускайте его на существующем рабочем хосте ради проверки зависимостей. Для ключа управления ожидается `~/.ssh/id_ed25519`; приватный ключ не копируется в репозиторий.
+`bin/install-host.sh` targets a clean Debian 12 host; it is not a universal Debian 13/Ubuntu/Astra installer. Do not run it on a working machine just to check dependencies. Management expects ~/.ssh/id_ed25519; private keys do not belong in Git.
 
-Образы QEMU и контейнеров скачиваются отдельно. ВМ лабораторного профиля не получают default gateway и DNS для внешнего доступа; изоляцию дополнительно обеспечивают отдельные nftables-правила. Подготовка образов выполняется через libguestfs, не через открытие Интернета гостевым ВМ.
+Images download separately. Lab guests have no external default gateway/DNS and use scoped nftables isolation. Prepare guest images through libguestfs instead of exposing guests to the Internet.
 
-## Быстрый старт
+## Quick start
 
-Скачайте исходники через **Code → Download ZIP** или клонируйте URL выбранного репозитория. Все команды хоста ниже выполняются из корня исходников. Сначала проверьте код:
-
-```bash
-make check
-```
-
-### Образы и ВМ
-
-На подготовленном хосте:
+Clone this repository or use Code → Download ZIP. Run commands from its root on a prepared dedicated host:
 
 ```bash
 make bootstrap
@@ -104,122 +94,78 @@ make ready
 export LAB_DIR="$(python3 bin/state.py --latest)"
 ```
 
-**Известная граница чистой установки:** `prepare-image.sh` использует обычный `--install`. В наблюдавшейся Debian 12 конфигурации Suricata требовала согласованной установки с `libhtp2` из bookworm-backports. Эта операция была выполнена вручную на остановленной victim; автоматическая чистая сборка victim с тем же набором ещё не подтверждена. При ошибке образа остановитесь на ней; последующие команды не исправляют APT-зависимости.
-
-Отдельные role images уменьшают состав пакетов attacker/client. При отсутствии role image create-lab может использовать victim image как fallback. Поэтому роль ВМ сама по себе не гарантирует минимальный состав пакетов. Nmap/arp-scan/Yersinia, использованные в опытах, были добавлены в конкретную attacker отдельно; текущий image script их не устанавливает.
-
-### Подключение XDP
+Stop on any failed command. In the observed Debian 12 setup, Suricata/libhtp2 needed matched bookworm-backports packages installed manually on a stopped victim. The ordinary prepare-image --install path has not been accepted as a fully automated cold build. Separate role images reduce packages; fallback to the victim image can defeat this optimization. Nmap/arp-scan/Yersinia were added separately to the tested attacker and are not installed by the current image script.
 
 ```bash
 make xdp-all THRESHOLD=100 MAX_SOURCES=4096
 make xdp-stats
-```
-
-Ожидайте `loaded: 1` и проверьте `mode`. Загрузчик пробует native; generic fallback не означает native-производительность. Он не заменяет уже присоединённую программу автоматически. Для намеренного обновления своей программы используйте `make xdp-unload`, затем сборку/загрузку; это прерывает защиту и пересоздаёт счётчики.
-
-### Мониторинг и HTTP
-
-```bash
 make monitoring-up
 ```
 
-Откройте `http://127.0.0.1:8080`, смените начальный пароль `Admin/zabbix`, затем:
+Expect loaded=1 and inspect attachment mode. Native is attempted first; generic fallback does not imply native performance. Existing programs are not overwritten automatically. Reloading intentionally via xdp-unload then xdp-all interrupts protection and resets maps.
+
+Open http://127.0.0.1:8080 and change the initial Admin/zabbix password. Then:
 
 ```bash
 bash bin/observability-up.sh
-```
-
-Скрипт устанавливает HTTP-политику, развёртывает collector, выполняет provisioning через API и запускает сбор. Он не загружает XDP и не включает Suricata/scan detector автоматически.
-
-```bash
 make ids
 make ids-status
 bash bin/scan-detector.sh start
 ```
 
-Для HTTP IPS вместо IDS:
+Observability setup installs HTTP policy, copies the collector, provisions Zabbix and starts collection. It does not automatically attach XDP or enable IDS/passive detection. For HTTP IPS use `make ips` instead of `make ids`. Engine failure can close the selected IPS path; preserve separate management access.
 
-```bash
-make ips
-make ids-status
-```
+## eBPF/XDP protection
 
-В этом профиле остановка IPS engine может сделать выбранный HTTP-путь недоступным. Управление должно оставаться на отдельном доступном пути.
+Source: [xdp_ddos_protect.c](xdp/xdp_ddos_protect.c).
 
-## Защита eBPF/XDP
-
-Обработчик: [xdp/xdp_ddos_protect.c](xdp/xdp_ddos_protect.c).
-
-| Механизм | Область действия |
+| Mechanism | Scope |
 |---|---|
-| Разбор Ethernet/VLAN/IPv4/TCP | Проверки границ, IPv4 IHL и длин TCP; поддержка до двух VLAN-тегов |
-| SYN rate limit | Начальные IPv4 TCP SYN, по источнику, фиксированное окно; default 100 за 1 секунду |
-| Fragment policy | Фрагментированный IPv4 TCP отбрасывается в данном лабораторном профиле |
-| Distinct-port scan | 8 различных destination ports за фиксированное окно 60 секунд на IPv4 source |
-| Временный запрет | В режиме block новые SYN источника отбрасываются 30 секунд |
-| Ограниченная карта | Default 4096 источников; при невозможности добавить источник SYN отбрасывается, растёт map_full |
+| Ethernet/VLAN/IPv4/TCP parser | Boundary/IHL/TCP-length checks; up to two VLAN tags |
+| SYN rate limit | Initial IPv4 TCP SYN per source; default 100 per fixed second |
+| Fragment policy | Fragmented IPv4 TCP is dropped in this lab profile |
+| Scan detection | Eight distinct destination ports per IPv4 source in a fixed 60-second window |
+| Temporary ban | Block mode drops new SYNs from that source for 30 seconds |
+| Bounded source map | Default 4096; insertion failure drops SYN and increments map_full |
+
+Choose one mode:
 
 ```bash
 bash bin/xdp-scan-policy.sh observe
-bash bin/xdp-scan-policy.sh block
-bash bin/xdp-scan-policy.sh off
-bash bin/source-map.sh
 ```
 
-Режимы выполняйте по одному для выбранного опыта. `observe` регистрирует событие, `block` добавляет временное отбрасывание, `off` отключает только scan policy. После загрузки новой карты scan policy по умолчанию off; её нужно применить снова.
+Use `block` for prevention or `off` to disable only scan policy. New maps default to off. The two trusted sources bypass scan policy only, not SYN rate limiting. The wrapper obtains management/client addresses from lab state. Initial probes below threshold, ARP discovery, established traffic and ACKs are not blocked by scan policy.
 
-Два trusted IPv4 source — управление и независимый client — обходят **только scan policy**, а не SYN rate limit. Wrapper читает их из состояния стенда. После включения block первые пробы до порога могут пройти; уже установленные соединения и ACK этим механизмом не запрещаются. ARP discovery также не блокируется.
+Maps are `syn_windows` (source/scan state and lock), `xdp_policy` (mode/trust), and `xdp_stats` (seven per-CPU counters), pinned under /sys/fs/bpf/opla/maps; the program is /sys/fs/bpf/opla/program. Counters: syn, pass, drop, map_full, fragment_drop, xdp_scan_events, xdp_scan_drop. Scan drops are included in total drops. SYN counters do not count all traffic or every malformed packet. The collector sums CPUs.
 
-### Карты и счётчики
+loaded=1 is a boolean, not a sensor count. RX comes from sysfs, HTTP from logs/probes and IDS from EVE; these are not additional BPF maps.
 
-| Карта | Содержимое |
+## Zabbix
+
+Provisioning manages **49 items (34 raw + 15 rates), 23 triggers, five graphs and a five-page dashboard**:
+
+| Page | Content |
 |---|---|
-| `syn_windows` | Spin lock, SYN-window, различные порты и срок временного запрета по source IP |
-| `xdp_policy` | Текущий режим и два trusted source |
-| `xdp_stats` | Per-CPU array из 7 счётчиков |
+| XDP and events | Attachment, mode, SYN/drop/map pressure and scan policy |
+| HTTP protection | Requests, limits, errors and local probe |
+| Interface traffic | RX counters and rates |
+| IDS and IPS | Engine state, alerts, block decisions and EVE errors |
+| Port-scan detection | Passive Python detector, heartbeat and bounded source state |
 
-Программа закрепляется в `/sys/fs/bpf/opla/program`, карты — в `/sys/fs/bpf/opla/maps`.
-
-`xdp_stats`: `syn`, `pass`, `drop`, `map_full`, `fragment_drop`, `xdp_scan_events`, `xdp_scan_drop`.
-`pass/drop` относятся к учтённым начальным SYN; `xdp_scan_drop` — подмножество общего `drop`. Повреждённые пакеты могут отбрасываться без увеличения SYN-счётчиков. Collector суммирует значения всех CPU.
-
-`loaded=1` — булев признак присоединённой программы, а не число правил, карт или датчиков. `rx_packets/rx_bytes` берутся из sysfs, HTTP — из nginx и локального probe, IDS — из EVE. Эти значения не являются дополнительными XDP-картами.
-
-## Метрики и панели Zabbix
-
-Текущий provisioning создаёт **49 items: 34 исходных значения и 15 скоростей, 23 triggers, 5 graphs и dashboard из 5 страниц**:
-
-| Страница | Данные |
-|---|---|
-| XDP and events | Присоединение, режим, SYN, drop, давление на карту и XDP scan policy |
-| HTTP protection | Запросы, rate limiting, ошибки и локальная HTTP-проверка |
-| Interface traffic | Счётчики RX и производные скорости |
-| IDS and IPS | Состояние Suricata, alerts, blocked decisions, ошибки чтения EVE |
-| Port-scan detection | Пассивный Python detector, heartbeat, источники и давление на его состояние |
-
-Повторный `make monitoring-configure` обновляет управляемые объекты и ремонтирует известные параметры существующих items. Свои панели клонируйте под другим именем: управляемый dashboard обновляется целиком. Порог Zabbix из `monitoring/policy.json` не меняет порог предотвращения в C/nginx.
+Repeat `make monitoring-configure` updates managed objects; clone a dashboard for private changes. Zabbix policy thresholds do not change XDP/nginx prevention.
 
 ```bash
 make monitoring-stop
 python3 monitoring/diagnose.py --lab "$LAB_DIR"
 make monitoring-start
-```
-
-Диагностика и collector используют блокировку, поэтому не запускаются одновременно. После изменения preprocessing скоростям нужны свежие отсчёты. В интерфейсе выберите текущий `opla-lab-...` и очистите старые фильтры.
-
-Журналы и состояние:
-
-```bash
 lab_id="${LAB_DIR##*/}"
 journalctl --user -u "opla-monitor-$lab_id.service" -n 30 --no-pager
 docker compose --env-file monitoring/.env -f monitoring/compose.yaml logs --tail 30
 ```
 
-SQL-запросы для read-only просмотра находятся в `monitoring/sql/`. PostgreSQL не публикует порт наружу; Web/receiver опубликованы на localhost 8080/10051. В БД сохраняются метрики и агрегированные события, а не полный packet capture и не каждая строка nginx.
+Diagnostics and collection share a lock. Check sample freshness and clear stale UI filters. Rates need fresh samples after preprocessing changes. Read-only SQL is in monitoring/sql. PostgreSQL is not published; web/trapper bind to localhost 8080/10051. Stored metrics are not full packet capture or every nginx log record.
 
-## Уведомления
-
-Основной путь — отдельный опросчик Zabbix с очередью SQLite и попытками доставки отдельно для каждого получателя:
+## Notifications
 
 ```bash
 python3 monitoring/alert_delivery.py configure --host "opla-${LAB_DIR##*/}"
@@ -228,15 +174,11 @@ python3 monitoring/alerts_service.py install
 python3 monitoring/alert_delivery.py status
 ```
 
-Нужны локальный Zabbix 7.0 API token с разрешёнными операциями, Gmail app password и работающий host SOCKS5 `127.0.0.1:9050`. Интерактивная конфигурация запрашивает оба адреса и секреты без вывода пароля. Они сохраняются вне исходников в `~/.config/opla/alerts.json` с правами 0600.
+Needs a Zabbix 7.0 token with suitable permissions, Gmail app password and host SOCKS5 at 127.0.0.1:9050. Interactive setup saves secrets outside Git in ~/.config/opla/alerts.json with mode 0600.
 
-Warning и выше получают оба адреса, Gmail и Proton. Бесплатный Proton используется как получатель; SMTP-отправитель — Gmail с обязательным STARTTLS. Это два почтовых назначения, но один транспорт Gmail/Tor, а не два независимых канала отправки.
+Both inboxes receive Warning+ and recovery notifications. Free Proton is a recipient; Gmail is the STARTTLS SMTP sender. These are two destinations sharing one transport, not independent delivery channels. The SQLite queue tracks recipient attempts. SMTP acceptance is not inbox receipt, and ambiguous SMTP responses can cause duplicates. PROBLEM delivery was observed; RECOVERY has unit coverage but still needs a separate live check. Initial polling may notify existing problems.
 
-SMTP acceptance не доказывает попадание во «Входящие». При неоднозначном SMTP-ответе после отправки возможны дубликаты. Получение PROBLEM подтверждено опытом; RECOVERY покрыто unit-тестами, но отдельное живое подтверждение ещё требуется. Начальная настройка может включать уже активные проблемы выбранного узла.
-
-## Снимки и резервирование
-
-### QMP snapshot одной ВМ
+## Snapshots and backup
 
 ```bash
 make monitoring-stop
@@ -246,30 +188,24 @@ make vm-load VM=client TAG=before-change ROLLBACK=yes
 make monitoring-start
 ```
 
-`vm-load` откатывает состояние выбранной ВМ; изменения после snapshot теряются. Это не атомарный snapshot всех ВМ и БД. Сборщик перед откатом останавливается, чтобы не смешать временные эпохи.
-
-### Дисковые копии и БД
+Rollback discards later state of one VM; it is not an atomic backup of VMs plus external database.
 
 ```bash
 make vm-backup BACKUP_DIR="$HOME/opla-backups/disks-$(date +%Y%m%d-%H%M%S)"
 make backup-db BACKUP_DIR="$HOME/opla-backups/db-$(date +%Y%m%d-%H%M%S)"
 ```
 
-Дисковая копия требует остановленных QEMU; проверка не разрешает копировать активные диски. Копии создаются независимо от backing image, проверяются `qemu-img check` и SHA-256. Disk restore сохраняет прежний диск под другим именем. Сами backups и snapshots содержат приватные данные и не входят в Git.
+Disk backup rejects running QEMU, creates standalone copies and verifies structure/hashes. Restore retains the replaced disk. Backups/snapshots are private. `vm-resume` starts retained VMs; `make down` deletes the selected lab.
 
-`make vm-resume` запускает сохранённые ВМ после штатного выключения. `make down` — очистка стенда, а не способ его сохранить.
+## Validation and experiments
 
-## Проверки и эксперименты
-
-| Уровень | Проверка | Что она подтверждает |
+| Layer | Check | Evidence |
 |---|---|---|
-| Portable | `make check` | Логика Python, shell/Python/YAML syntax и packet harness C-программы с mock helpers/часами |
-| Build | `make -C xdp` в среде с clang/libbpf headers | Компилируемость BPF object |
-| Kernel | Реальная загрузка и `bpftool` на victim | Принятие verifier и присоединение на конкретном ядре |
-| Live | Счётчики до/после + генератор + независимый HTTP client | Поведение конкретной политики в выбранном опыте |
-| Restore | Файл-маркер после QMP rollback; pg_restore в отдельную БД | Проверенный сценарий восстановления |
-
-Для bounded-трафика между ВМ:
+| Portable | make check | Python logic, syntax and C packet harness with mocked helpers/time |
+| Build | make -C xdp with clang/libbpf | BPF compilation |
+| Kernel | Real load and bpftool | Verifier/attachment on that kernel |
+| Live | Counter deltas, generator, independent client | A particular policy under tested conditions |
+| Recovery | QMP marker and isolated pg_restore | Tested recovery scenario |
 
 ```bash
 bash bin/traffic-scenario.sh syn
@@ -278,11 +214,9 @@ bash bin/traffic-scenario.sh http
 make ids-test
 ```
 
-Сценарии сохраняют данные в `reports/`. `ids-test` сохраняет marker/normal ответы и counters; его exit code сам по себе не доказывает обнаружение/блокировку. Сопоставляйте EVE SID 9001100/9001200, `ids_alerts/ids_blocked` и обычный HTTP 200. Процент hping packet loss не равен доле XDP_DROP.
+Evidence goes to reports/. ids-test exit status alone is not acceptance: correlate EVE SID 9001100/9001200, alert/block deltas and ordinary HTTP 200. hping loss is not XDP drop percentage.
 
-Проверенные опыты: native XDP; SYN drop под нагрузкой; scan observe и block; attacker HTTP timeout сразу после сканирования и 200 после истечения TTL; отрицательный контроль трёх портов без роста scan/drop; IDS alert и HTTP IPS marker drop; PROBLEM-письма; rollback client с восстановлением содержимого файла; pg_restore в отдельный изолированный PostgreSQL.
-
-Полезные первичные проверки внутри victim:
+Observed: native XDP, SYN limiting, scan observe/block, attacker HTTP timeout then recovery after TTL, negative three-port control, IDS marker alert and IPS marker block, PROBLEM email, client QMP marker rollback and isolated PostgreSQL restore. Continuous client availability during every enforcement experiment remains a separate test.
 
 ```bash
 sudo bpftool net show
@@ -290,15 +224,11 @@ sudo bpftool prog show pinned /sys/fs/bpf/opla/program
 sudo bpftool -p map dump pinned /sys/fs/bpf/opla/maps/xdp_stats
 ```
 
-Не сравнивайте накопительные счётчики через перезагрузку BPF-карт как один непрерывный опыт. Возраст окна source map не равен last-seen. Исторические `ids_parse_errors` не обнуляются автоматически после исправления парсера: проверяется их дельта.
+Do not combine counters across map recreation. Source window age is not last-seen time. Old EVE parse-error totals do not reset automatically after a parser fix; compare deltas.
 
-## Ansible: локально, SSH и VPN
+## Ansible and deployment choices
 
-Плейбук серверного профиля находится в [ansible/site.yml](ansible/site.yml), примеры параметров — [ansible/vars.example.yml](ansible/vars.example.yml). Подготовка отдельного QEMU-хоста выполняется новым [ansible/lab-host.yml](ansible/lab-host.yml). Это разные профили; серверный playbook не создаёт три лабораторные ВМ.
-
-[Инструкция развёртывания](docs/deployment.md) содержит inventory для local connection, обычного SSH, SSH через VPN и bastion. VPN обеспечивает сетевой маршрут, а SSH остаётся транспортом управления. Local connection обходится без SSH. Приватные inventory, ключи и Vault-файлы сохраняются вне Git.
-
-Для проверки YAML без изменения узла:
+Existing playbooks: [site.yml](ansible/site.yml), [lab-host.yml](ansible/lab-host.yml), [preflight.yml](ansible/preflight.yml). See [deployment](docs/deployment.en.md) for local/SSH/VPN/bastion inventories. Server profile is a dedicated Debian 13 installation, not the three-VM lab. VPN routing must already exist; credentials/Vault stay outside Git.
 
 ```bash
 ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
@@ -306,68 +236,54 @@ ansible-playbook -i ansible/inventory.lab-local.example.ini ansible/lab-host.yml
 ansible-playbook -i ansible/inventory.local.example.ini ansible/preflight.yml --syntax-check
 ```
 
-Реальный запуск требует выбранного узла и заполненных параметров. Не применяйте серверный профиль к текущему рабочему ноутбуку или lab victim Debian 12: он рассчитан на выделенный Debian 13 и меняет nginx/Suricata/XDP.
+Do not apply server configuration to a working laptop or Debian 12 lab victim.
 
-## Руководства по эксплуатации
+## Runbooks
 
-| Задача | Инструкция |
+| Task | Guide |
 |---|---|
-| Службы, интерфейсы, карты, журналы, сценарии | [Операции и диагностика](docs/operations.md) |
-| QMP save/load/delete, offline disk backup, PostgreSQL restore drill | [Резервирование и восстановление](docs/backup-restore.md) |
-| Остановить, сохранить, удалить стенд/volume/секреты/артефакты | [Жизненный цикл данных и удаление](docs/data-lifecycle.md) |
-| Подготовить lab host или сервер через local/SSH/VPN/bastion | [Ansible deployment](docs/deployment.md) |
-| Добавить очищенную исходную историю без force push | [История Git](docs/git-history.md) |
-| Проверенные версии и сбор точного окружения | [Версии](docs/versions.md) |
+| Services, interfaces, maps and diagnostics | [Operations](docs/operations.en.md) |
+| QMP, offline copies and PostgreSQL recovery | [Backup and restore](docs/backup-restore.en.md) |
+| Stop, retain and delete data | [Data lifecycle](docs/data-lifecycle.en.md) |
+| Local/remote installation | [Deployment](docs/deployment.en.md) |
+| Public ancestry and attribution | [Git history](docs/git-history.en.md) |
+| Environment evidence | [Versions](docs/versions.en.md) |
 
 ## CI/CD
 
-[GitLab configuration](.gitlab-ci.yml) · [GitHub Actions](.github/workflows/check.yml) · [Packaging](ci/package.sh) · [Deployment guards](ci/deploy.sh)
+[GitLab](.gitlab-ci.yml) · [GitHub Actions](.github/workflows/check.yml) · [Packaging](ci/package.sh) · [Deployment guards](ci/deploy.sh)
 
-| Job | Назначение |
+Portable and configuration jobs precede BPF build/package. Packages include object, COMMIT, BUILD, VALIDATION and SHA-256; compiler/package metadata is not an independent signature.
+
+The historical four-job GitLab success is tied to 96ef03bb. Inspect the current workflow for later revisions. GitLab's local project runner runs one job at a time, 2 CPU/2 GiB per job; job containers do not receive the Docker socket, but the trusted runner manager does. It is not an untrusted-code sandbox.
+
+The local Tor/obfs4 proxy and bridge updater are separate tooling, not prerequisites for GitHub hosted CI. Host firewall must permit CI egress; an HTTP proxy is not a network kill switch. BPF build avoids unnecessary test artifacts; direct downloads are disabled after a CDN 403. Tests 0 indicates no JUnit report, not no executed tests.
+
+Server deployment is disabled by default and requires a manual protected job and `opla-deploy` runner. Syntax checks are not live deployment acceptance.
+
+## Limits and trust
+
+- No universal block of Nmap, Yersinia or arp-scan. Scan policy covers new IPv4 TCP SYN, not IPv6/UDP/established sessions. NAT combines users by source IP.
+- HASH state has no automatic eviction/GC. Fixed windows permit boundary bursts; many-source scaling is not accepted.
+- IPS covers the selected HTTP path, does not decrypt HTTPS and is not a full WAF.
+- Local HTTP probes do not replace an independent client during blocking.
+- Collector queues are bounded; rotation/restarts require epoch/loss handling.
+- sudo, Docker access and BPF are powerful privileges; use a dedicated host and preserve management access.
+- No signed releases, independent audit, maximum-pps measurement or proven speedup over netfilter.
+
+## Source layout
+
+| Directory | Responsibility |
 |---|---|
-| portable | Полный переносимый набор проверок |
-| configuration | `suricata -T` и Ansible syntax-check |
-| bpf-build | Компиляция с THRESHOLD=100/MAX_SOURCES=4096, метаданные компилятора и пакетов |
-| delivery / BPF artifact | Архив object, COMMIT, BUILD, VALIDATION и SHA-256 |
+| xdp | BPF C program, loader, maps, policy and collector |
+| bin / cloud-init | VM lifecycle, scenarios, QMP and backup |
+| security | Suricata, nginx and passive scan detection |
+| monitoring | Zabbix, telemetry, SQL and email |
+| ansible / deploy | Dedicated-server profile |
+| tests | Unit/integration checks and packet harness |
+| ci / .github | Validation and packaging |
+| assets/demo | Historical replay and numerical evidence |
 
-GitLab pipeline `2985024140` на `96ef03bb` прошёл все четыре job. Это результат исходной версии до обновления документации/публичного workflow, не обещание результата будущих коммитов. GitHub Actions нужно подтвердить первым запуском после публикации.
+Public sources exclude academic PDF/DOCX, runtime, qcow2 and database dumps. GitHub sources do not require private GitLab access; private pipeline links require membership. Public history import is already complete; do not repeat it for normal updates.
 
-На GitLab используется отдельный project runner; одна job одновременно, 2 GiB RAM и 2 CPU на job. Docker socket доступен управляющему контейнеру Runner, но не job-контейнерам. Hosted runners для наблюдавшегося проекта отключены. Собственный Runner предназначен для доверенного кода; чужие pipeline не запускаются на личном хосте как в безопасной песочнице.
-
-CI-прокси с Tor/obfs4 и периодическим обновлением мостов — отдельная локальная инфраструктура. Он не требуется пользователям GitHub для запуска проекта и не входит в комплект исходников. Host firewall обязан разрешать CI egress; HTTP proxy не является принудительным сетевым kill switch.
-
-В GitLab BPF build не скачивает ненужные отчёты тестов (`dependencies: []`), direct artifact downloads отключены из-за наблюдавшегося CDN 403. `Tests 0` означает отсутствие JUnit report; результаты тестов остаются в логах.
-
-Deployment Ansible рассчитан на отдельный Debian 13 security node с явным data interface. Требуются reviewed inventory, secrets и Docker Compose. CI deployment job выключен по умолчанию; при включении он manual, protected и требует runner tag `opla-deploy`. Успешный syntax-check не является подтверждением реального серверного развёртывания.
-
-## Ограничения и модель доверия
-
-- Это набор проверяемых защитных механизмов; он не блокирует любые действия Nmap, Yersinia или arp-scan.
-- XDP scan policy покрывает новые IPv4 TCP SYN, не IPv6/UDP и не установленную сессию. NAT объединяет клиентов под одним source IP.
-- HASH map не имеет автоматического eviction/GC. Fixed windows допускают всплески у границы. Масштабирование по множеству источников не подтверждено.
-- Suricata IPS действует на выбранный HTTP-путь. HTTPS не расшифровывается; полноценной WAF и защиты L7 всех сервисов нет.
-- HTTP health probe локален на victim и не заменяет client probe во время блокировки. Непрерывный client контроль на протяжении каждого опыта ещё требуется.
-- Локальная очередь событий collector ограничена и не обеспечивает гарантированное хранение всех событий. Ротация/перезапуск требуют учёта потерь и сброса эпох.
-- sudo, Docker group и kernel BPF дают широкие полномочия. Лабораторию следует запускать на выделенном хосте с сохранённым management path.
-- Подписанных релизов, независимого аудита, измерений предельного pps и доказанного ускорения относительно netfilter пока нет.
-
-## Структура исходников
-
-| Каталог | Назначение |
-|---|---|
-| `xdp/` | C-программа, сборка, загрузка, политика и сборщик метрик |
-| `bin/`, `cloud-init/` | Жизненный цикл ВМ, сценарии, QMP и backups |
-| `security/` | Suricata, nginx policy и пассивный scan detector |
-| `monitoring/` | Zabbix provisioning, telemetry, SQL и уведомления |
-| `ansible/`, `deploy/` | Отдельный серверный профиль |
-| `tests/` | Unit/integration tests и packet harness |
-| `ci/`, `.github/` | Проверки и упаковка |
-| `assets/demo/` | Ранее сохранённая демонстрация с исходными числами |
-
-Публичный комплект содержит код и эксплуатационные Markdown-руководства; учебные отчёты, PDF/DOCX, runtime, qcow2 и дампы в него не включены. Первичная публикация создала новую историю; очищенные исходные коммиты можно отдельно добавить способом из руководства Git. Для скачивания исходников не нужен доступ к приватному GitLab. Ссылки на исходный pipeline доступны только участникам приватного проекта.
-
-## Участие и сообщения об ошибках
-
-См. [CONTRIBUTING.md](CONTRIBUTING.md) и [SECURITY.md](SECURITY.md). В issue укажите commit, окружение, команду, ожидаемый/фактический результат и обезличенные before/after counters. Не публикуйте ключи, app passwords, API tokens, дампы БД или packet captures с чужими данными.
-
-Лицензионные условия: [LICENSE](LICENSE); файл XDP дополнительно содержит свой SPDX identifier. Пояснение и полный текст GPL находятся в [LICENSING.md](LICENSING.md).
+See [contributing](CONTRIBUTING.en.md), [security](SECURITY.en.md) and [licensing](LICENSING.en.md). Issues should include revision, environment, commands, expected/actual behavior and anonymized counter deltas. Do not upload credentials, private dumps or third-party packet captures. Existing legal notices in LICENSE and the BPF source are preserved.

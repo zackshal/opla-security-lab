@@ -1,6 +1,8 @@
 # eBPF/XDP
 
-Полное описание и команды: [README](../README.md#защита-ebpfxdp).
+**Русский** · [English](README.en.md)
+
+Полное описание и команды: [README](../README.ru.md#защита-ebpfxdp).
 
 `xdp_ddos_protect.c` проверяет Ethernet/VLAN/IPv4/TCP, ограничивает начальные SYN по источнику и поддерживает distinct-port scan policy. Default: SYN 100 за 1 секунду, map 4096 sources. Scan threshold: 8 различных портов за фиксированное окно 60 секунд; block TTL 30 секунд.
 

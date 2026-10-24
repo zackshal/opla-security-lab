@@ -1,7 +1,9 @@
-# Contributing
+# Участие в разработке
 
-Use a dedicated branch and small commits. Preserve licensing and Git authorship. Keep comments focused on invariants, boundary conditions and operational hazards.
+**Русский** · [English](CONTRIBUTING.en.md)
 
-Run make check and git diff --check. Changes to BPF also require clang -target bpf and a real verifier/attach test. Suricata changes require tools/check-suricata.py, then IDS and IPS acceptance on a live sensor. Ansible syntax-check is distinct from deployment, repeated-run and reboot checks.
+Работайте в отдельной ветке небольшими коммитами. Сохраняйте лицензии и авторство. Комментарии посвящайте инвариантам, границам и эксплуатационным рискам.
 
-Update the root README with configuration changes and actual evidence. Do not report mock tests as live integration results or invent performance improvements.
+Выполняйте make check и git diff --check. Изменения BPF дополнительно требуют clang -target bpf и реальной проверки verifier/attach. Для Suricata нужны tools/check-suricata.py и живые IDS/IPS испытания. Ansible syntax-check не заменяет deployment, повторный запуск и reboot.
+
+Обновляйте русскую и английскую версии вместе, включая конфигурацию и подтверждённые результаты. Не называйте mock tests живой интеграцией и не придумывайте ускорение. CI pull request не должен изменять production hosts.
