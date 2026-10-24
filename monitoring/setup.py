@@ -78,6 +78,11 @@ def provision(api, name):
         labels[key+'.rate'] = label
     hold = policy['event_hold']
     descriptions = [
+        ('Suricata configured but down', f'last(/{name}/ids.enabled)=1 and last(/{name}/ids.up)=0', 4, 'ids'),
+        ('Suricata alert observed', f'max(/{name}/ids.alerts.rate,{hold})>0', 2, 'ids'),
+        ('Suricata blocked traffic', f'max(/{name}/ids.blocked.rate,{hold})>0', 3, 'ids'),
+        ('Suricata capture drops', f'max(/{name}/ids.kernel_drops.rate,{hold})>0', 3, 'ids'),
+        ('EVE parse errors', f'change(/{name}/ids.parse_errors)>0', 2, 'ids'),
         ('XDP is detached', f'last(/{name}/xdp.loaded)=0', 3, 'xdp'),
         ('SYN packets are being dropped', f'max(/{name}/xdp.drop.rate,{hold})>0', 2, 'xdp'),
         ('Collector has no data', f'nodata(/{name}/xdp.loaded,{policy["collector_timeout"]})=1', 3, 'collector'),
@@ -146,11 +151,15 @@ def provision(api, name):
     http.append(chart(graphs[2], 0, y, 'HTTPA'))
     network, y = tiles(['rx_packets', 'rx_bytes', 'rx_packets.rate', 'rx_bytes.rate'])
     network.extend([chart(graphs[3], 0, y, 'NETAA'), chart(graphs[4], 36, y, 'NETAB')])
+    sensor, y = tiles(['ids_enabled', 'ids_up', 'ids_alerts', 'ids_blocked',
+                       'ids_parse_errors', 'ids_kernel_drops', 'ids_alerts.rate',
+                       'ids_blocked.rate', 'ids_kernel_drops.rate'])
     title = 'OPLA / ' + name
     existing = api.call('dashboard.get', {'filter': {'name': [title]}})
     params = {'name': title, 'pages': [{'name': 'XDP and events', 'widgets': xdp},
                                       {'name': 'HTTP protection', 'widgets': http},
-                                      {'name': 'Interface traffic', 'widgets': network}]}
+                                      {'name': 'Interface traffic', 'widgets': network},
+                                      {'name': 'IDS and IPS', 'widgets': sensor}]}
     if existing:
         api.call('dashboard.update', dict(params, dashboardid=existing[0]['dashboardid']))
     else:
@@ -171,6 +180,6 @@ if __name__=='__main__':
         result=provision(api,'opla-'+d['LAB_ID'])
         out=R/'monitoring/runtime'/d['LAB_ID'];out.mkdir(parents=True,exist_ok=True)
         (out/'provisioned.json').write_text(json.dumps(result,indent=2))
-        print(f'Настроены {len(result["items"])+len(result["rates"])} элементов, 12 триггеров и dashboard из 3 страниц.')
+        print(f'Настроены {len(result["items"])+len(result["rates"])} элементов, 17 триггеров и dashboard из 4 страниц.')
         print('Сбор данных: make monitoring-start')
     finally:api.call('user.logout',[])

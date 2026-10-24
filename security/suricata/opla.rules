@@ -1,5 +1,6 @@
-# Дополнительные IDS-примеры. Нужна отдельная установка Suricata и HOME_NET стенда.
-# Alert — обнаружение, не блокировка. В этой лаборатории обе ВМ входят в HOME_NET.
-alert tcp any any -> $HOME_NET any (msg:"OPLA high SYN rate"; flags:S; flow:stateless; detection_filter:track by_src,count 100,seconds 1; sid:9001001; rev:1;)
-alert udp any any -> $HOME_NET any (msg:"OPLA high UDP rate"; detection_filter:track by_src,count 200,seconds 1; sid:9001002; rev:1;)
-alert http any any -> $HOME_NET any (msg:"OPLA high HTTP GET rate"; flow:established,to_server; http.method; content:"GET"; detection_filter:track by_src,count 20,seconds 1; sid:9001003; rev:1;)
+alert tcp any any -> $HOME_NET any (msg:"OPLA SYN source threshold"; flags:S; flow:stateless; detection_filter:track by_src,count 100,seconds 1; sid:9001001; rev:2;)
+alert udp any any -> $HOME_NET any (msg:"OPLA UDP source threshold"; detection_filter:track by_src,count 200,seconds 1; sid:9001002; rev:2;)
+alert http any any -> $HOME_NET any (msg:"OPLA HTTP GET threshold"; flow:established,to_server; http.method; content:"GET"; detection_filter:track by_src,count 20,seconds 1; sid:9001003; rev:2;)
+alert http any any -> $HOME_NET any (msg:"OPLA raw URI traversal pattern"; flow:established,to_server; http.uri.raw; content:"../"; sid:9001004; rev:1;)
+alert http any any -> $HOME_NET any (msg:"OPLA unexpected CONNECT method"; flow:established,to_server; http.method; content:"CONNECT"; startswith; endswith; sid:9001005; rev:1;)
+alert http any any -> $HOME_NET any (msg:"OPLA harmless IDS acceptance marker"; flow:established,to_server; http.uri; content:"/__opla_block_test__"; startswith; sid:9001100; rev:1;)

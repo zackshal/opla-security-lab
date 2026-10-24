@@ -49,13 +49,57 @@ def http_snapshot(log_path=Path('/var/log/nginx/opla-security.jsonl'),
         temporary.replace(state_file)
         return dict(http_available=1, **counters)
 
+def ids_snapshot(log_path=Path('/var/log/opla-suricata/eve.json'),
+                 state_dir=Path('/var/lib/opla-telemetry'), enabled=None, up=None):
+    if enabled is None:
+        enabled = int(Path('/etc/opla-suricata/mode.json').exists())
+    if up is None:
+        up = int(subprocess.run(['systemctl', 'is-active', '--quiet', 'opla-suricata.service'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=2).returncode == 0)
+    state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with (state_dir/'ids.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state_file = state_dir/'ids.json'
+        saved = json.loads(state_file.read_text()) if state_file.exists() else {}
+        keys = ['ids_alerts', 'ids_blocked', 'ids_parse_errors', 'ids_kernel_drops']
+        counters = {key: int(saved.get(key, 0)) for key in keys}
+        if not log_path.exists():
+            return dict(ids_enabled=enabled, ids_up=up, **counters)
+        with log_path.open('rb') as stream:
+            st = os.fstat(stream.fileno())
+            identity = [st.st_dev, st.st_ino]
+            offset = int(saved.get('offset', 0))
+            if saved.get('identity') != identity or offset > st.st_size:
+                offset = 0
+            stream.seek(offset)
+            chunk = stream.read(1024*1024)
+            complete = chunk.rfind(b'\n') + 1
+            for raw in chunk[:complete].splitlines():
+                try:
+                    row = json.loads(raw)
+                    kind = row['event_type']
+                    if kind == 'alert':
+                        counters['ids_alerts'] += 1
+                        counters['ids_blocked'] += int(row.get('alert', {}).get('action') == 'blocked')
+                    elif kind == 'stats':
+                        counters['ids_kernel_drops'] = int(row['stats']['capture']['kernel_drops'])
+                except (ValueError, TypeError, KeyError):
+                    counters['ids_parse_errors'] += 1
+            saved = dict(counters, identity=identity, offset=offset+complete)
+        temporary = state_file.with_suffix('.tmp')
+        temporary.write_text(json.dumps(saved))
+        temporary.replace(state_file)
+        return dict(ids_enabled=enabled, ids_up=up, **counters)
+
 def full_snapshot():
     data = snapshot()
     # Это счётчики драйвера, а не гарантированное число пакетов до XDP.
     for key in ['rx_packets', 'rx_bytes']:
-        data[key] = int(Path('/sys/class/net/ens3/statistics', key).read_text())
+        data[key] = int(Path('/sys/class/net', os.environ.get('OPLA_INTERFACE', 'ens3'), 'statistics', key).read_text())
     data.update(http_probe())
     data.update(http_snapshot())
+    data.update(ids_snapshot())
     return data
 
 def http_probe():
@@ -75,7 +119,7 @@ def http_probe():
     return {'http_up': int(status == 200), 'http_status': status,
             'http_latency_us': max(0, (time.monotonic_ns()-started)//1000)}
 
-PIN='/sys/fs/bpf/opla'
+PIN=os.environ.get('OPLA_BPF_PIN', '/sys/fs/bpf/opla')
 KEYS=['syn','pass','drop','map_full','fragment_drop']
 
 def number(value):
@@ -109,7 +153,7 @@ def attachment_mode(link, program_id):
     raise ValueError('Режим прикреплённой программы не определён')
 
 def snapshot():
-    link=run('ip','-j','link','show','dev','ens3')[0].get('xdp',{})
+    link=run('ip','-j','link','show','dev',os.environ.get('OPLA_INTERFACE', 'ens3'))[0].get('xdp',{})
     active=bool(link) and link.get('attached', 'off') not in ('off', 0)
     if not active: return dict(loaded=0,mode='off',**{k:0 for k in KEYS})
     prog=run('bpftool','-j','prog','show','pinned',PIN+'/program')

@@ -86,7 +86,8 @@ def main():
             records.append({'host':name,'key':'xdp.mode','value':data['mode'],'clock':clock})
             # Передаём агрегированные события интервала, а не каждый отброшенный пакет.
             event_keys=['loaded','mode','drop','map_full','fragment_drop',
-                        'http_available','http_limited','http_5xx','http_parse_errors']
+                        'http_available','http_limited','http_5xx','http_parse_errors',
+                        'ids_enabled','ids_up','ids_alerts','ids_blocked','ids_parse_errors']
             if previous is None or any(data[k]!=previous[k] for k in event_keys):
                 pending.append({'host':name,'key':'xdp.events','value':json.dumps(event),'clock':clock})
             send(records+list(pending)); pending.clear(); previous=data

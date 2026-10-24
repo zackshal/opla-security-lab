@@ -1,0 +1,10 @@
+/var/log/opla-suricata/eve.json {
+    daily
+    maxsize 10M
+    rotate 5
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
