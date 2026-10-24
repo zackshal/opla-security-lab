@@ -62,9 +62,26 @@ class PolicyTests(unittest.TestCase):
 
     def test_policy_map_abi_mismatch_prevents_update(self):
         with patch.object(sys, 'argv', ['policy', '--mode', 'off']), \
-             patch.object(policy.subprocess, 'check_output', return_value='{"type":"array","key":4,"value":12,"max_entries":1}'), \
+             patch.object(policy.subprocess, 'check_output', return_value='{"type":"array","bytes_key":4,"bytes_value":12,"max_entries":1}'), \
              patch.object(policy.subprocess, 'run') as update:
             with self.assertRaises(SystemExit) as failure:
                 policy.main()
         self.assertEqual(failure.exception.code, 1)
+        update.assert_not_called()
+
+    def test_actual_bpftool_header_allows_policy_update(self):
+        with patch.object(sys, 'argv', ['policy', '--mode', 'observe', '--trusted-source', '100.64.0.1', '--trusted-source', '100.64.0.4']), \
+             patch.object(policy.subprocess, 'check_output', return_value='{"type":"hash","bytes_key":4,"bytes_value":12,"max_entries":1}'), \
+             patch.object(policy.subprocess, 'run') as update:
+            policy.main()
+        command = update.call_args.args[0]
+        offset = command.index('value') + 2
+        self.assertEqual(bytes.fromhex(''.join(command[offset:])), policy.encode('observe', ['100.64.0.1','100.64.0.4']))
+
+    def test_missing_bpftool_size_fields_prevent_update(self):
+        with patch.object(sys, 'argv', ['policy', '--mode', 'off']), \
+             patch.object(policy.subprocess, 'check_output', return_value='{"type":"hash","max_entries":1}'), \
+             patch.object(policy.subprocess, 'run') as update:
+            with self.assertRaises(SystemExit):
+                policy.main()
         update.assert_not_called()

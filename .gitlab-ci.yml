@@ -1,0 +1,95 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+stages: [test, build, package, deploy]
+
+default:
+  image: debian:13-slim
+  interruptible: true
+  timeout: 20m
+
+variables:
+  DEBIAN_FRONTEND: noninteractive
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+portable:
+  stage: test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends gcc make python3 python3-yaml qemu-utils
+  script:
+    - mkdir -p reports/ci
+    - bash -o pipefail -c 'make check 2>&1 | tee reports/ci/check.log'
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths: [reports/ci/check.log]
+
+configuration:
+  stage: test
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends python3 python3-yaml suricata ansible-core
+  script:
+    - suricata -V
+    - python3 tools/check-suricata.py
+    - ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
+
+bpf-build:
+  stage: build
+  image: debian:12-slim
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends clang gcc make libbpf-dev linux-libc-dev llvm
+  script:
+    - make -C xdp clean
+    - make -C xdp THRESHOLD=100 MAX_SOURCES=4096
+    - llvm-objdump -h xdp/xdp_ddos_protect.o
+    - mkdir -p dist
+    - cp xdp/xdp_ddos_protect.o dist/
+    - clang --version > dist/compiler.txt
+    - dpkg-query -W clang libbpf-dev linux-libc-dev > dist/packages.txt
+    - sha256sum dist/xdp_ddos_protect.o > dist/SHA256SUMS
+  artifacts:
+    expire_in: 30 days
+    paths: [dist/xdp_ddos_protect.o, dist/compiler.txt, dist/packages.txt, dist/SHA256SUMS]
+
+delivery:
+  stage: package
+  needs:
+    - job: bpf-build
+      artifacts: true
+  script:
+    - bash ci/package.sh
+  artifacts:
+    name: 'opla-bpf-$CI_COMMIT_SHORT_SHA'
+    expire_in: 30 days
+    paths: [dist/opla-bpf-*.tar.gz, dist/delivery.sha256]
+
+deploy-staging:
+  stage: deploy
+  interruptible: false
+  tags: [opla-deploy]
+  resource_group: opla-staging
+  environment:
+    name: staging
+  needs:
+    - job: bpf-build
+      artifacts: true
+    - job: delivery
+      artifacts: false
+  rules:
+    - if: '$OPLA_DEPLOY_ENABLED == "1" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+      allow_failure: false
+    - when: never
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends ansible-core openssh-client ca-certificates
+  script:
+    - bash ci/deploy.sh
