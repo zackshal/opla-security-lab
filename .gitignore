@@ -20,3 +20,11 @@ docs/.render-assets/
 *.pdf
 *.docx
 release-artifacts/
+monitoring/mail.local.json
+ansible/inventory.ini
+ansible/group_vars/all/vault.yml
+backups/
+*.dump
+*.part
+ansible/private.yml
+.venv-ops/

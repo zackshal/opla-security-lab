@@ -1,0 +1,22 @@
+[Unit]
+Description=OPLA local telemetry
+After=opla-xdp.service docker.service
+Requires=opla-xdp.service
+[Service]
+Type=simple
+WorkingDirectory=/opt/opla
+Environment=OPLA_INTERFACE={{ opla_interface }}
+Environment=OPLA_BPF_PIN=/sys/fs/bpf/opla-server
+ExecStart=/usr/bin/python3 /opt/opla/monitoring/local-bridge.py --host {{ opla_host_name }} --interval 5
+Restart=on-failure
+RestartSec=5
+StateDirectory=opla-telemetry
+LogsDirectory=opla
+UMask=0027
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/opla-telemetry /var/log/opla
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target

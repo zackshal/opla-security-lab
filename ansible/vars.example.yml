@@ -1,0 +1,11 @@
+opla_dedicated_host: true
+opla_interface: enp2s0
+opla_home_net: 192.0.2.0/24
+opla_mode: ids
+opla_host_name: opla-security-node
+opla_bpf_object: "{{ playbook_dir }}/../xdp/xdp_ddos_protect.o"
+opla_zabbix_tag: alpine-7.0.19
+opla_postgres_tag: 16.10-alpine
+opla_allow_management_interface: false
+vault_db_password: CHANGE_IN_ANSIBLE_VAULT
+vault_zabbix_password: CHANGE_IN_ANSIBLE_VAULT

@@ -1,0 +1,13 @@
+[Unit]
+Description=OPLA native XDP
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/sys/fs/bpf
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 /opt/opla/deploy/xdp-service.py attach --interface {{ opla_interface }} --object /opt/opla/xdp/xdp_ddos_protect.o
+ExecStop=/usr/bin/python3 /opt/opla/deploy/xdp-service.py detach --interface {{ opla_interface }}
+UMask=0077
+[Install]
+WantedBy=multi-user.target
