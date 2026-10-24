@@ -78,6 +78,8 @@ def provision(api, name):
         labels[key+'.rate'] = label
     hold = policy['event_hold']
     descriptions = [
+        ('XDP distinct-port threshold reached', f'max(/{name}/xdp.scan_events.rate,{hold})>0', 2, 'xdp'),
+        ('XDP scan policy blocked new connections', f'max(/{name}/xdp.scan_drop.rate,{hold})>0', 3, 'xdp'),
         ('TCP port scan suspected', f'last(/{name}/scan.enabled)=1 and last(/{name}/scan.up)=1 and last(/{name}/scan.active)>0', 2, 'scan'),
         ('Port-scan detector unavailable', f'last(/{name}/scan.enabled)=1 and last(/{name}/scan.up)=0', 4, 'scan'),
         ('Port-scan capture drops', f'last(/{name}/scan.enabled)=1 and change(/{name}/scan.capture_drops)>0', 2, 'scan'),
@@ -139,7 +141,8 @@ def provision(api, name):
         return {'type': 'graph', 'x': x, 'y': y, 'width': 36, 'height': 5,
                 'fields': [field('source_type', 0), field('graphid.0', graphid, 6),
                            field('reference', ref, 1), field('rf_rate', 10)]}
-    xdp, y = tiles(['loaded', 'mode', 'syn', 'pass', 'drop', 'map_full', 'fragment_drop',
+    xdp, y = tiles(['loaded', 'mode', 'xdp_scan_mode', 'xdp_scan_events', 'xdp_scan_drop',
+                    'xdp_scan_events.rate', 'xdp_scan_drop.rate', 'syn', 'pass', 'drop', 'map_full', 'fragment_drop',
                     'syn.rate', 'pass.rate', 'drop.rate', 'map_full.rate', 'fragment_drop.rate'])
     xdp.extend([chart(graphs[0], 0, y, 'SYNAA'), chart(graphs[1], 36, y, 'SYNAB')])
     xdp.append({'type': 'itemhistory', 'name': 'Security events (XDP and HTTP)',
@@ -173,7 +176,7 @@ def provision(api, name):
         api.call('dashboard.update', dict(params, dashboardid=existing[0]['dashboardid']))
     else:
         api.call('dashboard.create', params)
-    return {'host': name, 'hostid': hid, 'items': ids, 'rates': rates, 'dashboard': params, 'policy': policy}
+    return {'host': name, 'hostid': hid, 'items': ids, 'rates': rates, 'dashboard': params, 'policy': policy, 'trigger_count': len(descriptions)}
 
 
 if __name__=='__main__':
@@ -189,6 +192,6 @@ if __name__=='__main__':
         result=provision(api,'opla-'+d['LAB_ID'])
         out=R/'monitoring/runtime'/d['LAB_ID'];out.mkdir(parents=True,exist_ok=True)
         (out/'provisioned.json').write_text(json.dumps(result,indent=2))
-        print(f'Настроены {len(result["items"])+len(result["rates"])} элементов, 21 триггер и dashboard из 5 страниц.')
+        print(f'Настроены {len(result["items"])+len(result["rates"])} элементов, {result["trigger_count"]} триггеров и dashboard из {len(result["dashboard"]["pages"])} страниц.')
         print('Сбор данных: make monitoring-start')
     finally:api.call('user.logout',[])

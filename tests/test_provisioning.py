@@ -33,7 +33,7 @@ class ProvisioningTests(unittest.TestCase):
         result = setup.provision(api, 'opla-lab-example')
         self.assertFalse(any(method.endswith('.create') for method, _ in api.calls))
         updates = {p['itemid']: p for m, p in api.calls if m == 'item.update'}
-        self.assertEqual(len(updates), 44)
+        self.assertEqual(len(updates), 49)
         self.assertEqual(result['items']['syn'], 'xdp.syn')
         self.assertEqual(updates['xdp.syn']['value_type'], 3)
         self.assertEqual(updates['xdp.syn']['type'], 2)
@@ -42,7 +42,7 @@ class ProvisioningTests(unittest.TestCase):
         self.assertEqual(updates['xdp.events']['value_type'], 2)
         self.assertEqual(updates['xdp.syn.rate']['master_itemid'], 'xdp.syn')
         self.assertEqual(updates['xdp.syn.rate']['preprocessing'][0]['type'], 10)
-        self.assertEqual(sum(m == 'trigger.update' for m, _ in api.calls), 21)
+        self.assertEqual(sum(m == 'trigger.update' for m, _ in api.calls), 23)
 
     def test_repeated_setup_uses_same_item_ids(self):
         api = ExistingAPI()
@@ -100,7 +100,7 @@ class ProvisioningTests(unittest.TestCase):
                 return {}
         api = NewAPI()
         result = setup.provision(api, 'opla-lab-example')
-        self.assertEqual(sum(m == 'item.create' for m, _ in api.calls), 44)
-        self.assertEqual(sum(m == 'trigger.create' for m, _ in api.calls), 21)
+        self.assertEqual(sum(m == 'item.create' for m, _ in api.calls), 49)
+        self.assertEqual(sum(m == 'trigger.create' for m, _ in api.calls), 23)
         self.assertEqual(sum(m == 'graph.create' for m, _ in api.calls), 5)
         self.assertEqual(len(result['dashboard']['pages']), 5)

@@ -18,8 +18,17 @@ def decode(entry, now_ns):
         blob = bytes(int(x, 0) if isinstance(x, str) else x for x in entry['value'])
         value = {'count': int.from_bytes(blob[4:8], sys.byteorder),
                  'start_ns': int.from_bytes(blob[8:16], sys.byteorder)}
-    return {'source_ip': source, 'window_count': value['count'],
-            'window_age_seconds': max(0, now_ns - value['start_ns']) / 1e9}
+    result = {'source_ip': source, 'window_count': value['count'],
+              'window_age_seconds': max(0, now_ns - value['start_ns']) / 1e9}
+    if 'blocked_until_ns' in value:
+        result.update(scan_distinct_ports=value['port_count'],
+                      scan_block_remaining_seconds=max(0, value['blocked_until_ns']-now_ns)/1e9)
+    elif 'value' in entry:
+        blob = bytes(int(x, 0) if isinstance(x, str) else x for x in entry['value'])
+        if len(blob) >= 56:
+            result.update(scan_distinct_ports=int.from_bytes(blob[48:52], sys.byteorder),
+                          scan_block_remaining_seconds=max(0, int.from_bytes(blob[24:32],sys.byteorder)-now_ns)/1e9)
+    return result
 
 def main():
     p = argparse.ArgumentParser(description='Read-only source IP map; run inside victim')

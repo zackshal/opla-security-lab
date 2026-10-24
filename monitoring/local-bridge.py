@@ -38,7 +38,7 @@ def main():
             records = [{'host': a.host, 'key': item_key(k), 'value': str(data[k]), 'clock': now} for k in METRICS]
             records += [{'host': a.host, 'key': 'xdp.mode', 'value': data['mode'], 'clock': now},
                         {'host': a.host, 'key': 'scan.details', 'value': data['scan_details'], 'clock': now}]
-            watched = ['loaded', 'mode', 'ids_up', 'ids_alerts', 'ids_blocked', 'drop', 'http_limited', 'scan_up', 'scan_active', 'scan_alerts']
+            watched = ['loaded', 'mode', 'ids_up', 'ids_alerts', 'ids_blocked', 'drop', 'http_limited', 'scan_up', 'scan_active', 'scan_alerts', 'xdp_scan_mode', 'xdp_scan_events', 'xdp_scan_drop']
             if previous is None or any(data[k] != previous[k] for k in watched):
                 records += [{'host': a.host, 'key': 'xdp.events', 'value': json.dumps(event), 'clock': now}]
             send(records)

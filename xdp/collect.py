@@ -154,7 +154,7 @@ def http_probe():
             'http_latency_us': max(0, (time.monotonic_ns()-started)//1000)}
 
 PIN=os.environ.get('OPLA_BPF_PIN', '/sys/fs/bpf/opla')
-KEYS=['syn','pass','drop','map_full','fragment_drop']
+KEYS=['syn','pass','drop','map_full','fragment_drop','xdp_scan_events','xdp_scan_drop']
 
 def number(value):
     if isinstance(value,int): return value
@@ -189,21 +189,30 @@ def attachment_mode(link, program_id):
 def snapshot():
     link=run('ip','-j','link','show','dev',os.environ.get('OPLA_INTERFACE', 'ens3'))[0].get('xdp',{})
     active=bool(link) and link.get('attached', 'off') not in ('off', 0)
-    if not active: return dict(loaded=0,mode='off',**{k:0 for k in KEYS})
+    if not active: return dict(loaded=0,mode='off',xdp_scan_mode=0,**{k:0 for k in KEYS})
     prog=run('bpftool','-j','prog','show','pinned',PIN+'/program')
     if isinstance(prog,list): prog=prog[0]
     mode=attachment_mode(link, prog['id'])
     entries=run('bpftool','-j','map','dump','pinned',PIN+'/maps/xdp_stats')
     stats={k:0 for k in KEYS}
+    scan_supported = False
     for entry in entries:
         index=number(entry['key'])
         if not 0<=index<len(KEYS): raise ValueError('Неизвестный индекс счётчика')
+        scan_supported |= index >= 5
         if 'values' in entry:
             value=sum(number(v['value']) for v in entry['values'])
         elif 'value' in entry: value=number(entry['value'])
         else: raise ValueError('Нет значения счётчика')
         stats[KEYS[index]]=value
-    return dict(loaded=1,mode=mode,**stats)
+    scan_mode = 0
+    if scan_supported:
+        policies = run('bpftool','-j','map','dump','pinned',PIN+'/maps/xdp_policy')
+        if policies:
+            scan_mode = number(policies[0]['value'][:4])
+            if scan_mode not in (0, 1, 2):
+                raise ValueError('Unknown XDP scan policy mode')
+    return dict(loaded=1,mode=mode,xdp_scan_mode=scan_mode,**stats)
 
 if __name__=='__main__':
     try: print(json.dumps(full_snapshot()))

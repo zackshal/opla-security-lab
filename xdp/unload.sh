@@ -12,5 +12,5 @@ if [ -e /sys/fs/bpf/opla/program ]; then
     fi
     ip link set dev ens3 xdp off
 fi
-rm -f /sys/fs/bpf/opla/program /sys/fs/bpf/opla/maps/syn_windows /sys/fs/bpf/opla/maps/xdp_stats
+rm -f /sys/fs/bpf/opla/program /sys/fs/bpf/opla/maps/syn_windows /sys/fs/bpf/opla/maps/xdp_stats /sys/fs/bpf/opla/maps/xdp_policy
 REMOTE
