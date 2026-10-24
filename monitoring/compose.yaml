@@ -1,0 +1,40 @@
+name: opla-monitoring
+services:
+  db:
+    restart: unless-stopped
+    image: postgres:${POSTGRES_TAG:-16.10-alpine}
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_DB: zabbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run make monitoring-up}
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U zabbix -d zabbix']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  server:
+    restart: unless-stopped
+    image: zabbix/zabbix-server-pgsql:${ZABBIX_TAG:-alpine-7.0.19}
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: zabbix
+      POSTGRES_DB: zabbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+    depends_on:
+      db: {condition: service_healthy}
+    ports: ['127.0.0.1:10051:10051']
+  web:
+    restart: unless-stopped
+    image: zabbix/zabbix-web-nginx-pgsql:${ZABBIX_TAG:-alpine-7.0.19}
+    environment:
+      DB_SERVER_HOST: db
+      POSTGRES_USER: zabbix
+      POSTGRES_DB: zabbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      ZBX_SERVER_HOST: server
+      PHP_TZ: Europe/Moscow
+    depends_on: [server]
+    ports: ['127.0.0.1:8080:8080']
+volumes:
+  db-data:

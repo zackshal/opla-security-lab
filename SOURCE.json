@@ -1,0 +1,6 @@
+{
+  "base_gitlab_commit": "96ef03bbea24157c538bb42bc515f3bdedb6b803",
+  "source": "reviewed working-source export, 2026-10-24",
+  "changes": "README/navigation, public GitHub workflow, licensing notices, excludes academic documents and generators",
+  "history": "fresh public repository; private Git history is not included"
+}

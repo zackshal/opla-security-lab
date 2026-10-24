@@ -1,0 +1,277 @@
+---
+- name: Deploy OPLA to a dedicated Debian security node
+  hosts: opla
+  become: true
+  gather_facts: true
+  vars:
+    opla_dedicated_host: false
+    opla_allow_management_interface: false
+    opla_mode: ids
+    opla_host_name: opla-security-node
+    project_root: "{{ playbook_dir }}/.."
+  pre_tasks:
+    - name: Require explicit deployment parameters
+      ansible.builtin.assert:
+        that:
+          - opla_dedicated_host | bool
+          - ansible_distribution == 'Debian'
+          - ansible_distribution_major_version == '13'
+          - opla_interface is defined
+          - opla_interface is match('^[A-Za-z0-9_.:-]{1,15}$')
+          - opla_interface != 'lo'
+          - opla_allow_management_interface | bool or opla_interface != ansible_default_ipv4.interface
+          - opla_mode in ['ids', 'ips']
+          - opla_host_name is match('^[A-Za-z0-9_.-]+$')
+          - opla_bpf_object is defined
+          - opla_home_net is defined
+          - opla_zabbix_tag is defined
+          - opla_postgres_tag is defined
+        fail_msg: Use a dedicated host and an explicit data interface; inspect the playbook before deployment.
+    - name: Validate secret inputs
+      ansible.builtin.assert:
+        that:
+          - vault_db_password | length >= 24
+          - vault_zabbix_password | length >= 16
+          - vault_db_password is match('^[A-Za-z0-9_-]+$')
+          - "'CHANGE_' not in vault_db_password"
+          - "'CHANGE_' not in vault_zabbix_password"
+      no_log: true
+    - name: Check Docker Compose prerequisite
+      ansible.builtin.command: docker compose version
+      changed_when: false
+      check_mode: false
+    - name: Check compiled BPF object on controller
+      ansible.builtin.stat:
+        path: "{{ opla_bpf_object }}"
+      delegate_to: localhost
+      become: false
+      register: bpf_object
+    - name: Require a built object
+      ansible.builtin.assert:
+        that: bpf_object.stat.exists
+  tasks:
+    - name: Install runtime packages without starting vendor services
+      ansible.builtin.apt:
+        name: [python3, python3-yaml, bpftool, iproute2, nftables, nginx, suricata, ca-certificates, logrotate]
+        state: present
+        update_cache: true
+        install_recommends: false
+        policy_rc_d: 101
+    - name: Create runtime tree
+      ansible.builtin.file:
+        path: /opt/opla
+        state: directory
+        mode: '0755'
+    - name: Create component directories
+      ansible.builtin.file:
+        path: '/opt/opla/{{ item }}'
+        state: directory
+        mode: '0755'
+      loop: [bin, xdp, monitoring, monitoring/sql, security, security/nginx, security/suricata, deploy]
+    - name: Copy only explicit tracked source patterns
+      ansible.builtin.copy:
+        src: '{{ item }}'
+        dest: '/opt/opla/{{ item | relpath(project_root) }}'
+        owner: root
+        group: root
+        mode: '0644'
+      with_fileglob:
+        - '{{ project_root }}/bin/*.py'
+        - '{{ project_root }}/xdp/*.py'
+        - '{{ project_root }}/monitoring/*.py'
+        - '{{ project_root }}/monitoring/catalog.py'
+        - '{{ project_root }}/monitoring/policy.json'
+        - '{{ project_root }}/monitoring/compose.yaml'
+        - '{{ project_root }}/monitoring/sql/*.sql'
+        - '{{ project_root }}/security/nginx/*.conf'
+        - '{{ project_root }}/security/suricata/*.py'
+        - '{{ project_root }}/security/suricata/*.rules'
+        - '{{ project_root }}/deploy/*.py'
+        - '{{ project_root }}/LICENSE'
+      notify: Restart local telemetry
+    - name: Install compiled BPF object
+      ansible.builtin.copy:
+        src: "{{ opla_bpf_object }}"
+        dest: /opt/opla/xdp/xdp_ddos_protect.o
+        mode: '0644'
+      notify: Restart XDP
+    - name: Write Docker credentials and reviewed image tags
+      ansible.builtin.copy:
+        dest: /opt/opla/monitoring/.env
+        content: |
+          DB_PASSWORD={{ vault_db_password }}
+          ZABBIX_TAG={{ opla_zabbix_tag }}
+          POSTGRES_TAG={{ opla_postgres_tag }}
+        mode: '0600'
+      no_log: true
+    - name: Start local monitoring stack
+      ansible.builtin.command:
+        argv: [docker, compose, --env-file, /opt/opla/monitoring/.env, -f, /opt/opla/monitoring/compose.yaml, up, -d]
+      register: compose_up
+      changed_when: "'Started' in compose_up.stderr or 'Created' in compose_up.stderr or 'Recreated' in compose_up.stderr"
+      when: not ansible_check_mode
+    - name: Wait for Zabbix API
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/api_jsonrpc.php
+        method: POST
+        body_format: json
+        body: {jsonrpc: '2.0', method: apiinfo.version, params: {}, id: 1}
+      register: api_ready
+      until: api_ready.json.result is defined
+      retries: 40
+      delay: 5
+      when: not ansible_check_mode
+    - name: Authenticate with configured Zabbix password
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/api_jsonrpc.php
+        method: POST
+        body_format: json
+        body:
+          jsonrpc: '2.0'
+          method: user.login
+          params: {username: Admin, password: '{{ vault_zabbix_password }}'}
+          id: 1
+      register: zabbix_login
+      no_log: true
+      when: not ansible_check_mode
+    - name: Bootstrap a fresh Zabbix installation
+      when: not ansible_check_mode and zabbix_login.json.result is not defined
+      block:
+        - name: Authenticate default administrator
+          ansible.builtin.uri:
+            url: http://127.0.0.1:8080/api_jsonrpc.php
+            method: POST
+            body_format: json
+            body: {jsonrpc: '2.0', method: user.login, params: {username: Admin, password: zabbix}, id: 1}
+          register: bootstrap_login
+          no_log: true
+        - name: Require successful bootstrap
+          ansible.builtin.assert:
+            that: bootstrap_login.json.result is defined
+            fail_msg: Existing installation has different credentials; do not reset its database.
+          no_log: true
+        - name: Find administrator ID
+          ansible.builtin.uri:
+            url: http://127.0.0.1:8080/api_jsonrpc.php
+            method: POST
+            body_format: json
+            body:
+              jsonrpc: '2.0'
+              auth: '{{ bootstrap_login.json.result }}'
+              method: user.get
+              params: {filter: {username: [Admin]}, output: [userid]}
+              id: 1
+          register: admin_record
+          no_log: true
+        - name: Replace initial password
+          ansible.builtin.uri:
+            url: http://127.0.0.1:8080/api_jsonrpc.php
+            method: POST
+            body_format: json
+            body:
+              jsonrpc: '2.0'
+              auth: '{{ bootstrap_login.json.result }}'
+              method: user.update
+              params: {userid: '{{ admin_record.json.result[0].userid }}', passwd: '{{ vault_zabbix_password }}'}
+              id: 1
+          register: password_change
+          failed_when: password_change.json.error is defined
+          no_log: true
+    - name: Configure all managed metrics and dashboard
+      ansible.builtin.command:
+        argv: [python3, /opt/opla/monitoring/provision-server.py, --host, '{{ opla_host_name }}']
+      environment:
+        ZABBIX_PASSWORD: '{{ vault_zabbix_password }}'
+      no_log: true
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Configure optional email notifications
+      when: vault_opla_mail is defined and not ansible_check_mode
+      no_log: true
+      block:
+        - name: Write private SMTP configuration
+          ansible.builtin.copy:
+            content: '{{ vault_opla_mail | to_nice_json }}'
+            dest: /opt/opla/monitoring/mail.local.json
+            mode: '0600'
+        - name: Configure scoped Zabbix notification action
+          ansible.builtin.command:
+            argv: [python3, /opt/opla/monitoring/configure-mail.py, --config, /opt/opla/monitoring/mail.local.json, --api-password-env, --apply]
+          environment:
+            ZABBIX_PASSWORD: '{{ vault_zabbix_password }}'
+          changed_when: false
+    - name: Check BPF filesystem
+      ansible.builtin.command: mountpoint -q /sys/fs/bpf
+      register: bpffs
+      failed_when: bpffs.rc not in [0, 1]
+      changed_when: false
+      check_mode: false
+    - name: Mount BPF filesystem
+      ansible.builtin.command: mount -t bpf bpf /sys/fs/bpf
+      when: bpffs.rc == 1
+    - name: Install service units
+      ansible.builtin.template:
+        src: '{{ item }}.service.j2'
+        dest: '/etc/systemd/system/{{ item }}.service'
+        mode: '0644'
+      loop: [opla-xdp, opla-telemetry]
+      notify:
+        - Restart XDP
+        - Restart local telemetry
+    - name: Install managed log rotation
+      ansible.builtin.copy:
+        src: '{{ project_root }}/security/logrotate/{{ item }}'
+        dest: '/etc/logrotate.d/{{ item }}'
+        mode: '0644'
+      loop: [opla-suricata, opla-nginx]
+    - name: Start nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: started
+        enabled: true
+    - name: Install HTTP policy
+      ansible.builtin.copy:
+        src: '{{ project_root }}/security/nginx/opla-l7.conf'
+        dest: /etc/nginx/conf.d/opla-l7.conf
+        mode: '0644'
+      register: http_policy
+    - name: Check nginx
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      when: not ansible_check_mode
+    - name: Reload nginx after policy change
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded
+      when: http_policy.changed and not ansible_check_mode
+    - name: Stop packaged Suricata instance on this dedicated node
+      ansible.builtin.systemd_service:
+        name: suricata
+        state: stopped
+        enabled: false
+    - name: Configure managed IDS or IPS
+      ansible.builtin.command:
+        argv: [python3, /opt/opla/security/suricata/manage.py, '{{ opla_mode }}', --subnet, '{{ opla_home_net }}', --interface, '{{ opla_interface }}']
+      register: ids_configuration
+      changed_when: "'changed' in ids_configuration.stdout"
+      when: not ansible_check_mode
+    - name: Flush service changes
+      ansible.builtin.meta: flush_handlers
+    - name: Enable XDP and telemetry
+      ansible.builtin.systemd_service:
+        name: '{{ item }}'
+        daemon_reload: true
+        enabled: true
+        state: started
+      loop: [opla-xdp, opla-telemetry]
+  handlers:
+    - name: Restart XDP
+      ansible.builtin.systemd_service:
+        name: opla-xdp
+        daemon_reload: true
+        state: restarted
+    - name: Restart local telemetry
+      ansible.builtin.systemd_service:
+        name: opla-telemetry
+        daemon_reload: true
+        state: restarted

@@ -1,0 +1,20 @@
+#cloud-config
+hostname: attacker
+users:
+  - name: student
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - __SSH_KEY__
+ssh_pwauth: false
+disable_root: true
+package_update: false
+package_upgrade: false
+write_files:
+  - path: /etc/sysctl.d/99-opla.conf
+    content: |
+      net.ipv6.conf.all.disable_ipv6=1
+      net.ipv6.conf.default.disable_ipv6=1
+runcmd:
+  - [sysctl, --system]
