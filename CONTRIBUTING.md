@@ -1,7 +1,7 @@
-# Изменения и проверка
+# Contributing
 
-Работайте в отдельной ветке, сохраняйте осмысленные небольшие коммиты и не меняйте авторство истории. Описывайте проблему, результирующее поведение, проверку и ограничения. Не добавляйте рабочие образы, пароли и PDF в дерево исходников.
+Use a dedicated branch and small commits. Preserve licensing and Git authorship. Keep comments focused on invariants, boundary conditions and operational hazards.
 
-Перед предложением изменения: make check и git diff --check. При изменении C нужны пакетные проверки, Clang -target bpf и отдельная загрузка verifier на victim. При изменении API - проверка на Zabbix 7.0 и визуальный просмотр управляемой панели. Для HTTP - nginx -t, 200/429 и независимый client.
+Run make check and git diff --check. Changes to BPF also require clang -target bpf and a real verifier/attach test. Suricata changes require tools/check-suricata.py, then IDS and IPS acceptance on a live sensor. Ansible syntax-check is distinct from deployment, repeated-run and reboot checks.
 
-Обновляйте Markdown, каталог метрик, протокол и release gates вместе с кодом. Не заменяйте реальные интеграционные доказательства mock-тестом. Для новых видов защиты отдельно задайте признаки, действие, ложные срабатывания, предел ресурсов и конечный сценарий проверки.
+Update the root README with configuration changes and actual evidence. Do not report mock tests as live integration results or invent performance improvements.

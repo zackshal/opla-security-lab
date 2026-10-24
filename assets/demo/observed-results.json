@@ -1,0 +1,51 @@
+{
+  "source": "Pasted text(20261024-102102).txt, supplied by user",
+  "date": "2026-10-24",
+  "lab_id": "lab-kSV4ZZai",
+  "provenance": "User terminal output, not independently rerun; video is an editorial replay.",
+  "xdp": {
+    "mode": "native",
+    "program_id_observed": 52,
+    "threshold_build_argument": 100
+  },
+  "syn_scenario": {
+    "syn_before": 35,
+    "syn_after": 2038,
+    "pass_before": 35,
+    "pass_after": 335,
+    "drop_before": 0,
+    "drop_after": 1703,
+    "generator_exit_code": 0
+  },
+  "http_burst": {
+    "requests": 200,
+    "http_200": 11,
+    "http_429": 189,
+    "requests_counter_before": 32,
+    "requests_counter_after": 233,
+    "limited_before": 0,
+    "limited_after": 189,
+    "errors_5xx_delta": 0,
+    "parse_errors_delta": 0
+  },
+  "zabbix_provisioning": {
+    "items": 28,
+    "triggers": 12,
+    "pages": 3,
+    "visual_widget_review": "not evidenced by supplied terminal output"
+  },
+  "later_snapshot": {
+    "loaded": 1,
+    "mode": "native",
+    "syn": 4104,
+    "pass": 701,
+    "drop": 3403,
+    "http_available": 1,
+    "http_status": 200,
+    "http_latency_us": 852,
+    "http_requests": 292,
+    "http_limited": 189,
+    "http_5xx": 0,
+    "http_parse_errors": 0
+  }
+}

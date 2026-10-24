@@ -1,7 +1,7 @@
-# Безопасность и область применения
+# Security
 
-Это учебный стенд. Поддерживаемая ветка разработки - текущая интеграционная версия; подтверждённые и ожидающие проверки перечислены в docs/acceptance.md. Сроки исправления уязвимостей и production SLA не заявляются.
+OPLA is a release candidate with separate lab and dedicated-server profiles. Threat boundaries, fail-closed scope and outstanding acceptance checks are documented in the root README.
 
-Модель угроз, доверенные компоненты и ограничения находятся в docs/security-model.md. По умолчанию трафик опыта остаётся в /29, web/trapper доступны на localhost. Приватные ключи, .env, рабочая БД, образы и сырые журналы не должны публиковаться в Git.
+Do not publish private keys, SMTP credentials, monitoring/.env, runtime logs, packet captures or database backups. Native XDP and NFQUEUE change packet handling; test on an isolated data interface with a separate management path before deployment.
 
-При обнаружении проблемы не включайте секреты в публичный issue. Передайте владельцу репозитория описание, затронутый commit, условия, минимальный воспроизводимый пример и ожидаемое/фактическое поведение через приватный канал выбранной площадки. Адрес владельца намеренно не выдумывается: он будет указан после создания удалённого репозитория.
+Report vulnerabilities privately through the repository owner's security contact or the hosting platform's private vulnerability reporting. No production SLA or independent security certification is claimed.
