@@ -15,6 +15,7 @@ default:
 
 variables:
   DEBIAN_FRONTEND: noninteractive
+  FF_USE_DIRECT_DOWNLOAD: "false"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 portable:
@@ -42,6 +43,7 @@ configuration:
 
 bpf-build:
   stage: build
+  dependencies: []
   image: debian:12-slim
   before_script:
     - apt-get update
