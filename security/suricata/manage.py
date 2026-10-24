@@ -79,10 +79,10 @@ def apply(mode, subnet, et_open=False):
         candidate = ROOT / 'suricata.next.yaml'
         settings = config(mode, subnet, et_open)
         settings['default-rule-path'] = str(stage_path)
-        candidate.write_text(yaml.safe_dump(settings, sort_keys=False))
+        candidate.write_text(yaml.safe_dump(settings, sort_keys=False, explicit_start=True, version=(1, 1)))
         run('suricata', '-T', '-c', str(candidate))
         settings['default-rule-path'] = str(ROOT)
-        candidate.write_text(yaml.safe_dump(settings, sort_keys=False))
+        candidate.write_text(yaml.safe_dump(settings, sort_keys=False, explicit_start=True, version=(1, 1)))
         if mode == 'ips':
             build = subprocess.check_output(['suricata', '--build-info'], text=True)
             if 'NFQueue support:                        yes' not in build and not any(
