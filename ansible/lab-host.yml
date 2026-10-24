@@ -1,0 +1,99 @@
+---
+- name: Prepare a dedicated Debian QEMU laboratory host
+  hosts: opla_lab_hosts
+  become: true
+  gather_facts: true
+  vars:
+    opla_prepare_lab_host: false
+    opla_install_docker: false
+  pre_tasks:
+    - name: Require explicit host preparation and supported architecture
+      ansible.builtin.assert:
+        that:
+          - opla_prepare_lab_host | bool
+          - ansible_distribution == 'Debian'
+          - ansible_distribution_major_version in ['12', '13']
+          - ansible_architecture == 'x86_64'
+        fail_msg: Use a dedicated Debian 12/13 amd64 lab host and explicitly set opla_prepare_lab_host=true.
+    - name: Inspect KVM availability
+      ansible.builtin.stat:
+        path: /dev/kvm
+      register: opla_kvm
+    - name: Require KVM before package changes
+      ansible.builtin.assert:
+        that: opla_kvm.stat.exists
+        fail_msg: Enable hardware or nested virtualization before preparing this lab host.
+    - name: Inspect existing Docker Compose installation
+      ansible.builtin.command: docker compose version
+      register: opla_compose
+      changed_when: false
+      failed_when: false
+      check_mode: false
+    - name: Require explicit permission for installing Docker if missing
+      ansible.builtin.assert:
+        that: opla_compose.rc == 0 or opla_install_docker | bool
+        fail_msg: Install Docker Compose first, or explicitly set opla_install_docker=true on a fresh host.
+  tasks:
+    - name: Install laboratory host dependencies
+      ansible.builtin.apt:
+        name:
+          - qemu-system-x86
+          - qemu-utils
+          - cloud-image-utils
+          - dnsmasq-base
+          - iproute2
+          - nftables
+          - libguestfs-tools
+          - socat
+          - openssh-client
+          - curl
+          - ca-certificates
+          - python3-yaml
+          - build-essential
+          - git
+          - clang
+          - llvm
+          - libbpf-dev
+          - linux-libc-dev
+        state: present
+        update_cache: true
+        install_recommends: false
+    - name: Install Docker on an explicitly selected fresh host
+      when: opla_compose.rc != 0 and opla_install_docker | bool
+      block:
+        - name: Create apt keyring directory
+          ansible.builtin.file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+        - name: Fetch Docker repository signing key
+          ansible.builtin.get_url:
+            url: https://download.docker.com/linux/debian/gpg
+            dest: /etc/apt/keyrings/opla-docker.asc
+            mode: '0644'
+            validate_certs: true
+        - name: Configure Docker repository for this Debian release
+          ansible.builtin.copy:
+            dest: /etc/apt/sources.list.d/opla-docker.sources
+            mode: '0644'
+            content: |
+              Types: deb
+              URIs: https://download.docker.com/linux/debian
+              Suites: {{ ansible_distribution_release }}
+              Components: stable
+              Architectures: amd64
+              Signed-By: /etc/apt/keyrings/opla-docker.asc
+        - name: Install Docker Engine and Compose plugin
+          ansible.builtin.apt:
+            name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin]
+            state: present
+            update_cache: true
+            install_recommends: false
+        - name: Enable newly installed Docker
+          ansible.builtin.systemd_service:
+            name: docker
+            state: started
+            enabled: true
+    - name: Report the next laboratory step
+      ansible.builtin.debug:
+        msg: Host packages prepared. Configure the operator SSH key and Docker access, then follow README image/up/ready steps. No VM, firewall policy, image, or monitoring stack was created by this playbook.
