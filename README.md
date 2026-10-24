@@ -2,7 +2,20 @@
 
 **Воспроизводимые эксперименты с сетевой защитой Linux: eBPF/XDP, Suricata IDS/IPS, Zabbix и проверяемое восстановление стенда.**
 
-C / eBPF · Python · Bash · QEMU/KVM · nftables · nginx · PostgreSQL · Ansible
+[![GitHub Actions](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml/badge.svg)](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml)
+
+![C/eBPF](https://img.shields.io/badge/C%20%2F%20eBPF-clang%2014.0.6-00599C?logo=c&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.13.5-3776AB?logo=python&logoColor=white)
+![Bash](https://img.shields.io/badge/Bash-shell%20scripts-4EAA25?logo=gnubash&logoColor=white)
+![QEMU](https://img.shields.io/badge/QEMU-10.0.13-FF6600?logo=qemu&logoColor=white)
+![nftables](https://img.shields.io/badge/nftables-1.1.3-333333)
+![nginx](https://img.shields.io/badge/nginx-1.22.1-009639?logo=nginx&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16.10-4169E1?logo=postgresql&logoColor=white)
+![Suricata](https://img.shields.io/badge/Suricata-7.0.10-EF3B2D)
+![Zabbix](https://img.shields.io/badge/Zabbix-7.0.19-D40000?logo=zabbix&logoColor=white)
+![Ansible](https://img.shields.io/badge/Ansible%20core-2.19.3-EE0000?logo=ansible&logoColor=white)
+
+Версии отражают наблюдавшийся запуск, а не обещание актуальных security fixes или автоматическую фиксацию пакетов. Версия Bash не была записана в приложенных журналах. Ansible core 2.19.3 использован для syntax-check текущих playbooks; это не установленная версия на неизвестном сервере. [Окружение и сбор версий](docs/versions.md).
 
 [Быстрый старт](#быстрый-старт) · [XDP](#защита-ebpfxdp) · [Zabbix](#метрики-и-панели-zabbix) · [Испытания](#проверки-и-эксперименты) · [CI/CD](#cicd) · [Ограничения](#ограничения-и-модель-доверия)
 
@@ -279,6 +292,33 @@ sudo bpftool -p map dump pinned /sys/fs/bpf/opla/maps/xdp_stats
 
 Не сравнивайте накопительные счётчики через перезагрузку BPF-карт как один непрерывный опыт. Возраст окна source map не равен last-seen. Исторические `ids_parse_errors` не обнуляются автоматически после исправления парсера: проверяется их дельта.
 
+## Ansible: локально, SSH и VPN
+
+Плейбук серверного профиля находится в [ansible/site.yml](ansible/site.yml), примеры параметров — [ansible/vars.example.yml](ansible/vars.example.yml). Подготовка отдельного QEMU-хоста выполняется новым [ansible/lab-host.yml](ansible/lab-host.yml). Это разные профили; серверный playbook не создаёт три лабораторные ВМ.
+
+[Инструкция развёртывания](docs/deployment.md) содержит inventory для local connection, обычного SSH, SSH через VPN и bastion. VPN обеспечивает сетевой маршрут, а SSH остаётся транспортом управления. Local connection обходится без SSH. Приватные inventory, ключи и Vault-файлы сохраняются вне Git.
+
+Для проверки YAML без изменения узла:
+
+```bash
+ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
+ansible-playbook -i ansible/inventory.lab-local.example.ini ansible/lab-host.yml --syntax-check
+ansible-playbook -i ansible/inventory.local.example.ini ansible/preflight.yml --syntax-check
+```
+
+Реальный запуск требует выбранного узла и заполненных параметров. Не применяйте серверный профиль к текущему рабочему ноутбуку или lab victim Debian 12: он рассчитан на выделенный Debian 13 и меняет nginx/Suricata/XDP.
+
+## Руководства по эксплуатации
+
+| Задача | Инструкция |
+|---|---|
+| Службы, интерфейсы, карты, журналы, сценарии | [Операции и диагностика](docs/operations.md) |
+| QMP save/load/delete, offline disk backup, PostgreSQL restore drill | [Резервирование и восстановление](docs/backup-restore.md) |
+| Остановить, сохранить, удалить стенд/volume/секреты/артефакты | [Жизненный цикл данных и удаление](docs/data-lifecycle.md) |
+| Подготовить lab host или сервер через local/SSH/VPN/bastion | [Ansible deployment](docs/deployment.md) |
+| Добавить очищенную исходную историю без force push | [История Git](docs/git-history.md) |
+| Проверенные версии и сбор точного окружения | [Версии](docs/versions.md) |
+
 ## CI/CD
 
 [GitLab configuration](.gitlab-ci.yml) · [GitHub Actions](.github/workflows/check.yml) · [Packaging](ci/package.sh) · [Deployment guards](ci/deploy.sh)
@@ -324,7 +364,7 @@ Deployment Ansible рассчитан на отдельный Debian 13 security
 | `ci/`, `.github/` | Проверки и упаковка |
 | `assets/demo/` | Ранее сохранённая демонстрация с исходными числами |
 
-Публичный комплект содержит код и README; учебные отчёты, PDF/DOCX, runtime, qcow2, дампы и приватная Git-история в него не включены. Для скачивания исходников не нужен доступ к приватному GitLab. Ссылки на исходный pipeline доступны только участникам приватного проекта.
+Публичный комплект содержит код и эксплуатационные Markdown-руководства; учебные отчёты, PDF/DOCX, runtime, qcow2 и дампы в него не включены. Первичная публикация создала новую историю; очищенные исходные коммиты можно отдельно добавить способом из руководства Git. Для скачивания исходников не нужен доступ к приватному GitLab. Ссылки на исходный pipeline доступны только участникам приватного проекта.
 
 ## Участие и сообщения об ошибках
 
