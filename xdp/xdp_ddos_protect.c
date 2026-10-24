@@ -11,6 +11,12 @@
 #ifndef WINDOW_NS
 #define WINDOW_NS 1000000000ULL
 #endif
+#ifndef MAX_SOURCES
+#define MAX_SOURCES 4096
+#endif
+#if MAX_SOURCES < 1 || MAX_SOURCES > 65536
+#error "MAX_SOURCES must be 1..65536"
+#endif
 #if THRESHOLD < 1 || WINDOW_NS < 1
 #error "THRESHOLD and WINDOW_NS must be positive"
 #endif
@@ -21,7 +27,7 @@ struct window {
 };
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1024);
+    __uint(max_entries, MAX_SOURCES);
     __type(key, __u32);
     __type(value, struct window);
 } syn_windows SEC(".maps");

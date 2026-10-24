@@ -70,8 +70,11 @@ systemd-run --quiet --collect --unit="dhcp-$LAB_ID" dnsmasq --keep-in-foreground
 create_vm() {
     local name="$1" mem="$2" cpus="$3" mac="$4" addr="$5" tap="$6"
     local dir="$LAB_DIR/$name"
+    local image="$PROJECT_DIR/images/debian-12-$name.qcow2"
+    [[ "$name" != victim ]] || image="$PROJECT_DIR/images/debian-12-xdp.qcow2"
+    [[ -f "$image" ]] || image="$PROJECT_DIR/images/debian-12-xdp.qcow2"
     mkdir "$dir"
-    qemu-img create -q -f qcow2 -F qcow2 -b "$PROJECT_DIR/images/debian-12-xdp.qcow2" "$dir/disk.qcow2"
+    qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$dir/disk.qcow2"
     # JSON-строка корректно экранирует ключ при подстановке в YAML.
     python3 - "$PROJECT_DIR/cloud-init/$name.yaml" "$dir/user-data" "$SSH_PUB" <<'PYCODE'
 import json,sys
@@ -94,13 +97,14 @@ NET
     ip tuntap add dev "$tap" mode tap
     ip link set "$tap" master "$BRIDGE"
     ip link set "$tap" up
-    systemd-run --quiet --collect --unit="qemu-$LAB_ID-$name" \
+    systemd-run --quiet --collect --property=UMask=0077 --unit="qemu-$LAB_ID-$name" \
         qemu-system-x86_64 -enable-kvm -cpu host -m "$mem" -smp "$cpus" \
         -drive "file=$dir/disk.qcow2,if=virtio" -drive "file=$dir/seed.iso,media=cdrom" \
         -netdev "tap,id=n0,ifname=$tap,script=no,downscript=no" \
         -device "virtio-net-pci,netdev=n0,mac=$mac" \
         -chardev "socket,id=c0,path=$LAB_DIR/$name-console.sock,server=on,wait=off" \
-        -serial chardev:c0 -display none -monitor none -no-reboot
+        -serial chardev:c0 -display none -monitor none \
+        -qmp "unix:$LAB_DIR/$name-qmp.sock,server=on,wait=off" -no-reboot
     for ((i=0;i<100;i++)); do
         [[ -S "$LAB_DIR/$name-console.sock" ]] && break
         systemctl is-active --quiet "qemu-$LAB_ID-$name" || return 1
@@ -108,6 +112,7 @@ NET
     done
     [[ -S "$LAB_DIR/$name-console.sock" ]]
     chown "$CALLER" "$LAB_DIR/$name-console.sock"
+    systemctl show "qemu-$LAB_ID-$name.service" -p ExecStart --value > "$dir/execstart.txt"
 }
 N="${BRIDGE#br-op}"
 create_vm attacker 1024 1 52:54:00:00:00:02 "$ATTACKER_IP" "op${N}a"
