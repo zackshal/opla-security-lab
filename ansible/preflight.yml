@@ -1,0 +1,34 @@
+---
+- name: Check dedicated server deployment prerequisites without changing services
+  hosts: opla
+  become: true
+  gather_facts: true
+  vars:
+    opla_allow_management_interface: false
+  tasks:
+    - name: Require a reviewed Debian 13 data interface
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Debian'
+          - ansible_distribution_major_version == '13'
+          - opla_interface is defined
+          - opla_interface in ansible_interfaces
+          - opla_interface != 'lo'
+          - opla_allow_management_interface | bool or opla_interface != (ansible_default_ipv4 | default({})).get('interface', '')
+        fail_msg: Select a separate data interface; keep the SSH or VPN management interface outside the protection path.
+    - name: Verify Docker Compose is already installed on the server
+      ansible.builtin.command: docker compose version
+      changed_when: false
+      check_mode: false
+    - name: Inspect the BPF object on the controller
+      ansible.builtin.stat:
+        path: '{{ opla_bpf_object }}'
+      delegate_to: localhost
+      become: false
+      register: opla_object
+    - name: Require a compiled BPF object
+      ansible.builtin.assert:
+        that: opla_object.stat.exists and opla_object.stat.isreg
+    - name: Report scope
+      ansible.builtin.debug:
+        msg: Prerequisite checks completed. This is not a kernel-verifier, live attach, deployment or reboot acceptance test.
