@@ -41,11 +41,11 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v4
       - name: Install configuration validators
         run: |
           apt-get -o APT::Update::Error-Mode=any update
           apt-get install -y --no-install-recommends git python3 python3-yaml suricata ansible-core
+      - uses: actions/checkout@v4
       - name: Validate Suricata and Ansible
         run: |
           suricata -V
