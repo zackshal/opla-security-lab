@@ -20,6 +20,8 @@ Badges record the observed environment, not a recommended current security basel
 
 [Quick start](#quick-start) · [XDP](#ebpfxdp-protection) · [Zabbix](#zabbix) · [Deployment](docs/deployment.en.md)
 
+[Component map](docs/architecture.en.md) · [Acceptance matrix](docs/acceptance.en.md)
+
 > **Status: laboratory release candidate.** Native XDP and selected defenses were tested live. GitLab pipeline [2985024140](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines/2985024140) passed for 96ef03bb. Cold installation, full host-reboot recovery and dedicated-server Ansible deployment require separate acceptance. This is not universal L2–L7 protection or a claim of production readiness.
 
 ## Capabilities
