@@ -41,15 +41,16 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v4
       - name: Install configuration validators
         run: |
           apt-get -o APT::Update::Error-Mode=any update
-          apt-get install -y --no-install-recommends python3 python3-yaml suricata ansible-core
+          apt-get install -y --no-install-recommends git python3 python3-yaml suricata ansible-core
+      - uses: actions/checkout@v4
       - name: Validate Suricata and Ansible
         run: |
           suricata -V
           python3 tools/check-suricata.py
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           python3 tools/check-docs.py
           ansible-playbook -i ansible/inventory.example.ini ansible/site.yml --syntax-check
           ansible-playbook -i ansible/inventory.lab-local.example.ini ansible/lab-host.yml --syntax-check
