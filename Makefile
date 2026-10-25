@@ -79,3 +79,23 @@ ids-test:
 .PHONY: source-map
 source-map:
 	@bash bin/source-map.sh
+
+# Reproducible PDF artifacts. Public documents and private teacher key are separate.
+DOCS_PYTHON ?= .venv-docs/bin/python
+DOCS_PUBLIC_DIR ?= release-artifacts/public
+DOCS_PRIVATE_DIR ?= $(HOME)/Documents/OPLA-private
+
+.PHONY: docs-deps docs docs-teacher
+docs-deps:
+	@python3 -m venv .venv-docs
+	@.venv-docs/bin/python -m pip install -r tools/requirements-docs.txt
+
+docs:
+	@$(DOCS_PYTHON) tools/export-pdf.py --out "$(DOCS_PUBLIC_DIR)"
+	@echo "Public PDF documents: $(DOCS_PUBLIC_DIR)"
+
+docs-teacher:
+	@mkdir -p -m 700 "$(DOCS_PRIVATE_DIR)"
+	@chmod 700 "$(DOCS_PRIVATE_DIR)"
+	@$(DOCS_PYTHON) tools/export-pdf.py --only teacher --out "$(DOCS_PRIVATE_DIR)"
+	@echo "Private teacher key: $(DOCS_PRIVATE_DIR)/OPLA_Teacher_Key.pdf"
