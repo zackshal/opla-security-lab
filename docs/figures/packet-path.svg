@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800">
+<rect width="100%" height="100%" fill="white"/>
+<line x1="400" y1="90" x2="520" y2="90" stroke="#334155" stroke-width="3"/>
+<polygon points="520.0,90.0 506.5,96.5 506.5,83.5" fill="#334155"/>
+<line x1="880" y1="90" x2="1000" y2="90" stroke="#334155" stroke-width="3"/>
+<polygon points="1000.0,90.0 986.5,96.5 986.5,83.5" fill="#334155"/>
+<line x1="1180" y1="140" x2="780" y2="250" stroke="#334155" stroke-width="3"/>
+<polygon points="780.0,250.0 791.3,240.1 794.8,252.7" fill="#334155"/>
+<line x1="700" y1="350" x2="700" y2="450" stroke="#334155" stroke-width="3"/>
+<polygon points="700.0,450.0 693.5,436.5 706.5,436.5" fill="#334155"/>
+<line x1="440" y1="550" x2="220" y2="660" stroke="#334155" stroke-width="3"/>
+<polygon points="220.0,660.0 229.2,648.1 235.0,659.8" fill="#334155"/>
+<line x1="960" y1="550" x2="1180" y2="660" stroke="#334155" stroke-width="3"/>
+<polygon points="1180.0,660.0 1165.0,659.8 1170.8,648.1" fill="#334155"/>
+<rect x="40" y="40" width="360" height="100" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="220.0" y="82.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">Ethernet / до 2 VLAN</text>
+<text x="220.0" y="113.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">Проверка доступной длины</text>
+<rect x="520" y="40" width="360" height="100" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="700.0" y="82.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">IPv4 / IHL / total</text>
+<text x="700.0" y="113.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">TCP-фрагменты: DROP</text>
+<rect x="1000" y="40" width="360" height="100" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="1180.0" y="82.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">TCP / doff / длина</text>
+<text x="1180.0" y="113.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">Безопасные обращения</text>
+<rect x="520" y="250" width="360" height="100" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="700.0" y="292.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">SYN=1, ACK=0?</text>
+<text x="700.0" y="323.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">Прочий трафик: PASS</text>
+<rect x="440" y="450" width="520" height="120" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="700.0" y="502.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">Окно source IP + spin lock</text>
+<text x="700.0" y="533.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">count++; порог THRESHOLD</text>
+<rect x="40" y="660" width="360" height="100" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="220.0" y="702.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">count ≤ THRESHOLD</text>
+<text x="220.0" y="733.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">PASS + счётчик</text>
+<rect x="1000" y="660" width="360" height="100" rx="10" fill="#eef4fa" stroke="#334155" stroke-width="2"/>
+<text x="1180.0" y="702.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">count &gt; THRESHOLD</text>
+<text x="1180.0" y="733.5" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#172b45">DROP + счётчик</text>
+<text x="60" y="243" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#334155">Проверки до учёта SYN</text>
+<text x="60" y="283" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#334155">Ошибка длины: DROP</text>
+<text x="60" y="408" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#334155">Всё ограничение - для IPv4 SYN</text>
+<text x="990" y="408" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#334155">Hash-map: до 1024 IP</text>
+<text x="500" y="643" font-family="DejaVu Sans,sans-serif" font-size="23" fill="#334155">per-CPU накопительные счётчики</text>
+</svg>

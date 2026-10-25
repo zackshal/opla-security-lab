@@ -79,3 +79,14 @@ ids-test:
 .PHONY: source-map
 source-map:
 	@bash bin/source-map.sh
+
+# Public PDF outputs. Teacher answer keys are intentionally unsupported here.
+.PHONY: docs docs-check check-docs
+docs:
+	@test -x .venv-docs/bin/python || { echo 'Run: python3 -m venv .venv-docs && .venv-docs/bin/python -m pip install -r tools/requirements-docs.txt' >&2; exit 1; }
+	@.venv-docs/bin/python tools/export-pdf.py
+
+check-docs:
+	@python3 tools/check-docs.py
+
+docs-check: check-docs docs

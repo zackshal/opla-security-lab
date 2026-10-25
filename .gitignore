@@ -39,3 +39,7 @@ ansible/private.yml
 .opla-check-*/
 opla-source-review-*.tar.gz
 bridge-backup-*/
+
+# Teacher-only material: never include in public Git history.
+docs/teacher-key.md
+OPLA_Teacher_Key.pdf
