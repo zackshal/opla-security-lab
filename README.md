@@ -38,11 +38,11 @@ OPLA links a test packet to BPF counters, Suricata events, HTTP responses, Zabbi
 
 ## Demonstration
 
-![Replay of saved terminal output](assets/demo/terminal-replay.gif)
+The existing public GIF is a historical terminal replay. A recording of the current Zabbix interface has not been attached; the replay is not a new live run.
 
-[MP4](assets/demo/terminal-replay.mp4) · [Recorded numerical results](assets/demo/observed-results.json)
+[Real interface recording protocol](assets/demo/README.en.md) · [Publication and CI/CD status](docs/delivery-status.en.md)
 
-This is an editorial replay of previously captured output, not a new live recording or a performance benchmark. It shows earlier SYN/HTTP experiments and historical item counts. Current scan policy and CI differ; new dashboard screenshots are not included.
+Historical material: [GIF](assets/demo/terminal-replay.gif), [MP4](assets/demo/terminal-replay.mp4), [numerical evidence](assets/demo/observed-results.json). These remain for provenance; verify item counts and UI against the current version.
 
 ## Architecture
 
