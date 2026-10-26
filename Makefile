@@ -149,3 +149,17 @@ prune:
 .PHONY: registry-status
 registry-status:
 	@python3 bin/opla-registry.py list
+
+# v5.3: explicit read-only ownership verification. Never deletes host resources.
+.PHONY: registry-verify prune-verified
+registry-verify:
+	@python3 bin/opla-registry-verify.py verify $(if $(LAB),--lab "$(LAB)",)
+prune-verified:
+	@python3 bin/opla-registry-verify.py plan $(if $(LAB),--lab "$(LAB)",)
+
+# V5.4: explicitly scoped Docker monitoring inventory and irreversible purge.
+.PHONY: monitoring-purge-plan purge-monitoring
+monitoring-purge-plan:
+	@python3 bin/opla-monitoring-prune.py plan
+purge-monitoring:
+	@python3 bin/opla-monitoring-prune.py purge --confirm "$(CONFIRM_PURGE)"

@@ -404,3 +404,7 @@ make ready
 ## Инвентаризация ресурсов OPLA (v5 preview)
 
 Команды `make resources` и `make prune` безопасны для ознакомления с ресурсами проекта: обе работают **только на чтение**. `prune` пока не удаляет объекты, даже если передать `CONFIRM=yes`. См. [документацию по реестру ресурсов](docs/user-guide/resources.md).
+
+### OPLA v5.3 registry verification
+
+`make registry-verify` and `make prune-verified` provide non-destructive checks. See `docs/user-guide/registry-verification.md`.
