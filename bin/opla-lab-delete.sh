@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo 'BLOCKED: legacy lab-delete is disabled until ownership verification is implemented.' >&2
+exit 2
 LAB="${LAB_DIR:-}"
 [[ -n "$LAB" && "$LAB" == /var/lib/opla/lab-* ]] || { echo 'Нет выбранного LAB_DIR' >&2; exit 2; }
 ID="${LAB##*/}"

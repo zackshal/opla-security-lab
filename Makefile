@@ -42,7 +42,12 @@ uninstall:
 	@python3 bin/opla-cli-install.py uninstall
 # Type the exact selected lab ID; this permanently deletes its VM disks.
 lab-delete:
-	@CONFIRM_LAB="$(CONFIRM_LAB)" bash bin/opla-lab-delete.sh
+	@python3 bin/opla-lab-cleanup-plan.py --lab "$(notdir $(LAB_DIR))"
+	@echo 'BLOCKED: destructive lab-delete awaits verified ownership executor.' >&2; exit 2
+.PHONY: lab-delete-plan
+lab-delete-plan:
+	@python3 bin/opla-lab-cleanup-plan.py --lab "$(or $(LAB),$(notdir $(LAB_DIR)))" $(if $(JSON),--json,)
+
 # Shared Zabbix/PostgreSQL: only use when other labs do not need them.
 stack-down: lab-stack-down
 
@@ -56,8 +61,8 @@ ready ssh console:
 	@./bin/control.sh $@ "$(VM)"
 # Legacy down deletes VM overlay disks. Require explicit acknowledgment.
 down:
-	@test "$(CONFIRM_DELETE)" = "yes" || { echo 'ОТКАЗ: make down удаляет каталог стенда и диски. Для удаления: make down CONFIRM_DELETE=yes LAB_DIR=/var/lib/opla/lab-...'; exit 2; }
-	@./bin/control.sh down "$(VM)"
+	@echo 'BLOCKED: legacy down bypasses ownership checks. Use make lab-delete-plan LAB=lab-... to inspect.' >&2
+	@exit 2
 xdp-deploy:
 	@./bin/control.sh deploy
 xdp-build:
@@ -163,3 +168,15 @@ monitoring-purge-plan:
 	@python3 bin/opla-monitoring-prune.py plan
 purge-monitoring:
 	@python3 bin/opla-monitoring-prune.py purge --confirm "$(CONFIRM_PURGE)"
+
+# v5.5: cross-lab resource collision audit (strictly read-only).
+.PHONY: registry-audit
+registry-audit:
+	@python3 bin/opla-registry-audit.py $(if $(JSON),--json,)
+
+# v5.7: assessments only; no deletion authorization. Requires root for protected journal.
+.PHONY: lab-delete-record cleanup-journal
+lab-delete-record:
+	@sudo python3 bin/opla-cleanup-journal.py record --lab "$(or $(LAB),$(notdir $(LAB_DIR)))"
+cleanup-journal:
+	@sudo python3 bin/opla-cleanup-journal.py list

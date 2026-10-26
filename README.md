@@ -408,3 +408,17 @@ make ready
 ### OPLA v5.3 registry verification
 
 `make registry-verify` and `make prune-verified` provide non-destructive checks. See `docs/user-guide/registry-verification.md`.
+
+Registry cross-lab audit: `make registry-audit` (read-only; see `docs/user-guide/resource-audit.md`).
+
+
+### v5.6: controlled lab-deletion migration (fail closed)
+
+`make lab-delete-plan LAB=lab-...` prints a read-only per-lab deletion preflight.
+The old `make down` and `make lab-delete` paths are **temporarily blocked**:
+existing cleanup removed lab disks from name patterns without proving exclusive
+ownership. `CONFIRM_DELETE` and `CONFIRM_LAB` do not override this gate.
+VM shutdown remains available via `make lab-stop`; monitoring cleanup remains
+a separate verified workflow. The next iteration must implement ownership
+attestation, idempotent step execution and an on-disk operation journal before
+re-enabling destructive lab deletion.
