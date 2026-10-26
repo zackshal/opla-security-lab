@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Safe stop/restart of a retained OPLA lab; never deletes VM disks."""
 import argparse
+from contextlib import ExitStack
 import fcntl
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -33,11 +35,49 @@ def interface(name):
     return call('ip', 'link', 'show', 'dev', name, check=False).returncode == 0
 
 
+def verify_nft_before_network_cleanup(table, bridge):
+    """Fail closed on unexpected NFT rules before mutating DHCP/TAP/bridge.
+
+    Missing table is allowed; unexpected permissions/output/extra rules are not.
+    This is a defense in depth for direct lab-stop calls, not ownership proof.
+    """
+    probe = call('nft', 'list', 'table', 'inet', table, check=False)
+    if probe.returncode:
+        if probe.returncode == 1 and re.search(r'no such file|does not exist', probe.stderr, re.I):
+            return False
+        raise RuntimeError(f'Cannot safely inspect nftables table {table}: {probe.stderr.strip()}')
+    expected = {
+        f'table inet {table}',
+        'chain forward',
+        'type filter hook forward priority -20; policy accept;',
+        f'iifname "{bridge}" oifname != "{bridge}" drop',
+        f'oifname "{bridge}" iifname != "{bridge}" drop',
+        'chain input',
+        'type filter hook input priority -20; policy accept;',
+        f'iifname "{bridge}" ct state established,related accept',
+        f'iifname "{bridge}" udp dport 67 accept',
+        f'iifname "{bridge}" drop',
+    }
+    actual = []
+    for line in probe.stdout.splitlines():
+        line = line.strip()
+        if not line or line in ('{', '}'):
+            continue
+        # Strip only structural opening brace. Unknown inline comments/rules block.
+        if line.endswith(' {'):
+            line = line[:-2].rstrip()
+        actual.append(line)
+    if len(actual) != len(expected) or set(actual) != expected:
+        raise RuntimeError(f'nftables table {table} differs from expected OPLA policy; manual review required')
+    return True
+
+
 def remove_network(lab, state):
     """Remove only resources owned by this lab; retain all on-disk state."""
     labid, bridge = state['LAB_ID'], state['BRIDGE']
     table = 'opla_' + labid.replace('-', '_')
     dhcp = f'dhcp-{labid}.service'
+    nft_present = verify_nft_before_network_cleanup(table, bridge)
     if active(dhcp):
         call('systemctl', 'stop', dhcp)
     # A stale DHCP unit is harmless. Avoid touching another lab's services.
@@ -57,7 +97,10 @@ def remove_network(lab, state):
         if state['GW'] + '/29' not in addresses:
             raise RuntimeError(f'IP моста {bridge} изменён; ручная проверка перед удалением')
         call('ip', 'link', 'delete', 'dev', bridge)
-    if call('nft', 'list', 'table', 'inet', table, check=False).returncode == 0:
+    if nft_present:
+        # Recheck immediately before deletion; reject policy changes during cleanup.
+        if not verify_nft_before_network_cleanup(table, bridge):
+            raise RuntimeError('nft table disappeared during cleanup; manual review required')
         call('nft', 'delete', 'table', 'inet', table)
     print('Сеть стенда остановлена: DHCP, TAP, bridge, nft; диски и state.env сохранены.')
 
@@ -176,7 +219,10 @@ def main():
         parser.error('Для операций с QEMU и TAP нужен sudo')
     state = load(args.lab)
     lab = Path(args.lab).resolve()
-    with (lab / 'maintenance.lock').open('a') as lock:
+    with ExitStack() as stack:
+        global_lock = stack.enter_context((Path('/var/lib/opla') / '.opla-prune.lock').open('a'))
+        fcntl.flock(global_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock = stack.enter_context((lab / 'maintenance.lock').open('a'))
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.action == 'status':
             bridge = state['BRIDGE']

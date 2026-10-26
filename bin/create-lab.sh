@@ -11,6 +11,8 @@ done
 [[ -c /dev/kvm ]] || { echo 'Нужен доступный KVM (/dev/kvm)' >&2; exit 1; }
 [[ -f "$PROJECT_DIR/images/debian-12-xdp.qcow2" ]] || { echo 'Сначала make image' >&2; exit 1; }
 install -d -m 755 /var/lib/opla
+exec 8>/var/lib/opla/.opla-prune.lock
+flock -n 8 || { echo "OPLA lifecycle is locked" >&2; exit 2; }
 exec 9>/var/lib/opla/create.lock
 flock -n 9 || { echo 'Другой процесс создаёт стенд' >&2; exit 1; }
 CALLER="${SUDO_USER:-root}"
@@ -34,11 +36,20 @@ ATTACKER_IP=$ATTACKER_IP
 VICTIM_IP=$VICTIM_IP
 CLIENT_IP=$CLIENT_IP
 STATE
-# Сразу включаем аварийную очистку, включая ошибку записи квитанции.
-trap 'code=$?; "$SCRIPT_DIR/cleanup-lab.sh" "$LAB_DIR" || true; exit "$code"' ERR
+# Fail closed: never invoke legacy cleanup-lab.sh on a partially created lab.
+# The receipt remains in the "creating" phase for a separately verified recovery.
+# This handler performs no destructive host changes and retains both lifecycle locks.
+opla_creation_failed() {
+    local code="$1"
+    trap - ERR
+    printf 'BLOCKED: lab creation failed (exit %s). Resources may remain: %s\n' "$code" "$LAB_DIR" >&2
+    printf 'Do not run legacy cleanup-lab.sh. Inspect registry and host resources before recovery.\n' >&2
+    exit "$code"
+}
+trap 'opla_creation_failed "$?"' ERR
 python3 "$SCRIPT_DIR/opla-registry.py" begin --lab "$LAB_ID"
 install -m 600 -o "$CALLER" /dev/null "$LAB_DIR/known_hosts"
-# После неудачного запуска убираем только ресурсы этого экземпляра. Трап установлен выше.
+# При сбое сохраняем каталог и состояние для ручной верификации; автоматической очистки нет.
 ip link add "$BRIDGE" type bridge
 ip addr add "$GW/29" dev "$BRIDGE"
 ip link set "$BRIDGE" up

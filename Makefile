@@ -27,7 +27,6 @@ doctor:
 lab-start:
 	@sudo python3 bin/lab-lifecycle.py start --lab "$(LAB_DIR)"
 lab-stop:
-	@bash monitoring/manage.sh monitoring-stop
 	@sudo python3 bin/lab-lifecycle.py stop --lab "$(LAB_DIR)"
 lab-infra-status:
 	@sudo python3 bin/lab-lifecycle.py status --lab "$(LAB_DIR)"
@@ -42,8 +41,7 @@ uninstall:
 	@python3 bin/opla-cli-install.py uninstall
 # Type the exact selected lab ID; this permanently deletes its VM disks.
 lab-delete:
-	@python3 bin/opla-lab-cleanup-plan.py --lab "$(notdir $(LAB_DIR))"
-	@echo 'BLOCKED: destructive lab-delete awaits verified ownership executor.' >&2; exit 2
+	@sudo python3 bin/opla-secure-lab-delete.py --lab "$(or $(LAB),$(notdir $(LAB_DIR)))" --confirm "$(CONFIRM_DELETE)"
 .PHONY: lab-delete-plan
 lab-delete-plan:
 	@python3 bin/opla-lab-cleanup-plan.py --lab "$(or $(LAB),$(notdir $(LAB_DIR)))" $(if $(JSON),--json,)
@@ -180,3 +178,35 @@ lab-delete-record:
 	@sudo python3 bin/opla-cleanup-journal.py record --lab "$(or $(LAB),$(notdir $(LAB_DIR)))"
 cleanup-journal:
 	@sudo python3 bin/opla-cleanup-journal.py list
+
+# v5.8: only fully deprovisioned offline labs, with verified receipt and confirmation.
+.PHONY: lab-prune-offline-plan lab-prune-offline
+lab-prune-offline-plan:
+	@sudo python3 bin/opla-offline-prune.py plan --lab "$(LAB)"
+lab-prune-offline:
+	@sudo python3 bin/opla-offline-prune.py execute --lab "$(LAB)" --confirm "$(CONFIRM_PRUNE)"
+
+# Confirm with make lab-delete LAB=lab-XXXXXXXX CONFIRM_DELETE=DELETE-LAB:lab-XXXXXXXX
+
+.PHONY: lab-delete-verified-plan
+lab-delete-verified-plan:
+	@sudo python3 bin/opla-secure-lab-delete.py --plan --lab "$(or $(LAB),$(notdir $(LAB_DIR)))"
+
+# v5.9.3: verified recovery of an already-offline failed creation only.
+# Refuse all live QEMU/DHCP/network resources; no implicit destructive cleanup.
+.PHONY: creation-rollback-plan creation-rollback
+creation-rollback-plan:
+	@sudo python3 bin/opla-creation-rollback.py plan --lab "$(LAB)"
+creation-rollback:
+	@sudo python3 bin/opla-creation-rollback.py execute --lab "$(LAB)" --confirm "$(CONFIRM_ROLLBACK)"
+
+# v5.9.4: inspect incomplete ACTIVE creation only; no destructive executor.
+.PHONY: creation-active-recovery-plan
+creation-active-recovery-plan:
+	@sudo python3 bin/opla-active-recovery-plan.py --lab "$(LAB)"
+
+# v5.9.5: explicit recovery for an incompletely created laboratory.
+# Requires typed confirmation; no shared Docker or monitoring operations.
+.PHONY: creation-active-recover
+creation-active-recover:
+	@sudo python3 bin/opla-active-creation-recover.py --lab "$(LAB)" --confirm "$(CONFIRM_RECOVER)"

@@ -31,12 +31,12 @@ class LabCleanupPlanTests(unittest.TestCase):
             self.assertFalse(result['execution_allowed'])
             self.assertTrue(any('unsafe' in x for x in result['reasons']))
 
-    def test_make_targets_fail_closed(self):
-        mk = (ROOT / 'Makefile').read_text()
-        shell = (ROOT / 'bin' / 'opla-lab-delete.sh').read_text()
-        self.assertIn('legacy down bypasses ownership checks', mk)
-        self.assertIn('destructive lab-delete awaits verified ownership executor', mk)
-        self.assertIn('exit 2', shell)
+
+    def test_make_targets_use_verified_executor(self):
+        mk = (ROOT / "Makefile").read_text()
+        self.assertIn("bin/opla-secure-lab-delete.py", mk)
+        self.assertIn("CONFIRM_DELETE", mk)
+        self.assertIn("legacy down bypasses ownership checks", mk)
 
 
 if __name__ == '__main__':
