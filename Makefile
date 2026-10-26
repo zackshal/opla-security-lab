@@ -21,6 +21,31 @@ lab-status nodes:
 	@python3 bin/lab-cli.py nodes
 doctor:
 	@python3 bin/lab-cli.py doctor
+
+# Safe lifecycle of existing labs: no qcow2 deletion.
+.PHONY: lab-start lab-stop lab-stack-down lab-infra-status
+lab-start:
+	@sudo python3 bin/lab-lifecycle.py start --lab "$(LAB_DIR)"
+lab-stop:
+	@bash monitoring/manage.sh monitoring-stop
+	@sudo python3 bin/lab-lifecycle.py stop --lab "$(LAB_DIR)"
+lab-infra-status:
+	@sudo python3 bin/lab-lifecycle.py status --lab "$(LAB_DIR)"
+# Zabbix/PostgreSQL are shared between labs; stop globally only when explicit.
+lab-stack-down: lab-stop
+	@bash monitoring/manage.sh monitoring-down
+.PHONY: install uninstall lab-delete stack-down
+# Only installs/removes a per-user CLI wrapper; not OS dependencies.
+install:
+	@python3 bin/opla-cli-install.py install
+uninstall:
+	@python3 bin/opla-cli-install.py uninstall
+# Type the exact selected lab ID; this permanently deletes its VM disks.
+lab-delete:
+	@CONFIRM_LAB="$(CONFIRM_LAB)" bash bin/opla-lab-delete.sh
+# Shared Zabbix/PostgreSQL: only use when other labs do not need them.
+stack-down: lab-stack-down
+
 bootstrap:
 	@./bootstrap.sh
 image:
