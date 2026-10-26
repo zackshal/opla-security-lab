@@ -34,9 +34,11 @@ ATTACKER_IP=$ATTACKER_IP
 VICTIM_IP=$VICTIM_IP
 CLIENT_IP=$CLIENT_IP
 STATE
-install -m 600 -o "$CALLER" /dev/null "$LAB_DIR/known_hosts"
-# После неудачного запуска убираем только ресурсы этого экземпляра.
+# Сразу включаем аварийную очистку, включая ошибку записи квитанции.
 trap 'code=$?; "$SCRIPT_DIR/cleanup-lab.sh" "$LAB_DIR" || true; exit "$code"' ERR
+python3 "$SCRIPT_DIR/opla-registry.py" begin --lab "$LAB_ID"
+install -m 600 -o "$CALLER" /dev/null "$LAB_DIR/known_hosts"
+# После неудачного запуска убираем только ресурсы этого экземпляра. Трап установлен выше.
 ip link add "$BRIDGE" type bridge
 ip addr add "$GW/29" dev "$BRIDGE"
 ip link set "$BRIDGE" up
@@ -118,6 +120,7 @@ N="${BRIDGE#br-op}"
 create_vm attacker 1024 1 52:54:00:00:00:02 "$ATTACKER_IP" "op${N}a"
 create_vm victim 2048 2 52:54:00:00:00:03 "$VICTIM_IP" "op${N}v"
 create_vm client 512 1 52:54:00:00:00:04 "$CLIENT_IP" "op${N}c"
+python3 "$SCRIPT_DIR/opla-registry.py" ready --lab "$LAB_ID"
 trap - ERR
 echo "Стенд запущен: $LAB_DIR"
 echo "Victim: $VICTIM_IP; attacker: $ATTACKER_IP; client: $CLIENT_IP"

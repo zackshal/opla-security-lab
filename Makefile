@@ -137,3 +137,15 @@ docs-teacher:
 	@chmod 700 "$(DOCS_PRIVATE_DIR)"
 	@$(DOCS_PYTHON) tools/export-pdf.py --only teacher --out "$(DOCS_PRIVATE_DIR)"
 	@echo "Private teacher key: $(DOCS_PRIVATE_DIR)/OPLA_Teacher_Key.pdf"
+
+# V5 Phase 1: inventory and secure-prune preview are strictly read-only.
+.PHONY: resources prune
+resources:
+	@python3 bin/opla-resources.py resources $(if $(LAB),--lab "$(LAB)",)
+prune:
+	@python3 bin/opla-resources.py prune $(if $(LAB),--lab "$(LAB)",)
+
+# V5.2: inspect persistent receipts. No destructive executor is exposed.
+.PHONY: registry-status
+registry-status:
+	@python3 bin/opla-registry.py list
