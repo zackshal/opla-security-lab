@@ -66,6 +66,49 @@ INTERVAL
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/collect.py' > "$output_dir/after.json"
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/fingerprint.py inspect' > "$output_dir/fingerprint-after.json"
 printf '%s\n' "$result" > "$output_dir/generator-exit.txt"
+
+# Export bounded IDS evidence from the existing victim VM.
+# This does not start or modify any service.
+scp_vm "$victim_ip" /tmp/ "$PROJECT_DIR/security/evidence/export.py"
+
+for kind in suricata scan; do
+    export_file="$output_dir/${kind}-export.json"
+    export_error="$output_dir/${kind}-export-error.txt"
+
+    if ssh_vm "$victim_ip" \
+        "sudo python3 /tmp/export.py --kind $kind" \
+        > "$export_file" 2> "$export_error"; then
+
+        if ! python3 bin/opla-evidence-unpack.py \
+            --kind "$kind" \
+            --input "$export_file" \
+            --output-dir "$output_dir" \
+            >> "$export_error" 2>&1; then
+            printf 'BLOCKED: %s evidence unpack failed\n' "$kind" >&2
+        fi
+    else
+        printf 'BLOCKED: %s evidence export failed\n' "$kind" >&2
+    fi
+done
+
+# Create a consolidated report even when one IDS source is unavailable.
+report_args=("$output_dir")
+
+if [ -f "$output_dir/eve.json" ]; then
+    report_args+=(--eve "$output_dir/eve.json")
+fi
+
+if [ -f "$output_dir/events.jsonl" ]; then
+    report_args+=(--scan-events "$output_dir/events.jsonl")
+fi
+
+if ! python3 bin/opla-incident-report.py "${report_args[@]}" \
+    > "$output_dir/incident-report.json" \
+    2> "$output_dir/incident-report-error.txt"; then
+    rm -f "$output_dir/incident-report.json"
+    printf 'BLOCKED: incident report generation failed\n' >&2
+fi
+
 python3 - "$output_dir" <<'PY'
 import json
 import sys

@@ -157,6 +157,24 @@ def build_report(experiment, eve_path=None, scan_path=None):
             scan_path, start, end, source, target
         )
 
+    result["evidence_exports"] = {}
+
+    for kind in ("suricata", "scan"):
+        meta_file = experiment / f"{kind}-evidence-meta.json"
+        error_file = experiment / f"{kind}-export-error.txt"
+
+        if meta_file.is_file() and not meta_file.is_symlink():
+            result["evidence_exports"][kind] = read_json(meta_file)
+        else:
+            result["evidence_exports"][kind] = {
+                "status": "unavailable",
+                "coverage": "unavailable",
+                "reason": "export metadata not available",
+            }
+
+            if error_file.is_file() and not error_file.is_symlink():
+                result["evidence_exports"][kind]["error_log"] = error_file.name
+
     return result
 
 
