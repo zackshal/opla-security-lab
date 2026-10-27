@@ -285,3 +285,9 @@ monitoring-experiment-publish:
 .PHONY: acceptance-check
 acceptance-check:
 	@python3 bin/opla-acceptance-check.py --check
+
+.PHONY: lab-configure
+lab-configure:
+	@test -n "$(LAB)" || { echo "BLOCKED: LAB required"; exit 2; }
+	@test "$(LAB)" = "$(CONFIRM)" || { echo "BLOCKED: confirmation mismatch"; exit 2; }
+	@sudo python3 bin/opla-lab-configure-launcher.py "$(LAB)" "$(CONFIRM)"

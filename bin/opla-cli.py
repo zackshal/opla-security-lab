@@ -33,6 +33,7 @@ COMMANDS = {
         "infra": ("lab-infra-status", "Состояние инфраструктуры", []),
         "create": ("up", "Создать новый стенд", []),
         "ready": ("ready", "Дождаться cloud-init на узлах", []),
+        "configure": ("lab-configure", "Настроить XDP и IDS в лаборатории", [("--lab", "LAB")]),
         "delete": ("lab-delete", "Безвозвратно удалить стенд", [("lab", "LAB")]),
     },
     "vm": {
@@ -158,6 +159,8 @@ def build_parser():
                 command.add_argument("--check", action="store_true")
             if group == "monitoring" and action == "publish":
                 command.add_argument("--dry-run", action="store_true")
+            if group == "lab" and action == "configure":
+                command.add_argument("--confirm-lab", required=True)
             if group == "lab" and action == "create":
                 command.add_argument("--confirm-host-changes", action="store_true")
             if group == "system" and action == "bootstrap":
@@ -198,6 +201,13 @@ def make_command(args):
                 f"Недопустимое значение {name}: разрешены безопасные символы без пробелов"
             )
         variables.append(f"{variable}={value}")
+
+    if group == "lab" and action == "configure":
+        if not LAB_ID.fullmatch(args.lab):
+            raise ValueError("Expected lab-XXXXXXXX")
+        if args.lab != args.confirm_lab:
+            raise ValueError("Laboratory confirmation mismatch")
+        variables.append(f"CONFIRM={args.confirm_lab}")
 
     if group == "lab" and action in ("select", "delete"):
         if not LAB_ID.fullmatch(args.lab):

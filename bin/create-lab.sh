@@ -43,6 +43,32 @@ opla_creation_failed() {
     exit "$code"
 }
 trap 'opla_creation_failed "$?"' ERR
+# Guest RAM: attacker 1024 + victim 2048 + client 512 MiB.
+# Reserve another 1536 MiB for QEMU overhead and the host.
+# This check must happen before allocating any laboratory resources.
+python3 - <<'MEMORY_CHECK'
+from pathlib import Path
+
+minimum_kib = (1024 + 2048 + 512 + 1536) * 1024
+fields = {}
+
+for line in Path("/proc/meminfo").read_text().splitlines():
+    if ":" in line:
+        key, value = line.split(":", 1)
+        fields[key] = int(value.strip().split()[0])
+
+available = fields.get("MemAvailable", 0)
+
+if available < minimum_kib:
+    raise SystemExit(
+        "BLOCKED: insufficient available memory for three OPLA VMs "
+        f"({available // 1024} MiB available, "
+        f"{minimum_kib // 1024} MiB required)"
+    )
+
+print("PASS: laboratory memory preflight")
+MEMORY_CHECK
+
 LAB_DIR="$(mktemp -d /var/lib/opla/lab-XXXXXXXX)"
 chmod 755 "$LAB_DIR"
 LAB_ID="${LAB_DIR##*/}"
