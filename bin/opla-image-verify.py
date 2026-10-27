@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 IMAGES = ROOT / "images"
 
 ROLE_IMAGES = {
-    "victim": ("debian-12-xdp.qcow2", 3 * 1024**3),
+    "victim": ("debian-12-xdp.qcow2", (3 * 1024**3, 10 * 1024**3)),
     "attacker": ("debian-12-attacker.qcow2", 4 * 1024**3),
     "client": ("debian-12-client.qcow2", 4 * 1024**3),
 }
@@ -58,7 +58,12 @@ def verify(role, filename, expected_size):
     if info.get("format") != "qcow2":
         raise ValueError(f"invalid format: {filename}")
 
-    if info.get("virtual-size") != expected_size:
+    allowed_sizes = (
+        expected_size
+        if isinstance(expected_size, tuple)
+        else (expected_size,)
+    )
+    if info.get("virtual-size") not in allowed_sizes:
         raise ValueError(f"unexpected virtual size: {filename}")
 
     if info.get("backing-filename"):

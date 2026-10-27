@@ -17,7 +17,36 @@ command -v virt-customize >/dev/null
 [[ ! -e "$output" && ! -e "$output.part" ]] || { echo 'Existing image/partial: inspect it; never overwrite an active backing file' >&2; exit 1; }
 qemu-img create -f qcow2 "$output.part" "$size"
 virt-resize --expand /dev/sda1 debian-12-base.qcow2 "$output.part"
+# Verify every requested package inside the image before publishing it.
+# The package list is defined by the selected VM role above.
+verify_command=$(cat <<'GUEST_VERIFY'
+set -eu
+
+manifest=/etc/opla-dependencies-verified
+temporary="${manifest}.tmp"
+rm -f "$temporary"
+
+for pkg in __PACKAGES__; do
+    status=$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null) || {
+        echo "BLOCKED: missing required package: $pkg" >&2
+        exit 2
+    }
+
+    if [ "$status" != 'install ok installed' ]; then
+        echo "BLOCKED: package not installed: $pkg" >&2
+        exit 2
+    fi
+
+    dpkg-query -W -f='${binary:Package}\\t${Version}\\n' "$pkg" >> "$temporary"
+done
+
+mv "$temporary" "$manifest"
+GUEST_VERIFY
+)
+verify_command="${verify_command/__PACKAGES__/${packages//,/ }}"
+
 virt-customize -a "$output.part" --network --install "$packages" \
+  --run-command "$verify_command" \
   --run-command 'dpkg-query -W > /etc/opla-packages.txt' \
   --run-command 'apt-get clean' \
   --run-command 'rm -rf /var/lib/apt/lists/*' \
