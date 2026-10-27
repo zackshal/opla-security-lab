@@ -27,8 +27,42 @@ scp_vm "$victim_ip" /tmp/xdp-build/ "$PROJECT_DIR/xdp/fingerprint.py"
 
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/fingerprint.py inspect' > "$output_dir/fingerprint-before.json"
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/collect.py' > "$output_dir/before.json"
+# Use the victim clock for the experiment interval.
+started_at="$(ssh_vm "$victim_ip" 'date -u +%Y-%m-%dT%H:%M:%S.%NZ')"
+
 result=0
 ssh_vm "$attacker_ip" "$command_text" > "$output_dir/generator.txt" 2>&1 || result=$?
+
+finished_at="$(ssh_vm "$victim_ip" 'date -u +%Y-%m-%dT%H:%M:%S.%NZ')"
+
+python3 - "$output_dir/interval.json" "$started_at" "$finished_at" "$attacker_ip" "$victim_ip" <<'INTERVAL'
+import ipaddress
+import json
+import sys
+from datetime import datetime
+
+path, start, end, attacker, victim = sys.argv[1:]
+
+a = datetime.fromisoformat(start.replace("Z", "+00:00"))
+b = datetime.fromisoformat(end.replace("Z", "+00:00"))
+
+if a.tzinfo is None or b.tzinfo is None or b < a:
+    raise ValueError("Invalid experiment timestamps")
+
+data = {
+    "schema_version": 1,
+    "clock_source": "victim",
+    "start": start,
+    "end": end,
+    "source_ip": str(ipaddress.ip_address(attacker)),
+    "target_ip": str(ipaddress.ip_address(victim)),
+}
+
+with open(path, "x", encoding="utf-8") as stream:
+    json.dump(data, stream, indent=2)
+    print(file=stream)
+INTERVAL
+
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/collect.py' > "$output_dir/after.json"
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/fingerprint.py inspect' > "$output_dir/fingerprint-after.json"
 printf '%s\n' "$result" > "$output_dir/generator-exit.txt"
