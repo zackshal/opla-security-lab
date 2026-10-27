@@ -37,6 +37,30 @@ def require(condition, message):
         raise ValueError(message)
 
 
+
+def validate_connectivity(connection, label):
+    require(isinstance(connection, dict),
+            f"{label}: connectivity must be a mapping")
+    require(connection.get("type") in CONNECTIVITY,
+            f"{label}: unsupported connectivity type")
+
+    require(set(connection) <= {"type", "engine", "gateway"},
+            f"{label}: unknown connectivity field")
+
+    mode = connection["type"]
+    if mode == "managed_vpn":
+        require(connection.get("engine") in ENGINES,
+                f"{label}: unsupported VPN engine")
+        gateway = connection.get("gateway")
+        require(isinstance(gateway, str)
+                and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.:-]{0,252}", gateway),
+                f"{label}: invalid gateway")
+    else:
+        require("engine" not in connection and "gateway" not in connection,
+                f"{label}: unexpected VPN fields")
+
+    return connection
+
 def load_manifest(filename):
     path = Path(filename)
     require(path.is_file() and not path.is_symlink(),
@@ -57,17 +81,10 @@ def load_manifest(filename):
             and NAME.fullmatch(metadata["name"]),
             "invalid infrastructure name")
 
-    connection = data.get("connectivity", {"type": "direct"})
-    require(isinstance(connection, dict), "invalid connectivity")
-    mode = connection.get("type")
-    require(mode in CONNECTIVITY, "unsupported connectivity type")
-
-    if mode == "managed_vpn":
-        require(connection.get("engine") in ENGINES,
-                "managed_vpn needs amneziawg or xray")
-        require(isinstance(connection.get("gateway"), str)
-                and connection["gateway"],
-                "managed_vpn gateway required")
+    connection = validate_connectivity(
+        data.get("connectivity", {"type": "direct"}),
+        "global",
+    )
 
     nodes = data.get("nodes")
     require(isinstance(nodes, list) and bool(nodes),
@@ -98,6 +115,12 @@ def load_manifest(filename):
         require(address not in seen_ips,
                 f"duplicate management IP: {address}")
         seen_ips.add(address)
+
+        if "connectivity" in node:
+            validate_connectivity(
+                node["connectivity"],
+                f"{name}",
+            )
 
         ssh_user = node.get("ssh_user")
         require(isinstance(ssh_user, str) and USER.fullmatch(ssh_user),
@@ -169,9 +192,43 @@ def show_plan(data):
     print("Deployment execution: NOT IMPLEMENTED")
 
 
+
+def show_connectivity_plan(data):
+    default = data.get("connectivity", {"type": "direct"})
+
+    print("OPLA CONNECTIVITY PLAN")
+    print("Infrastructure:", data["metadata"]["name"])
+    print("Nodes:", len(data["nodes"]))
+    print()
+
+    for node in data["nodes"]:
+        connection = node.get("connectivity", default)
+        mode = connection["type"]
+
+        print("NODE:", node["name"])
+        print("  Management IP:", node["address"])
+        print("  SSH port:", node.get("ssh_port", 22))
+        print("  Transport:", mode)
+
+        if mode == "managed_vpn":
+            print("  Engine:", connection["engine"])
+            print("  Gateway:", connection["gateway"])
+            print("  Tunnel: NOT PROVISIONED")
+        elif mode == "existing_vpn":
+            print("  Tunnel: MUST ALREADY EXIST")
+        else:
+            print("  Route: DIRECT, NOT VERIFIED")
+
+        print("  Reachability: NOT TESTED")
+        print()
+
+    print("No SSH/VPN connections attempted.")
+    print("No routes or firewall rules changed.")
+    print("Connectivity execution: NOT IMPLEMENTED")
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("validate", "plan"))
+    parser.add_argument("action", choices=("validate", "plan", "connectivity-plan"))
     parser.add_argument("manifest")
     args = parser.parse_args()
 
@@ -185,6 +242,8 @@ def main():
 
     if args.action == "plan":
         show_plan(data)
+    elif args.action == "connectivity-plan":
+        show_connectivity_plan(data)
 
     return 0
 

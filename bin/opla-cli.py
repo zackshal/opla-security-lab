@@ -50,6 +50,7 @@ COMMANDS = {
     "deploy": {
         "validate": ("deploy-validate", "Проверить YAML-инфраструктуру", [("manifest", "MANIFEST")]),
         "plan": ("deploy-plan", "Показать план без изменений", [("manifest", "MANIFEST")]),
+        "connectivity-plan": ("deploy-connectivity-plan", "План подключения к узлам", [("manifest", "MANIFEST")]),
     },
     "xdp": {
         "deploy": ("xdp-deploy", "Скопировать исходники XDP", []),

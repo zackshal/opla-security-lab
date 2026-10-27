@@ -299,3 +299,7 @@ deploy-validate:
 
 deploy-plan:
 	@python3 bin/opla-deploy.py plan "$(MANIFEST)"
+
+.PHONY: deploy-connectivity-plan
+deploy-connectivity-plan:
+	@python3 bin/opla-deploy.py connectivity-plan "$(MANIFEST)"
