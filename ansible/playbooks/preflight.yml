@@ -1,0 +1,86 @@
+---
+- name: OPLA host preflight
+  hosts: opla_hosts
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Check supported Linux distribution
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Debian'
+          - ansible_facts['distribution_major_version'] in ['12', '13']
+          - ansible_facts['architecture'] == 'x86_64'
+        fail_msg: "OPLA preflight currently targets Debian 12/13 amd64"
+
+    - name: Check KVM device
+      ansible.builtin.stat:
+        path: /dev/kvm
+        follow: false
+      register: opla_kvm
+
+    - name: Check lifecycle directory
+      ansible.builtin.stat:
+        path: /var/lib/opla
+        follow: false
+      register: opla_root
+
+    - name: Inspect existing tools
+      ansible.builtin.shell: |
+        for cmd in qemu-system-x86_64 qemu-img cloud-localds \
+                   dnsmasq ip nft python3 systemd-run virt-customize; do
+          if command -v "$cmd" >/dev/null 2>&1; then
+            printf 'OK      %s\n' "$cmd"
+          else
+            printf 'MISSING %s\n' "$cmd"
+          fi
+        done
+      args:
+        executable: /bin/bash
+      register: opla_tools
+      changed_when: false
+
+    - name: Determine missing runtime commands
+      ansible.builtin.set_fact:
+        opla_missing_tools: >-
+          {{ opla_tools.stdout_lines |
+             select('match', '^MISSING ') | list }}
+
+    - name: Determine runtime readiness
+      ansible.builtin.set_fact:
+        opla_runtime_ready: >-
+          {{
+            (opla_missing_tools | length == 0) and
+            (opla_kvm.stat.exists | default(false)) and
+            (opla_kvm.stat.ischr | default(false)) and
+            (opla_root.stat.isdir | default(false)) and
+            (opla_root.stat.uid | default(-1) == 0) and
+            (opla_root.stat.mode | default('') == '0755')
+          }}
+
+    - name: Report runtime readiness
+      ansible.builtin.debug:
+        msg:
+          - "Runtime ready: {{ opla_runtime_ready }}"
+          - "Missing commands: {{ opla_missing_tools }}"
+          - "Runtime directory ownership and permissions are checked"
+
+    - name: Require runtime readiness when requested
+      ansible.builtin.assert:
+        that:
+          - opla_runtime_ready | bool
+        fail_msg: "BLOCKED: OPLA runtime requirements are incomplete"
+      when: opla_require_ready | default(false) | bool
+
+    - name: Display preflight results
+      ansible.builtin.debug:
+        msg:
+          - "OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+          - "Architecture: {{ ansible_facts['architecture'] }}"
+          - "KVM device exists: {{ opla_kvm.stat.exists }}"
+          - "OPLA lifecycle root exists: {{ opla_root.stat.exists }}"
+          - "{{ opla_tools.stdout_lines }}"
+
+    - name: Explain scope
+      ansible.builtin.debug:
+        msg: "Read-only preflight completed; no services or network settings modified"

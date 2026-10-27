@@ -1,0 +1,72 @@
+---
+- name: Prepare OPLA host runtime
+  hosts: opla_hosts
+  gather_facts: true
+  become: false
+
+  vars:
+    opla_allow_provision: false
+
+  pre_tasks:
+    - name: Require explicit provisioning approval
+      ansible.builtin.assert:
+        that:
+          - opla_allow_provision | bool
+        fail_msg: "BLOCKED: explicit provisioning approval required"
+
+    - name: Check supported operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Debian'
+          - ansible_facts['distribution_major_version'] in ['12', '13']
+          - ansible_facts['architecture'] == 'x86_64'
+
+    - name: Inspect runtime parent
+      ansible.builtin.stat:
+        path: /var/lib
+        follow: false
+      register: opla_parent
+
+    - name: Require trusted runtime parent
+      ansible.builtin.assert:
+        that:
+          - opla_parent.stat.isdir | default(false)
+          - not (opla_parent.stat.islnk | default(false))
+          - opla_parent.stat.uid | default(-1) == 0
+          - opla_parent.stat.mode | default('') == '0755'
+        fail_msg: "BLOCKED: /var/lib requires manual review"
+
+    - name: Inspect runtime root
+      ansible.builtin.stat:
+        path: /var/lib/opla
+        follow: false
+      register: opla_root
+
+    - name: Reject unexpected existing runtime root
+      ansible.builtin.assert:
+        that:
+          - >-
+            (not opla_root.stat.exists) or
+            (
+              (opla_root.stat.isdir | default(false)) and
+              (not (opla_root.stat.islnk | default(false))) and
+              (opla_root.stat.uid | default(-1) == 0) and
+              (opla_root.stat.mode | default('') == '0755')
+            )
+        fail_msg: "BLOCKED: existing /var/lib/opla requires manual review"
+
+  tasks:
+    - name: Install host packages only when explicitly authorized
+      ansible.builtin.include_role:
+        name: opla_host
+        tasks_from: main
+      when: opla_host_manage_packages | default(false) | bool
+
+    - name: Prepare trusted lifecycle directory
+      become: true
+      ansible.builtin.file:
+        path: /var/lib/opla
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
