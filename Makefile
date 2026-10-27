@@ -210,3 +210,11 @@ creation-active-recovery-plan:
 .PHONY: creation-active-recover
 creation-active-recover:
 	@sudo python3 bin/opla-active-creation-recover.py --lab "$(LAB)" --confirm "$(CONFIRM_RECOVER)"
+
+# Privileged integration tests; never run in the ordinary CI check.
+.PHONY: check-integration
+check-integration:
+	@if [ "$$(id -u)" -ne 0 ]; then \
+		echo "Run: sudo make check-integration" >&2; exit 2; \
+	fi
+	@unshare --net -- python3 tests/integration/test_active_recovery_live.py
