@@ -27,6 +27,7 @@
 
     - name: Inspect existing tools
       ansible.builtin.shell: |
+        export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
         for cmd in qemu-system-x86_64 qemu-img cloud-localds \
                    dnsmasq ip nft python3 systemd-run virt-customize; do
           if command -v "$cmd" >/dev/null 2>&1; then

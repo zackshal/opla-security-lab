@@ -3,6 +3,7 @@
   ansible.builtin.assert:
     that:
       - opla_host_manage_packages | bool
+      - opla_host_dedicated_target | bool
     fail_msg: "BLOCKED: package installation requires explicit approval"
 
 - name: Install OPLA host dependencies
