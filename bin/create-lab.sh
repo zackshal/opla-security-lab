@@ -20,7 +20,13 @@ for cmd in qemu-system-x86_64 qemu-img cloud-localds dnsmasq ip nft flock python
     command -v "$cmd" >/dev/null || { echo "Не найден $cmd" >&2; exit 1; }
 done
 [[ -c /dev/kvm ]] || { echo 'Нужен доступный KVM (/dev/kvm)' >&2; exit 1; }
-[[ -f "$PROJECT_DIR/images/debian-12-xdp.qcow2" ]] || { echo 'Сначала make image' >&2; exit 1; }
+# All role images must exist before creating any lab resources.
+for image in     debian-12-xdp.qcow2     debian-12-attacker.qcow2     debian-12-client.qcow2; do
+    [[ -f "$PROJECT_DIR/images/$image" ]] || {
+        echo "BLOCKED: missing required image: $image" >&2
+        exit 2
+    }
+done
 CALLER="${SUDO_USER:-root}"
 CALLER_HOME="$(getent passwd "$CALLER" | cut -d: -f6)"
 SSH_PUB="$(cat "${SSH_KEY_PUB:-$CALLER_HOME/.ssh/id_ed25519.pub}")"
@@ -91,9 +97,16 @@ systemd-run --quiet --collect --unit="dhcp-$LAB_ID" dnsmasq --keep-in-foreground
 create_vm() {
     local name="$1" mem="$2" cpus="$3" mac="$4" addr="$5" tap="$6"
     local dir="$LAB_DIR/$name"
-    local image="$PROJECT_DIR/images/debian-12-$name.qcow2"
-    [[ "$name" != victim ]] || image="$PROJECT_DIR/images/debian-12-xdp.qcow2"
-    [[ -f "$image" ]] || image="$PROJECT_DIR/images/debian-12-xdp.qcow2"
+    local image
+    case "$name" in
+        victim)   image="$PROJECT_DIR/images/debian-12-xdp.qcow2" ;;
+        attacker) image="$PROJECT_DIR/images/debian-12-attacker.qcow2" ;;
+        client)   image="$PROJECT_DIR/images/debian-12-client.qcow2" ;;
+        *)
+            echo "BLOCKED: unsupported VM role: $name" >&2
+            return 2
+            ;;
+    esac
     mkdir "$dir"
     qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$dir/disk.qcow2"
     # JSON-строка корректно экранирует ключ при подстановке в YAML.
