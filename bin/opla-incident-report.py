@@ -175,6 +175,28 @@ def build_report(experiment, eve_path=None, scan_path=None):
             if error_file.is_file() and not error_file.is_symlink():
                 result["evidence_exports"][kind]["error_log"] = error_file.name
 
+    sources = result["evidence_exports"]
+
+    result["evidence_quality"] = {
+        "status": (
+            "unavailable"
+            if all(
+                source.get("status") != "captured"
+                for source in sources.values()
+            )
+            else "partial_or_unverified"
+        ),
+        "sources": {
+            kind: {
+                "status": source.get("status", "unknown"),
+                "coverage": source.get("coverage", "unknown"),
+                "truncated": source.get("truncated"),
+            }
+            for kind, source in sources.items()
+        },
+        "complete_evidence_verified": False,
+    }
+
     return result
 
 
