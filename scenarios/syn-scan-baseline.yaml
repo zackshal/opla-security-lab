@@ -1,0 +1,31 @@
+schema_version: 1
+id: syn-scan-baseline
+platform: debian-amd64
+
+topology:
+  network: isolated
+  roles:
+    attacker:
+      memory_mib: 1024
+      vcpus: 1
+    victim:
+      memory_mib: 2048
+      vcpus: 2
+    client:
+      memory_mib: 512
+      vcpus: 1
+
+experiments:
+  - id: observe
+    kind: xdp-observe
+    target: victim
+
+  - id: scan
+    kind: syn-scan
+    source: attacker
+    target: victim
+
+  - id: availability
+    kind: http-probe
+    source: client
+    target: victim

@@ -229,3 +229,11 @@ automation-guest:
 
 automation-all:
 	@./bin/opla-automation.sh all
+
+.PHONY: scenario-validate scenario-plan
+
+scenario-validate:
+	@python3 bin/opla-scenario.py validate "$(or $(SCENARIO),syn-scan-baseline)"
+
+scenario-plan:
+	@python3 bin/opla-scenario.py plan "$(or $(SCENARIO),syn-scan-baseline)"
