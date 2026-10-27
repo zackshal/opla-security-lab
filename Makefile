@@ -237,3 +237,8 @@ scenario-validate:
 
 scenario-plan:
 	@python3 bin/opla-scenario.py plan "$(or $(SCENARIO),syn-scan-baseline)"
+
+.PHONY: scenario-simulate
+
+scenario-simulate:
+	@python3 bin/opla-scenario-runner.py simulate "$(or $(SCENARIO),syn-scan-baseline)"
