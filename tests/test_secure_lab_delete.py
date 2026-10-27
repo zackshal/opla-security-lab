@@ -33,7 +33,14 @@ class SecureDeleteTests(unittest.TestCase):
         self.assertIn('lifecycle.clean_stop',source)
         creation=(ROOT/'bin/create-lab.sh').read_text()
         lifecycle=(ROOT/'bin/lab-lifecycle.py').read_text()
-        self.assertIn('/var/lib/opla/.opla-prune.lock',creation)
+        launcher = (
+            ROOT / 'bin' / 'opla-create-launcher.py'
+        ).read_text()
+
+        self.assertIn('ROOT = Path("/var/lib/opla")', launcher)
+        self.assertIn('root / ".opla-prune.lock"', launcher)
+        self.assertIn('root / "create.lock"', launcher)
+        self.assertIn('locks.lifecycle_lock(', launcher)
         self.assertIn("'.opla-prune.lock'",lifecycle)
 
     def test_no_shell_cleanup_bypass(self):

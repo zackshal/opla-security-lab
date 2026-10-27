@@ -210,6 +210,19 @@ add rule inet {table} input iifname "{bridge}" drop
                            '. Проверьте ip route и конфликтующие сети.')
 
 
+def _load_lifecycle_locks():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "opla_lifecycle_locks",
+        Path(__file__).resolve().parent / "opla-lifecycle-lock.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+lifecycle_locks = _load_lifecycle_locks()
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=('start', 'stop', 'status'))
@@ -220,10 +233,14 @@ def main():
     state = load(args.lab)
     lab = Path(args.lab).resolve()
     with ExitStack() as stack:
-        global_lock = stack.enter_context((Path('/var/lib/opla') / '.opla-prune.lock').open('a'))
-        fcntl.flock(global_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        lock = stack.enter_context((lab / 'maintenance.lock').open('a'))
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        stack.enter_context(
+            lifecycle_locks.lifecycle_lock(
+                Path('/var/lib/opla') / '.opla-prune.lock'
+            )
+        )
+        stack.enter_context(
+            lifecycle_locks.lifecycle_lock(lab / 'maintenance.lock')
+        )
         if args.action == 'status':
             bridge = state['BRIDGE']
             print(f'Stand: {lab.name}; bridge: {bridge} ({"UP" if interface(bridge) else "ABSENT"})')

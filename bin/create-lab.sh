@@ -5,20 +5,36 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/lib.sh"
 [[ $EUID == 0 ]] || { echo 'Запускайте через make up' >&2; exit 1; }
+# Verify inherited lock descriptors before lab creation.
+[[ "${OPLA_VERIFIED_CREATE_LAUNCHER:-}" == "1" ]] || {
+    echo "BLOCKED: use the verified OPLA creation launcher" >&2
+    exit 2
+}
+[[ -n "${OPLA_CREATE_GLOBAL_FD:-}" &&
+   -n "${OPLA_CREATE_LOCAL_FD:-}" ]] || {
+    echo "BLOCKED: missing lifecycle lock descriptors" >&2
+    exit 2
+}
+python3 "$SCRIPT_DIR/opla-create-lock-check.py" || exit 2
 for cmd in qemu-system-x86_64 qemu-img cloud-localds dnsmasq ip nft flock python3 systemd-run; do
     command -v "$cmd" >/dev/null || { echo "Не найден $cmd" >&2; exit 1; }
 done
 [[ -c /dev/kvm ]] || { echo 'Нужен доступный KVM (/dev/kvm)' >&2; exit 1; }
 [[ -f "$PROJECT_DIR/images/debian-12-xdp.qcow2" ]] || { echo 'Сначала make image' >&2; exit 1; }
-install -d -m 755 /var/lib/opla
-exec 8>/var/lib/opla/.opla-prune.lock
-flock -n 8 || { echo "OPLA lifecycle is locked" >&2; exit 2; }
-exec 9>/var/lib/opla/create.lock
-flock -n 9 || { echo 'Другой процесс создаёт стенд' >&2; exit 1; }
 CALLER="${SUDO_USER:-root}"
 CALLER_HOME="$(getent passwd "$CALLER" | cut -d: -f6)"
 SSH_PUB="$(cat "${SSH_KEY_PUB:-$CALLER_HOME/.ssh/id_ed25519.pub}")"
 [[ "$SSH_PUB" == ssh-* ]] || { echo 'Нужен SSH public key' >&2; exit 1; }
+opla_creation_failed() {
+    local code="$1"
+    trap - ERR
+    printf 'BLOCKED: lab creation failed (exit %s). Lab directory: %s\n' \
+        "$code" "${LAB_DIR:-not-created}" >&2
+    printf 'Resources may remain. Do not run legacy cleanup-lab.sh.\n' >&2
+    printf 'Inspect the lab directory, registry and host resources before recovery.\n' >&2
+    exit "$code"
+}
+trap 'opla_creation_failed "$?"' ERR
 LAB_DIR="$(mktemp -d /var/lib/opla/lab-XXXXXXXX)"
 chmod 755 "$LAB_DIR"
 LAB_ID="${LAB_DIR##*/}"
@@ -39,14 +55,6 @@ STATE
 # Fail closed: never invoke legacy cleanup-lab.sh on a partially created lab.
 # The receipt remains in the "creating" phase for a separately verified recovery.
 # This handler performs no destructive host changes and retains both lifecycle locks.
-opla_creation_failed() {
-    local code="$1"
-    trap - ERR
-    printf 'BLOCKED: lab creation failed (exit %s). Resources may remain: %s\n' "$code" "$LAB_DIR" >&2
-    printf 'Do not run legacy cleanup-lab.sh. Inspect registry and host resources before recovery.\n' >&2
-    exit "$code"
-}
-trap 'opla_creation_failed "$?"' ERR
 python3 "$SCRIPT_DIR/opla-registry.py" begin --lab "$LAB_ID"
 install -m 600 -o "$CALLER" /dev/null "$LAB_DIR/known_hosts"
 # При сбое сохраняем каталог и состояние для ручной верификации; автоматической очистки нет.

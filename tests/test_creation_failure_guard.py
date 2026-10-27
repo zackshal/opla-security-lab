@@ -13,8 +13,9 @@ class CreationFailureGuardTests(unittest.TestCase):
 
     def test_locks_and_registry_are_preserved(self):
         source = (ROOT / 'bin' / 'create-lab.sh').read_text()
-        self.assertIn('exec 8>/var/lib/opla/.opla-prune.lock', source)
-        self.assertIn('flock -n 8', source)
+        self.assertIn('OPLA_VERIFIED_CREATE_LAUNCHER', source)
+        self.assertNotIn('exec 8>/var/lib/opla/.opla-prune.lock', source)
+        self.assertNotIn('exec 9>/var/lib/opla/create.lock', source)
         self.assertIn('opla-registry.py" begin', source)
         self.assertIn('opla-registry.py" ready', source)
 
