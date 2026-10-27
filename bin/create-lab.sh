@@ -27,6 +27,8 @@ for image in     debian-12-xdp.qcow2     debian-12-attacker.qcow2     debian-12-
         exit 2
     }
 done
+# Verify all role images before creating host resources.
+python3 "$SCRIPT_DIR/opla-image-verify.py" || exit 2
 CALLER="${SUDO_USER:-root}"
 CALLER_HOME="$(getent passwd "$CALLER" | cut -d: -f6)"
 SSH_PUB="$(cat "${SSH_KEY_PUB:-$CALLER_HOME/.ssh/id_ed25519.pub}")"
