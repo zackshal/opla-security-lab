@@ -277,3 +277,7 @@ monitoring-experiment-publish:
 	@test -n "$(LAB)" || { echo "Missing LAB"; exit 2; }
 	@test -n "$(REPORT)" || { echo "Missing REPORT"; exit 2; }
 	@python3 monitoring/experiment-publish.py --lab "$(LAB)" --experiment "$(REPORT)" $(if $(DRY_RUN),--dry-run)
+
+.PHONY: acceptance-check
+acceptance-check:
+	@python3 bin/opla-acceptance-check.py --check

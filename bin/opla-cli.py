@@ -82,6 +82,7 @@ COMMANDS = {
         "down": ("monitoring-down", "Остановить мониторинг", []),
     },
     "system": {
+        "acceptance": ("acceptance-check", "Read-only проверка готовности к приёмке", []),
         "bootstrap": ("bootstrap", "Подготовить хост", []),
         "doctor": ("doctor", "Проверить зависимости", []),
         "check": ("check", "Запустить тесты", []),
@@ -153,6 +154,8 @@ def build_parser():
                         options = {"nargs": "?", "default": "syn-scan-baseline"}
                     command.add_argument(name, **options)
 
+            if group == "system" and action == "acceptance":
+                command.add_argument("--check", action="store_true")
             if group == "monitoring" and action == "publish":
                 command.add_argument("--dry-run", action="store_true")
             if group == "lab" and action == "create":
@@ -176,6 +179,9 @@ def make_command(args):
             raise ValueError(
                 "Операция изменяет хост. Требуется --confirm-host-changes"
             )
+
+    if group == "system" and action == "acceptance" and not args.check:
+        raise ValueError("Требуется --check; выполнение приёмки не разрешено")
 
     variables = []
 
