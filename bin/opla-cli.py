@@ -51,6 +51,7 @@ COMMANDS = {
         "validate": ("deploy-validate", "Проверить YAML-инфраструктуру", [("manifest", "MANIFEST")]),
         "plan": ("deploy-plan", "Показать план без изменений", [("manifest", "MANIFEST")]),
         "connectivity-plan": ("deploy-connectivity-plan", "План подключения к узлам", [("manifest", "MANIFEST")]),
+        "connectivity-check": ("deploy-connectivity-check", "Проверить SSH-подключения", [("manifest", "MANIFEST")]),
     },
     "xdp": {
         "deploy": ("xdp-deploy", "Скопировать исходники XDP", []),
@@ -167,6 +168,8 @@ def build_parser():
                 command.add_argument("--dry-run", action="store_true")
             if group == "lab" and action == "configure":
                 command.add_argument("--confirm-lab", required=True)
+            if group == "deploy" and action == "connectivity-check":
+                command.add_argument("--connect", action="store_true")
             if group == "lab" and action == "create":
                 command.add_argument("--confirm-host-changes", action="store_true")
             if group == "system" and action == "bootstrap":
@@ -193,6 +196,9 @@ def make_command(args):
         raise ValueError("Требуется --check; выполнение приёмки не разрешено")
 
     variables = []
+
+    if group == "deploy" and action == "connectivity-check" and args.connect:
+        variables.append("CONNECT=1")
 
     if group == "monitoring" and action == "publish" and args.dry_run:
         variables.append("DRY_RUN=1")

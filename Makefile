@@ -303,3 +303,7 @@ deploy-plan:
 .PHONY: deploy-connectivity-plan
 deploy-connectivity-plan:
 	@python3 bin/opla-deploy.py connectivity-plan "$(MANIFEST)"
+
+.PHONY: deploy-connectivity-check
+deploy-connectivity-check:
+	@python3 bin/opla-connectivity-check.py "$(MANIFEST)" $(if $(filter 1,$(CONNECT)),--connect,)
