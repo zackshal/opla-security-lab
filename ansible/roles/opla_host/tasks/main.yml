@@ -12,5 +12,7 @@
     name: "{{ opla_platform_packages }}"
     state: present
     update_cache: false
+    install_recommends: false
+    fail_on_autoremove: true
   environment:
     DEBIAN_FRONTEND: noninteractive
