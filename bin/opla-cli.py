@@ -68,11 +68,13 @@ COMMANDS = {
         "run": ("scenario-live-run", "Запустить live-сценарий", [("scenario", "SCENARIO"), ("--lab", "LAB"), ("--confirm", "CONFIRM")]),
     },
     "report": {
+        "bundle": ("experiment-bundle", "Собрать пакет доказательств эксперимента", [("path", "REPORT")]),
         "experiment": ("experiment-report", "Отчёт SYN-эксперимента", [("path", "REPORT")]),
         "compare": ("experiment-compare", "Сравнить архивные эксперименты", [("--reports", "REPORTS"), ("--format", "FORMAT")]),
         "incident": ("incident-report", "Корреляция XDP и IDS", [("path", "REPORT"), ("--eve", "EVE"), ("--scan-events", "SCAN_EVENTS")]),
     },
     "monitoring": {
+        "publish": ("monitoring-experiment-publish", "Отправить событие эксперимента в Zabbix", [("--lab", "LAB"), ("--experiment", "REPORT")]),
         "up": ("monitoring-up", "Запустить мониторинг", []),
         "configure": ("monitoring-configure", "Настроить Zabbix API", []),
         "start": ("monitoring-start", "Запустить сбор метрик", []),
@@ -142,7 +144,7 @@ def build_parser():
                     elif variable == "ROLE":
                         options["choices"] = ("victim", "attacker", "client")
                         options["required"] = True
-                    elif variable in ("LAB", "CONFIRM", "TAG", "BACKUP_DIR"):
+                    elif variable in ("LAB", "CONFIRM", "TAG", "BACKUP_DIR", "REPORT"):
                         options["required"] = True
                     command.add_argument(name, **options)
                 else:
@@ -151,6 +153,8 @@ def build_parser():
                         options = {"nargs": "?", "default": "syn-scan-baseline"}
                     command.add_argument(name, **options)
 
+            if group == "monitoring" and action == "publish":
+                command.add_argument("--dry-run", action="store_true")
             if group == "lab" and action == "create":
                 command.add_argument("--confirm-host-changes", action="store_true")
             if group == "system" and action == "bootstrap":
@@ -174,6 +178,9 @@ def make_command(args):
             )
 
     variables = []
+
+    if group == "monitoring" and action == "publish" and args.dry_run:
+        variables.append("DRY_RUN=1")
 
     for name, variable in args.arguments:
         value = getattr(args, name.lstrip("-").replace("-", "_"), None)

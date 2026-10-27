@@ -102,11 +102,20 @@ if [ -f "$output_dir/events.jsonl" ]; then
     report_args+=(--scan-events "$output_dir/events.jsonl")
 fi
 
-if ! python3 bin/opla-incident-report.py "${report_args[@]}" \
-    > "$output_dir/incident-report.json" \
-    2> "$output_dir/incident-report-error.txt"; then
-    rm -f "$output_dir/incident-report.json"
-    printf 'BLOCKED: incident report generation failed\n' >&2
+# One report calculation: Evidence Bundle invokes Incident Reporter.
+# Preserve the historical top-level report path for existing tools.
+rm -f "$output_dir/incident-report.json"
+
+if python3 bin/opla-experiment-bundle.py "$output_dir" \
+    > "$output_dir/bundle-generator.log" \
+    2> "$output_dir/bundle-generator-error.log"; then
+    if ! cp "$output_dir/pipeline/incident-report.json" \
+        "$output_dir/incident-report.json"; then
+        printf 'WARNING: incident report compatibility copy failed\n' >&2
+    fi
+else
+    printf 'WARNING: evidence bundle incomplete: %s\n' \
+        "$output_dir/pipeline/manifest.json" >&2
 fi
 
 python3 - "$output_dir" <<'PY'

@@ -266,3 +266,14 @@ incident-report:
 	@python3 bin/opla-incident-report.py "$(REPORT)" \
 		$(if $(EVE),--eve "$(EVE)") \
 		$(if $(SCAN_EVENTS),--scan-events "$(SCAN_EVENTS)")
+
+.PHONY: experiment-bundle
+experiment-bundle:
+	@test -n "$(REPORT)" || { echo "Usage: make experiment-bundle REPORT=reports/scenario-..."; exit 2; }
+	@python3 bin/opla-experiment-bundle.py "$(REPORT)"
+
+.PHONY: monitoring-experiment-publish
+monitoring-experiment-publish:
+	@test -n "$(LAB)" || { echo "Missing LAB"; exit 2; }
+	@test -n "$(REPORT)" || { echo "Missing REPORT"; exit 2; }
+	@python3 monitoring/experiment-publish.py --lab "$(LAB)" --experiment "$(REPORT)" $(if $(DRY_RUN),--dry-run)
