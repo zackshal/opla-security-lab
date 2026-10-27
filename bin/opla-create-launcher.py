@@ -23,8 +23,6 @@ def load_locks():
     return module
 
 
-locks = load_locks()
-
 
 def verify_root(root):
     import stat
@@ -60,9 +58,32 @@ def verify_root(root):
             )
 
 
+def verify_trusted_code():
+    """Check installed code before importing auxiliary privileged modules."""
+    import stat
+
+    project = HERE.parent
+    for directory in (project, *project.parents, HERE):
+        st = directory.lstat()
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != 0
+                or st.st_mode & 0o022):
+            raise RuntimeError(f"untrusted source directory: {directory}")
+
+    for name in (
+        "opla-create-launcher.py", "opla-lifecycle-lock.py", "create-lab.sh",
+    ):
+        path = HERE / name
+        st = path.lstat()
+        if (not stat.S_ISREG(st.st_mode) or st.st_uid != 0
+                or st.st_mode & 0o022 or st.st_nlink != 1):
+            raise RuntimeError(f"untrusted privileged source: {path}")
+
+
 def run_creation(root, script, runner=subprocess.run):
     """Hold both lifecycle locks throughout script execution."""
     verify_root(root)
+    verify_trusted_code()
+    locks = load_locks()
 
     with ExitStack() as stack:
         global_fd = stack.enter_context(

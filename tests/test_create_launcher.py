@@ -74,8 +74,10 @@ class CreateLauncherTests(unittest.TestCase):
             with patch.object(
                 launcher, "verify_root"
             ), patch.object(
-                launcher.locks, "lifecycle_lock",
-                side_effect=fake_lock
+                launcher, "verify_trusted_code"
+            ), patch.object(
+                launcher, "load_locks",
+                return_value=type("Locks", (), {"lifecycle_lock": staticmethod(fake_lock)})()
             ):
                 result = launcher.run_creation(
                     root, Path("unused.sh"), runner=runner
@@ -84,6 +86,17 @@ class CreateLauncherTests(unittest.TestCase):
             self.assertEqual(result, 17)
             self.assertEqual(len(calls), 1)
             self.assertEqual(held, [])
+
+    def test_untrusted_code_blocks_before_import_and_runner(self):
+        with patch.object(launcher, "verify_root"), patch.object(
+            launcher, "verify_trusted_code", side_effect=RuntimeError("untrusted source")
+        ), patch.object(launcher, "load_locks") as locks, patch.object(
+            launcher.subprocess, "run"
+        ) as runner:
+            with self.assertRaisesRegex(RuntimeError, "untrusted source"):
+                launcher.run_creation(Path("/var/lib/opla"), Path("unused.sh"))
+            locks.assert_not_called()
+            runner.assert_not_called()
 
     def test_make_uses_verified_launcher(self):
         makefile = (ROOT / "Makefile").read_text()

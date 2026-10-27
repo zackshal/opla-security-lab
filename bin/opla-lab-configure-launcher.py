@@ -36,6 +36,8 @@ def verify_trusted_code():
         "opla-lab-configure-launcher.py",
         "opla-lifecycle-lock.py",
         "opla-lab-configure.sh",
+        "opla-create-launcher.py",
+        "create-lab.sh",
     ):
         path = HERE / name
         st = path.lstat()
