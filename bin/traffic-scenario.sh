@@ -23,10 +23,14 @@ output_dir="$(mktemp -d "reports/scenario-$scenario-XXXXXXXX")"
     echo 'Порог берите из команды последней сборки; изменение THRESHOLD без сборки его не меняет.'
     sha256sum xdp/xdp_ddos_protect.c
 } > "$output_dir/context.txt"
+scp_vm "$victim_ip" /tmp/xdp-build/ "$PROJECT_DIR/xdp/fingerprint.py"
+
+ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/fingerprint.py inspect' > "$output_dir/fingerprint-before.json"
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/collect.py' > "$output_dir/before.json"
 result=0
 ssh_vm "$attacker_ip" "$command_text" > "$output_dir/generator.txt" 2>&1 || result=$?
 ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/collect.py' > "$output_dir/after.json"
+ssh_vm "$victim_ip" 'sudo python3 /tmp/xdp-build/fingerprint.py inspect' > "$output_dir/fingerprint-after.json"
 printf '%s\n' "$result" > "$output_dir/generator-exit.txt"
 python3 - "$output_dir" <<'PY'
 import json
