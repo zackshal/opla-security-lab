@@ -1,0 +1,26 @@
+apiVersion: opla/v1
+kind: Infrastructure
+
+metadata:
+  name: custom-security
+
+connectivity:
+  type: direct
+
+nodes:
+  - name: web01
+    address: 192.168.10.11
+    ssh_user: admin
+    components:
+      - xdp
+      - telemetry-agent
+    interfaces:
+      protection: ens3
+
+  - name: ids01
+    address: 192.168.20.12
+    ssh_user: admin
+    components:
+      - suricata
+    interfaces:
+      capture: ens4

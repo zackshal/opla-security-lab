@@ -291,3 +291,11 @@ lab-configure:
 	@test -n "$(LAB)" || { echo "BLOCKED: LAB required"; exit 2; }
 	@test "$(LAB)" = "$(CONFIRM)" || { echo "BLOCKED: confirmation mismatch"; exit 2; }
 	@sudo python3 bin/opla-lab-configure-launcher.py "$(LAB)" "$(CONFIRM)"
+
+# P13: custom infrastructure manifest, strictly read-only.
+.PHONY: deploy-validate deploy-plan
+deploy-validate:
+	@python3 bin/opla-deploy.py validate "$(MANIFEST)"
+
+deploy-plan:
+	@python3 bin/opla-deploy.py plan "$(MANIFEST)"

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GROUPS = {
     "lab": "Создание, выбор и управление лабораториями",
     "vm": "Виртуальные машины, снимки и резервирование",
+    "deploy": "Пользовательская инфраструктура и планирование",
     "xdp": "Загрузка XDP и просмотр телеметрии",
     "ids": "Управление Suricata",
     "scenario": "Проверка и выполнение сценариев",
@@ -45,6 +46,10 @@ COMMANDS = {
         "delete": ("vm-delete", "Удалить снимок", [("--vm", "VM"), ("--tag", "TAG")]),
         "backup": ("vm-backup", "Скопировать диски", [("--backup-dir", "BACKUP_DIR")]),
         "resume": ("vm-resume", "Запустить сохранённые VM", []),
+    },
+    "deploy": {
+        "validate": ("deploy-validate", "Проверить YAML-инфраструктуру", [("manifest", "MANIFEST")]),
+        "plan": ("deploy-plan", "Показать план без изменений", [("manifest", "MANIFEST")]),
     },
     "xdp": {
         "deploy": ("xdp-deploy", "Скопировать исходники XDP", []),
