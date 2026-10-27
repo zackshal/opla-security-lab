@@ -9,7 +9,7 @@
 - name: Install OPLA host dependencies
   become: true
   ansible.builtin.apt:
-    name: "{{ opla_host_packages }}"
+    name: "{{ opla_platform_packages }}"
     state: present
     update_cache: false
   environment:

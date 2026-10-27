@@ -45,11 +45,32 @@ class AnsibleProvisioningTests(unittest.TestCase):
         self.assertIn("opla_host_manage_packages", role_task["when"])
         self.assertIn("default(false)", role_task["when"])
 
+    def test_platform_profile_is_loaded(self):
+        play = self.read_yaml("playbooks/provision.yml")[0]
+
+        profile_task = next(
+            task for task in play["pre_tasks"]
+            if task["name"] == "Load selected platform profile"
+        )
+
+        self.assertIn(
+            "opla_selected_profile",
+            profile_task["ansible.builtin.include_vars"]["file"],
+        )
+
+        profile = self.read_yaml("platforms/debian-amd64.yml")
+        self.assertEqual(profile["opla_platform_id"], "debian-amd64")
+        self.assertEqual(
+            profile["opla_platform"]["package_manager"],
+            "apt",
+        )
+
     def test_docker_is_not_managed(self):
         defaults = self.read_yaml(
             "roles/opla_host/defaults/main.yml"
         )
-        packages = defaults["opla_host_packages"]
+        profile = self.read_yaml("platforms/debian-amd64.yml")
+        packages = profile["opla_platform_packages"]
 
         self.assertIn("dnsmasq-base", packages)
         self.assertNotIn("dnsmasq", packages)

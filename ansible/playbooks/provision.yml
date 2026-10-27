@@ -6,6 +6,7 @@
 
   vars:
     opla_allow_provision: false
+    opla_selected_profile: debian-amd64
 
   pre_tasks:
     - name: Require explicit provisioning approval
@@ -20,6 +21,28 @@
           - ansible_facts['distribution'] == 'Debian'
           - ansible_facts['distribution_major_version'] in ['12', '13']
           - ansible_facts['architecture'] == 'x86_64'
+
+    - name: Validate selected platform ID
+      ansible.builtin.assert:
+        that:
+          - opla_selected_profile in ['debian-amd64']
+        fail_msg: "BLOCKED: unsupported platform profile"
+
+    - name: Load selected platform profile
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../platforms/{{ opla_selected_profile }}.yml"
+
+    - name: Validate platform profile against target
+      ansible.builtin.assert:
+        that:
+          - opla_platform_id == opla_selected_profile
+          - ansible_facts['distribution'] in opla_platform['distributions']
+          - ansible_facts['distribution_major_version'] in opla_platform['versions']
+          - ansible_facts['architecture'] in opla_platform['architectures']
+          - ansible_facts['pkg_mgr'] == opla_platform['package_manager']
+          - opla_platform['execution_backend'] == 'qemu-kvm'
+          - opla_platform_packages | length > 0
+        fail_msg: "BLOCKED: platform profile does not match target"
 
     - name: Inspect runtime parent
       ansible.builtin.stat:
