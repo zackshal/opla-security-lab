@@ -242,3 +242,27 @@ scenario-plan:
 
 scenario-simulate:
 	@python3 bin/opla-scenario-runner.py simulate "$(or $(SCENARIO),syn-scan-baseline)"
+
+# Scenario and experiment reporting entry points.
+.PHONY: scenario-live-check scenario-live-run experiment-report experiment-compare incident-report
+
+scenario-live-check:
+	@test -n "$(LAB)" || { echo "Usage: make scenario-live-check LAB=lab-..."; exit 2; }
+	@python3 bin/opla-scenario-live.py check "$(or $(SCENARIO),syn-scan-baseline)" --lab "$(LAB)"
+
+scenario-live-run:
+	@test -n "$(LAB)" || { echo "Usage: make scenario-live-run LAB=lab-... CONFIRM=..."; exit 2; }
+	@python3 bin/opla-scenario-live.py run "$(or $(SCENARIO),syn-scan-baseline)" --lab "$(LAB)" --confirm "$(CONFIRM)"
+
+experiment-report:
+	@test -n "$(REPORT)" || { echo "Usage: make experiment-report REPORT=reports/scenario-syn-..."; exit 2; }
+	@python3 bin/opla-experiment-report.py "$(REPORT)"
+
+experiment-compare:
+	@python3 bin/opla-experiment-compare.py --reports "$(or $(REPORTS),reports)" --format "$(or $(FORMAT),csv)"
+
+incident-report:
+	@test -n "$(REPORT)" || { echo "Usage: make incident-report REPORT=reports/scenario-syn-..."; exit 2; }
+	@python3 bin/opla-incident-report.py "$(REPORT)" \
+		$(if $(EVE),--eve "$(EVE)") \
+		$(if $(SCAN_EVENTS),--scan-events "$(SCAN_EVENTS)")

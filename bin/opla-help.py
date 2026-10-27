@@ -71,7 +71,10 @@ SECTIONS = [
 
 
 def brief():
-    print('OPLA SECURITY LAB — справка по командам')
+    print('OPLA SECURITY LAB — справка по командам Makefile')
+    print('Рекомендуемый интерфейс: opla --help')
+    print('Справка по подсистеме: opla lab --help | opla scenario --help')
+    print('Ниже приведены команды Makefile для разработки и совместимости.')
     print('Все команды выполняются из корня репозитория. make up СОЗДАЁТ стенд.')
     print('ВНИМАНИЕ: make down УДАЛЯЕТ каталог стенда и его виртуальные диски!\n')
     for title, entries in SECTIONS:

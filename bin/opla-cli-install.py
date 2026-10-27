@@ -13,7 +13,7 @@ def content():
     # Quoting handles repository paths containing spaces or apostrophes.
     import shlex
     return ("#!/bin/sh\n" + MARKER + "\n" +
-            "exec make --no-print-directory -C " + shlex.quote(str(ROOT)) + ' "$@"\n')
+            "exec python3 " + shlex.quote(str(ROOT / "bin/opla-cli.py")) + ' "$@"\n')
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
@@ -35,7 +35,7 @@ def main():
         finally:
             tmp.unlink(missing_ok=True)
         print('Установлено:', target)
-        print('Команда: opla help (или make help из каталога репозитория)')
+        print('Команда: opla --help (или make help из каталога репозитория)')
         if str(target.parent) not in os.environ.get('PATH','').split(':'):
             print('Добавьте ~/.local/bin в PATH вашей оболочки')
     else:
