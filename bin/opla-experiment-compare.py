@@ -19,10 +19,18 @@ spec = importlib.util.spec_from_file_location(
 reporter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reporter)
 
+
+fp_spec = importlib.util.spec_from_file_location(
+    "opla_fp_evidence_compare",
+    ROOT / "bin/opla-fingerprint-evidence.py",
+)
+fp_evidence = importlib.util.module_from_spec(fp_spec)
+fp_spec.loader.exec_module(fp_evidence)
+
 FIELDS = (
     "experiment", "lab_id", "source_sha256", "xdp_mode",
     "generator_exit_code", "syn", "passed", "dropped",
-    "drop_percent", "status", "error",
+    "drop_percent", "status", "fingerprint_status", "error",
 )
 
 
@@ -47,6 +55,8 @@ def context_metadata(folder):
 def compare(folder):
     row = {name: None for name in FIELDS}
     row["experiment"] = folder.name
+    fp_result = fp_evidence.verify_directory(folder)
+    row["fingerprint_status"] = fp_result["status"]
 
     try:
         row.update(context_metadata(folder))
@@ -79,7 +89,10 @@ def compare(folder):
             if total > 0 else None
         )
 
-        if delta["syn"] != total:
+        if row["fingerprint_status"] == "invalid":
+            row["status"] = "invalid_fingerprint"
+            row["error"] = fp_result["reason"]
+        elif delta["syn"] != total:
             row["status"] = "counter_mismatch"
         elif row["generator_exit_code"] != 0:
             row["status"] = "generator_failed"

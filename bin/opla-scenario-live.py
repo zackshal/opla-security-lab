@@ -33,6 +33,14 @@ evidence = importlib.util.module_from_spec(evidence_spec)
 evidence_spec.loader.exec_module(evidence)
 
 
+fp_spec = importlib.util.spec_from_file_location(
+    "opla_fingerprint_evidence_live",
+    ROOT / "bin/opla-fingerprint-evidence.py",
+)
+fp_evidence = importlib.util.module_from_spec(fp_spec)
+fp_spec.loader.exec_module(fp_evidence)
+
+
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
@@ -153,11 +161,18 @@ def validate_lab(lab_id):
 
 def read_scan_evidence(output):
     """Read snapshots from the report directory printed by traffic-scenario."""
-    matches = re.findall(
-        r"^Материалы опыта:\\s*(reports/scenario-syn-[A-Za-z0-9]+)\\s*$",
-        output,
-        re.MULTILINE,
-    )
+    matches = []
+
+    for line in output.splitlines():
+        prefix = "Материалы опыта:"
+        if line.startswith(prefix):
+            candidate = line[len(prefix):].strip()
+            if re.fullmatch(
+                "reports/scenario-syn-[A-Za-z0-9]+",
+                candidate,
+            ):
+                matches.append(candidate)
+
     require(len(matches) == 1, "scan report directory not identified")
 
     base = (ROOT / "reports").resolve()
@@ -180,6 +195,16 @@ def read_scan_evidence(output):
 
     result = evidence.analyze_files(*snapshots)
     result["report_directory"] = matches[0]
+
+    fingerprint = fp_evidence.verify_directory(directory)
+    result["fingerprint"] = fingerprint
+
+    require(
+        fingerprint["status"] == "verified",
+        "XDP fingerprint not verified: "
+        + fingerprint.get("reason", "unknown reason"),
+    )
+
     return result
 
 
