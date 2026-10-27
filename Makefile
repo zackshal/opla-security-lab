@@ -219,6 +219,10 @@ check-integration:
 	fi
 	@unshare --net -- python3 tests/integration/test_active_recovery_live.py
 
+.PHONY: automation-probe
+automation-probe:
+	@./bin/opla-automation.sh probe
+
 .PHONY: automation-validate automation-guest automation-all
 
 automation-validate:

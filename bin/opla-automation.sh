@@ -170,6 +170,13 @@ PY
 }
 
 case "$MODE" in
+    probe)
+        # Read-only remote inspection of the pinned Debian 12 target.
+        # No provisioning, package installation or VM lifecycle.
+        check_guest_target
+        echo "===== GUEST READ-ONLY PREFLIGHT ====="
+        playbook ansible/playbooks/preflight.yml
+        ;;
     validate)
         validate
         ;;
@@ -183,7 +190,7 @@ case "$MODE" in
         remote_acceptance
         ;;
     *)
-        echo "Usage: $0 {validate|guest|all}" >&2
+        echo "Usage: $0 {probe|validate|guest|all}" >&2
         exit 2
         ;;
 esac
