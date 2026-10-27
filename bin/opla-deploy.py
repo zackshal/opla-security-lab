@@ -61,6 +61,68 @@ def validate_connectivity(connection, label):
 
     return connection
 
+
+TOP_FIELDS = {"apiVersion", "kind", "metadata", "connectivity", "nodes"}
+NODE_FIELDS = {
+    "name", "address", "ssh_user", "ssh_port",
+    "components", "interfaces", "connectivity",
+    "ssh_identity", "ssh_known_hosts", "ssh_bastion",
+}
+
+
+def check_fields(value, allowed, label):
+    require(isinstance(value, dict), f"{label}: mapping required")
+    extra = set(value) - allowed
+    require(not extra, f"{label}: unknown fields: {sorted(extra)}")
+
+
+def validate_ssh_path(value, label):
+    require(isinstance(value, str) and 0 < len(value) <= 4096,
+            f"{label}: invalid path")
+    require(not any(ord(char) < 32 or ord(char) == 127 for char in value),
+            f"{label}: control character in path")
+    require(value.startswith("/") or value.startswith("~/"),
+            f"{label}: absolute or ~/ path required")
+    require(".." not in Path(value).parts,
+            f"{label}: parent traversal is forbidden")
+
+
+def validate_ssh_spec(node, name):
+    for field in ("ssh_identity", "ssh_known_hosts"):
+        if field in node:
+            validate_ssh_path(node[field], f"{name}: {field}")
+
+    if "ssh_bastion" not in node:
+        return
+
+    bastion = node["ssh_bastion"]
+    check_fields(
+        bastion,
+        {"address", "ssh_user", "ssh_port"},
+        f"{name}: ssh_bastion",
+    )
+
+    require("address" in bastion and "ssh_user" in bastion,
+            f"{name}: incomplete ssh_bastion")
+
+    try:
+        address = ipaddress.ip_address(bastion["address"])
+    except (ValueError, TypeError):
+        raise ValueError(
+            f"{name}: invalid bastion IP"
+        ) from None
+
+    require(not address.is_multicast and not address.is_unspecified,
+            f"{name}: unsuitable bastion IP")
+
+    user = bastion["ssh_user"]
+    require(isinstance(user, str) and USER.fullmatch(user),
+            f"{name}: invalid bastion SSH user")
+
+    port = bastion.get("ssh_port", 22)
+    require(type(port) is int and 1 <= port <= 65535,
+            f"{name}: invalid bastion SSH port")
+
 def load_manifest(filename):
     path = Path(filename)
     require(path.is_file() and not path.is_symlink(),
@@ -70,6 +132,7 @@ def load_manifest(filename):
 
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     require(isinstance(data, dict), "manifest must be a mapping")
+    check_fields(data, TOP_FIELDS, "infrastructure")
     require(data.get("apiVersion") == "opla/v1",
             "unsupported apiVersion")
     require(data.get("kind") == "Infrastructure",
@@ -77,6 +140,7 @@ def load_manifest(filename):
 
     metadata = data.get("metadata")
     require(isinstance(metadata, dict), "metadata required")
+    check_fields(metadata, {"name"}, "metadata")
     require(isinstance(metadata.get("name"), str)
             and NAME.fullmatch(metadata["name"]),
             "invalid infrastructure name")
@@ -97,6 +161,7 @@ def load_manifest(filename):
     for index, node in enumerate(nodes, 1):
         label = f"nodes[{index}]"
         require(isinstance(node, dict), f"{label}: mapping required")
+        check_fields(node, NODE_FIELDS, label)
 
         name = node.get("name")
         require(isinstance(name, str) and NAME.fullmatch(name),
@@ -121,6 +186,8 @@ def load_manifest(filename):
                 node["connectivity"],
                 f"{name}",
             )
+
+        validate_ssh_spec(node, name)
 
         ssh_user = node.get("ssh_user")
         require(isinstance(ssh_user, str) and USER.fullmatch(ssh_user),

@@ -163,5 +163,59 @@ class DeployManifestTests(unittest.TestCase):
         )
 
 
+    def test_unknown_top_level_field(self):
+        data = baseline()
+        data["run_as_root"] = True
+        self.reject(data)
+
+    def test_unknown_metadata_field(self):
+        data = baseline()
+        data["metadata"]["provider"] = "cloud"
+        self.reject(data)
+
+    def test_unknown_node_field(self):
+        data = baseline()
+        data["nodes"][0]["ssh_idenity"] = "/tmp/key"
+        self.reject(data)
+
+    def test_valid_explicit_ssh_paths(self):
+        data = baseline()
+        data["nodes"][0]["ssh_identity"] = "~/.ssh/id_ed25519"
+        data["nodes"][0]["ssh_known_hosts"] = (
+            "~/.ssh/known_hosts"
+        )
+        self.validate(data)
+
+    def test_reject_relative_ssh_identity(self):
+        data = baseline()
+        data["nodes"][0]["ssh_identity"] = "keys/id_ed25519"
+        self.reject(data)
+
+    def test_reject_ssh_path_traversal(self):
+        data = baseline()
+        data["nodes"][0]["ssh_identity"] = (
+            "/home/student/../other/key"
+        )
+        self.reject(data)
+
+    def test_valid_bastion_declaration(self):
+        data = baseline()
+        data["nodes"][0]["ssh_bastion"] = {
+            "address": "192.0.2.20",
+            "ssh_user": "admin",
+            "ssh_port": 2222,
+        }
+        self.validate(data)
+
+    def test_reject_unsafe_bastion(self):
+        data = baseline()
+        data["nodes"][0]["ssh_bastion"] = {
+            "address": "not-an-ip",
+            "ssh_user": "admin",
+            "extra_ssh_options": "-o StrictHostKeyChecking=no",
+        }
+        self.reject(data)
+
+
 if __name__ == "__main__":
     unittest.main()
