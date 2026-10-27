@@ -218,3 +218,14 @@ check-integration:
 		echo "Run: sudo make check-integration" >&2; exit 2; \
 	fi
 	@unshare --net -- python3 tests/integration/test_active_recovery_live.py
+
+.PHONY: automation-validate automation-guest automation-all
+
+automation-validate:
+	@./bin/opla-automation.sh validate
+
+automation-guest:
+	@./bin/opla-automation.sh guest
+
+automation-all:
+	@./bin/opla-automation.sh all
