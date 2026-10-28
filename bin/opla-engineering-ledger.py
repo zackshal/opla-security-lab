@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Native-Codex project support: local task ledger, evidence and hook guardrails.
+"""Project engineering support: local task ledger, evidence and policy guardrails.
 
 No agent scheduler, arbitrary command runner, deployment or permission mutation.
 """
@@ -25,12 +25,12 @@ spec = importlib.util.spec_from_file_location("harness_private_io", ROOT / "bin/
 private_io = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(private_io)
 CHECKS = {
-    "harness": [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_agent_harness.py", "-v"],
+    "engineering": [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_engineering_ledger.py", "-v"],
     "compile": [sys.executable, "-m", "compileall", "-q", "bin", "tests"],
     "portable": ["make", "check"],
     "acceptance": ["make", "acceptance-offline"],
 }
-PROTECTED = ("AGENTS.md", ".codex", ".agents", "harness", "bin/opla-harness.py",
+PROTECTED = ("AGENTS.md", "engineering", "bin/opla-engineering-ledger.py",
              "bin/opla-lab-progress.py")
 
 
@@ -299,13 +299,13 @@ def shell_reason(command):
         if executable == "rg" and any(arg.startswith("--pre") for arg in argv[1:]):
             return "rg executable preprocessor blocked"
         return None
-    if executable == "make" and argv[1:] in (["check"], ["acceptance-offline"], ["harness-check"]):
+    if executable == "make" and argv[1:] in (["check"], ["acceptance-offline"], ["engineering-check"]):
         return None
     if executable in ("python3", "python"):
         if argv[1:] in (["-m", "compileall", "-q", "bin", "tests"],
-                        ["-m", "unittest", "discover", "-s", "tests", "-p", "test_agent_harness.py", "-v"]):
+                        ["-m", "unittest", "discover", "-s", "tests", "-p", "test_engineering_ledger.py", "-v"]):
             return None
-        if len(argv) > 2 and argv[1] == "bin/opla-harness.py" and argv[2] in ("claim", "check", "review", "complete", "status", "metrics", "evaluate", "suggest", "reconcile", "policy"):
+        if len(argv) > 2 and argv[1] == "bin/opla-engineering-ledger.py" and argv[2] in ("claim", "check", "review", "complete", "status", "metrics", "evaluate", "suggest", "reconcile", "policy"):
             return None
     return "unreviewed executable, wrapper, script or infrastructure operation blocked"
 
@@ -314,9 +314,9 @@ def hook(event):
     name = event.get("hook_event_name")
     if name in ("SessionStart", "PreCompact"):
         return {"hookSpecificOutput": {"hookEventName": name, "additionalContext":
-                "Read root AGENTS.md and PLANS.md. Codex is the orchestrator. One shared-tree writer. "
-                "Inspect task ledger after interruption; never treat agent claims as executed tests. "
-                "No VM/network/privileged operations. See docs/agent-harness.md."}}
+                "Read root AGENTS.md and PLANS.md. One shared-tree writer owns integration. "
+                "Inspect the task ledger after interruption; never treat claims as executed tests. "
+                "No VM/network/privileged operations. See docs/engineering-workflow.md."}}
     if name != "PreToolUse":
         return {}
     tool = event.get("tool_name")
@@ -372,7 +372,7 @@ def main(argv=None):
     parser.add_argument("--require-check", choices=CHECKS, action="append", default=[])
     args = parser.parse_args(argv)
     if args.action == "evaluate":
-        cases = json.loads((ROOT / "harness/fixtures/policy-cases.json").read_text())
+        cases = json.loads((ROOT / "engineering/fixtures/policy-cases.json").read_text())
         failed = [index for index, case in enumerate(cases)
                   if (shell_reason(case["command"]) is not None) != case["deny"]]
         print(json.dumps({"status": "FAILED" if failed else "PASS", "cases": len(cases),

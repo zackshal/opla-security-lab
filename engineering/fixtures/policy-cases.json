@@ -2,7 +2,7 @@
   {"command": "git status --short", "deny": false},
   {"command": "rg --files bin tests", "deny": false},
   {"command": "make acceptance-offline", "deny": false},
-  {"command": "make harness-check", "deny": false},
+  {"command": "make engineering-check", "deny": false},
   {"command": "sudo make up", "deny": true},
   {"command": "make up", "deny": true},
   {"command": "docker compose up -d", "deny": true},

@@ -4,7 +4,7 @@
 Finish the **working** OPLA eBPF/XDP/Suricata security lab end-to-end. Favor integrated functional deliverables over additional wrappers, documentation-only commands, and repeated micro-patches. Existing repository code is source of truth; audit it before editing. Don't confuse OPLA with the user's separate eBPF/Merkle/ClickHouse thesis.
 
 ## Host safety — mandatory
-The developer's Debian 13 machine hosts valuable network and Docker workloads and must never be used for live lab provisioning. During development: do NOT use sudo, su, root, dpkg -i, apt install, systemctl start/stop, ip link/route, nft/iptables, VPN tools, QEMU/KVM execution, docker compose up/down, remote SSH commands, or commands that create/change/delete VM disks. Never change firewall, routes, bridges or interfaces. No changes under /opt/opla or /var/lib/opla. No live external endpoints. Work on source files and use Python mocks/temp dirs only. Get explicit user approval for live steps on a dedicated host after showing exact commands and consequences. Codex sandbox and approval settings are additional guardrails, not permission.
+The developer's Debian 13 machine hosts valuable network and Docker workloads and must never be used for live lab provisioning. During development: do NOT use sudo, su, root, dpkg -i, apt install, systemctl start/stop, ip link/route, nft/iptables, VPN tools, QEMU/KVM execution, docker compose up/down, remote SSH commands, or commands that create/change/delete VM disks. Never change firewall, routes, bridges or interfaces. No changes under /opt/opla or /var/lib/opla. No live external endpoints. Work on source files and use Python mocks/temp dirs only. Get explicit user approval for live steps on a dedicated host after showing exact commands and consequences. Local sandbox and approval settings are additional guardrails, not permission.
 
 ## Architecture invariants
 - One built-in topology template ONLY: local QEMU academic lab attacker/victim/client. Distributed deployment topology is user-defined YAML, no hard-coded IPs in product code.
@@ -30,11 +30,11 @@ The developer's Debian 13 machine hosts valuable network and Docker workloads an
 - Never commit automatically unless user requested. Never mark a task PASS just because code path exists.
 - All network activity / external installs require separate user approval. Favor clean failure over weakening guardrails.
 
-## Native Codex engineering harness
-- For an explicitly requested harness/team workflow, use native Codex subagents on demand and project roles in `.codex/agents`; consult `harness/roles.json` and `docs/agent-harness.md`. Do not build another agent loop.
+## Engineering workflow
+- For bounded engineering work, use the role contracts in `engineering/roles.json` and the evidence rules in `docs/engineering-workflow.md`. Do not build another scheduler.
 - Parallel read-only investigations may share this tree. Only the parent integrator writes shared files. Parallel writers require separately verified snapshots/worktrees with the current dirty baseline, including these untracked instructions; HEAD alone is insufficient.
 - Claim explicit paths and dependencies before assigning writers. Preserve existing changes; do not automatically stash, commit, reset, clean or cherry-pick.
 - Role instructions do not grant tools or isolate permissions. All agents inherit the parent's current permissions; no role may broaden them.
-- Treat agent test claims as unverified until actual command, tree fingerprint, exit status and log evidence are checked. Native Codex resume recovers conversation state; unresolved local checking records require inspection before retry.
+- Treat test claims as unverified until actual command, tree fingerprint, exit status and log evidence are checked. An interrupted task must be reconciled before retry.
 - Independent reviewers must not approve their own implementation. Safety-rule/skill/hook changes are proposals until independent review and explicit human activation; never expand permissions or trust hooks automatically.
 - Do not add AI authorship trailers. Never create a commit or publish without separate user authorization.

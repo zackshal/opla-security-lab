@@ -24,12 +24,25 @@ def validate(value):
 
 
 def selected():
-    if not SELECTION.is_file():
+    try:
+        stat = SELECTION.lstat()
+    except FileNotFoundError:
         return None
     if SELECTION.is_symlink():
         raise ValueError('Файл выбора стенда не должен быть символической ссылкой')
+    if not stat or not SELECTION.is_file() or stat.st_uid != os.getuid() or stat.st_nlink != 1:
+        raise ValueError('Файл выбора стенда имеет небезопасный тип или владельца')
     value = SELECTION.read_text().strip()
-    return validate(value)[0]
+    if not re.fullmatch(r'lab-[A-Za-z0-9]+', value):
+        raise ValueError('Файл выбора стенда содержит некорректный идентификатор')
+    try:
+        return validate(value)[0]
+    except FileNotFoundError:
+        # A deleted lab must not remain the implicit current target.  Clear
+        # only our own regular, single-link selection file; unsafe metadata is
+        # left untouched and reported on the next call.
+        SELECTION.unlink()
+        return None
 
 
 def current():

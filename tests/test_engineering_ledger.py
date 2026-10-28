@@ -1,17 +1,16 @@
-"""Offline harness invariants; no agents, hooks activation, Git writes or network."""
+"""Offline engineering-ledger invariants; no Git writes or network."""
 
 import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("opla_engineering_harness", ROOT / "bin/opla-harness.py")
+spec = importlib.util.spec_from_file_location("opla_engineering_harness", ROOT / "bin/opla-engineering-ledger.py")
 harness = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(harness)
 
@@ -223,7 +222,7 @@ class HarnessTests(unittest.TestCase):
 
 class HookTests(unittest.TestCase):
     def test_fixed_policy_scenarios_without_executing_commands(self):
-        cases = json.loads((ROOT / "harness/fixtures/policy-cases.json").read_text())
+        cases = json.loads((ROOT / "engineering/fixtures/policy-cases.json").read_text())
         for case in cases:
             with self.subTest(command=case["command"]):
                 result = harness.hook({"hook_event_name": "PreToolUse", "tool_name": "Bash",
@@ -232,7 +231,7 @@ class HookTests(unittest.TestCase):
 
     def test_policy_event_cli_is_in_the_reviewed_command_subset(self):
         self.assertIsNone(harness.shell_reason(
-            "python3 bin/opla-harness.py policy --ledger /tmp/task.json "
+            "python3 bin/opla-engineering-ledger.py policy --ledger /tmp/task.json "
             "--task task-a --actor reviewer --violation hook-denial --note evidence"))
 
     def test_unknown_and_malformed_tools_deny(self):
@@ -241,7 +240,7 @@ class HookTests(unittest.TestCase):
             self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_protected_policy_edits_need_human_review(self):
-        for file in ("AGENTS.md", ".codex/config.toml", ".agents/skills/opla-task/SKILL.md",
+        for file in ("AGENTS.md", "engineering/roles.json",
                      "bin/opla-lab-progress.py", "../escape"):
             result = harness.hook({"hook_event_name": "PreToolUse", "tool_name": "apply_patch",
                 "tool_input": {"command": f"*** Begin Patch\n*** Update File: {file}\n@@\n-old\n+new\n*** End Patch"}})
@@ -255,8 +254,8 @@ class HookTests(unittest.TestCase):
     def test_symlink_alias_cannot_bypass_protected_paths(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            (root / ".codex").mkdir()
-            (root / "alias").symlink_to(root / ".codex")
+            (root / "engineering").mkdir()
+            (root / "alias").symlink_to(root / "engineering")
             (root / "outside").symlink_to("/tmp")
             with patch.object(harness, "ROOT", root):
                 for path in ("alias/config.toml", "outside/elsewhere"):
@@ -269,21 +268,6 @@ class HookTests(unittest.TestCase):
             for event in ("SessionStart", "PreCompact"):
                 result = harness.hook({"hook_event_name": event})
                 self.assertIn("AGENTS.md", result["hookSpecificOutput"]["additionalContext"])
-
-    def test_native_agent_definitions_do_not_expand_permissions(self):
-        definitions = list((ROOT / ".codex/agents").glob("*.toml"))
-        self.assertEqual(len(definitions), 10)
-        for path in definitions:
-            config = tomllib.loads(path.read_text())
-            self.assertEqual(set(config), {"name", "description", "developer_instructions"})
-
-    def test_native_hooks_use_isolated_python(self):
-        config = json.loads((ROOT / ".codex/hooks.json").read_text())
-        for groups in config["hooks"].values():
-            for group in groups:
-                for command in group["hooks"]:
-                    self.assertTrue(command["command"].startswith("/usr/bin/python3 -I "))
-
 
 if __name__ == "__main__":
     unittest.main()

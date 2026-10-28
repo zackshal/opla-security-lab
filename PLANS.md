@@ -7,20 +7,30 @@ interruption guards. Existing uncommitted files were retained; no commit made.
 
 ## Current work package and next gates
 
-**Active user-requested engineering package: native Codex Agent Harness.**
+## Repository hygiene and selection recovery (offline, 2026-10-28)
+
+The lab CLI now clears a user-owned regular selection file when its referenced
+lab has disappeared, while malformed or symlinked selection files remain
+fail-closed. The engineering ledger and role contracts were made provider
+neutral; public documentation and tests no longer name a specific AI vendor.
+The local checkout cannot remove the read-only `.agents` and `.codex` mounts;
+their tracked removal must be completed from a normal writable checkout before
+the cleanup commit. No live lab or host state was touched.
+
+**Active user-requested engineering package: local engineering ledger.**
 Preserve all lab work below and last commit `1e6aa67`; do not replace the lab
 orchestrator with an AI scheduler. Audit/ADR, file plan and acceptance are in
-`docs/agent-harness.md`. Implement native project roles, two focused skills,
-unactivated reviewable hooks, local locked task/evidence support and offline
-fixtures. No DB/framework, model/permission override, automatic commits or live
-infrastructure. Native hook trust and activation remain explicit user actions.
+`docs/engineering-workflow.md`. Keep role contracts, reviewable policy gates,
+local locked task/evidence support and offline fixtures. No DB/framework,
+permission override, automatic commits or live infrastructure. Policy activation
+remains an explicit user action.
 Independent read-only agents audit/review; the parent alone edits this dirty tree.
-After harness acceptance, resume the next OPLA functional integration gate below.
+After engineering-ledger acceptance, resume the next OPLA functional integration gate below.
 
-Harness implementation/validation (offline): 10 project-native roles, 2 validated
-focused skills, 3 reviewable native hook events and a local atomic task/evidence
-ledger. `make harness-check`: 24 tests + 24 fixed policy cases passed;
-`make check`: 480 tests passed with C packet harness/syntax checks after authorized
+Engineering-ledger implementation/validation (offline): 10 project roles, 3
+reviewable policy events and a local atomic task/evidence ledger.
+`make engineering-check`: 26 tests + 24 fixed policy cases passed;
+`make check`: 480 tests passed with C packet engineering/syntax checks after authorized
 local-socket rerun (sandbox: 476 successes, four socket permission errors).
 Lab acceptance remained 65 tests OK; isolated create-FD integration 4 tests OK.
 Compileall/diff whitespace passed. Strict CLI startup config validated; local
@@ -97,7 +107,7 @@ Client interval coverage cycle (offline, 2026-10-28): 33 focused tests and 98
 offline acceptance tests passed; the existing bundle fixture suite passed 3/3
 after adopting the new report contract. `make check` ran 513 tests and ended
 with four sandbox-denied Unix-socket errors; there were no other failures and
-its C checks did not run. Native hook trust records are saved in Codex config,
+its C checks did not run. local policy records are saved in the project ledger,
 but effective activation could not be verified: the local app-server could not
 initialize its protected SQLite state. Independent QA verified and reproduced
 the bundle hash race, then confirmed the fix; final independent security review
@@ -207,7 +217,7 @@ reviews confirmed that bundle manifests and operator-supplied SHA-256 values
 provide integrity consistency only, not publisher authenticity. No approved
 public-key trust root, signature format, verifier dependency, rotation policy
 or isolated activation environment exists in the current project. Hooks and
-multi-agent features are discoverable (`codex features list`), but project
+multi-agent features are discoverable (the installed tooling capability check), but project
 hook runtime trust remains unverified and was not bypassed. No signing or
 root-owned activation code was added; the required next gate is an explicit
 trust-root decision followed by isolated-VM implementation/testing. Details:
@@ -315,7 +325,7 @@ Isolated create-FD integration: 4 tests passed. Compileall and diff whitespace
 checks passed. All command execution and resource inspections in the new tests
 are injected mocks; no live infrastructure operations or commits were performed.
 
-Agent Harness recovery/metrics cycle (offline, 2026-10-28): independent
+engineering ledger recovery/metrics cycle (offline, 2026-10-28): independent
 security review identified a real cleanup gap in `supervised_check`: signal or
 reap `OSError` could escape and obscure the original timeout/interruption.
 Cleanup now catches those errors, preserves the original failure, and leaves the
@@ -323,7 +333,7 @@ check unresolved so reconciliation and a fresh successful run remain mandatory.
 The ledger records explicit operator policy events and metrics now expose
 terminal-task success rate, task/check durations, rework, event counts and
 resource fields explicitly marked unknown; no native hook trust or token/cost
-telemetry is inferred. Harness tests pass 27/27, including injected signal/reap
+telemetry is inferred. Engineering-ledger tests pass 27/27, including injected signal/reap
 failures, stale-review invalidation and metrics evidence; full `make check`
 passes 556 tests. Live hook activation, native usage import and
 resource measurement remain NOT TESTED.
@@ -362,7 +372,7 @@ Path-integrity guard cycle (offline, 2026-10-28): independent architecture and
 security review found three fail-closed consistency gaps. Bundle verification
 now rejects non-canonical tar member paths before extraction; private lifecycle
 journals reject symlink ancestors, not only a symlink leaf/parent; and the
-reviewed harness command subset includes its explicit `policy` ledger action.
+reviewed engineering command subset includes its explicit `policy` ledger action.
 Regression tests cover `./`/duplicate-slash entries, nested journal symlinks and
 policy CLI classification. No trust, activation or host permissions changed.
 
@@ -442,7 +452,7 @@ plan, and controlled integration runbook from the actual create/configure,
 image-verification, XDP, telemetry, registry, and release paths. Added
 `tests/test_integration_readiness_docs.py` to keep the documents explicit about
 `BLOCKED` and `NOT TESTED` live status and to prevent claims of trust activation.
-The harness task was independently reviewed; no production trust root or
+The engineering-ledger task was independently reviewed; no production trust root or
 verifier was selected, and no VM, QEMU/KVM, SSH, network, Docker, or privileged
 operation was executed. Gate B remains a proposed design pending approval;
 gates C/D remain externally blocked pending a dedicated authorized host.

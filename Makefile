@@ -83,10 +83,10 @@ xdp-stats:
 check:
 	@python3 tests/check.py
 
-.PHONY: harness-check
-harness-check:
-	@python3 -m unittest discover -s tests -p 'test_agent_harness.py' -v
-	@python3 bin/opla-harness.py evaluate
+.PHONY: engineering-check
+engineering-check:
+	@python3 -m unittest discover -s tests -p 'test_engineering_ledger.py' -v
+	@python3 bin/opla-engineering-ledger.py evaluate
 monitoring-up monitoring-down monitoring-configure monitoring-start monitoring-stop:
 	@./monitoring/manage.sh "$@"
 versions:

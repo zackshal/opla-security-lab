@@ -360,9 +360,9 @@ Deployment Ansible рассчитан на отдельный Debian 13 security
 Контракт и границы подтверждения описаны в [offline-lifecycle.md](docs/offline-lifecycle.md);
 план дальнейшей интеграции — в [PLANS.md](PLANS.md).
 
-Проектный Agent Harness использует native Codex roles/skills и отдельный журнал
-инженерных задач; проверка — `make harness-check`. Архитектура, порядок независимого
-ревью и ограничения hooks описаны в [agent-harness.md](docs/agent-harness.md).
+Проектный engineering ledger использует ролевые контракты и отдельный журнал
+инженерных задач; проверка — `make engineering-check`. Архитектура, порядок независимого
+ревью и ограничения policy-gates описаны в [engineering-workflow.md](docs/engineering-workflow.md).
 
 | Каталог | Назначение |
 |---|---|
