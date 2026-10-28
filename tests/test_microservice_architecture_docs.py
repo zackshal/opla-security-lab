@@ -1,6 +1,8 @@
 from pathlib import Path
 import importlib.util
+import json
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +11,11 @@ SPEC = importlib.util.spec_from_file_location(
 )
 CONTRACT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CONTRACT)
+TRANSPORT_SPEC = importlib.util.spec_from_file_location(
+    "opla_service_transport", ROOT / "bin" / "opla_service_transport.py"
+)
+TRANSPORT = importlib.util.module_from_spec(TRANSPORT_SPEC)
+TRANSPORT_SPEC.loader.exec_module(TRANSPORT)
 
 
 class MicroserviceArchitectureDocsTests(unittest.TestCase):
@@ -66,6 +73,43 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
                 payload={},
                 evidence={},
             )
+
+    def test_unix_jsonl_transport_round_trip(self):
+        envelope = CONTRACT.ServiceEnvelope(
+            service="opla-evidence",
+            operation="probe",
+            operation_id="op-transport",
+            lab_id="lab-ABC123",
+            requested_at="2026-01-01T00:00:00Z",
+            payload={"step": "report"},
+            evidence={},
+        )
+        class FakeSocket:
+            def __init__(self, *_args):
+                self.sent = b""
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def settimeout(self, _timeout):
+                pass
+
+            def connect(self, path):
+                self.path = path
+
+            def sendall(self, data):
+                self.sent += data
+
+            def recv(self, _size):
+                request = json.loads(self.sent.decode())
+                return json.dumps({"lab_id": request["lab_id"], "ok": True}).encode() + b"\n"
+
+        with patch.object(TRANSPORT.socket, "socket", FakeSocket):
+            result = TRANSPORT.JsonLineServiceClient("/run/opla/evidence.sock", timeout=1).dispatch(envelope)
+        self.assertEqual(result, {"lab_id": "lab-ABC123", "ok": True})
 
 
 if __name__ == "__main__":
