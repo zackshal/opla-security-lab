@@ -355,6 +355,15 @@ Deployment Ansible рассчитан на отдельный Debian 13 security
 
 ## Структура исходников
 
+Офлайн-приёмка жизненного цикла с fake-адаптерами: `make acceptance-offline`.
+Она проверяет журнал, probes, отказы и возобновление без VM/SSH/сети.
+Контракт и границы подтверждения описаны в [offline-lifecycle.md](docs/offline-lifecycle.md);
+план дальнейшей интеграции — в [PLANS.md](PLANS.md).
+
+Проектный Agent Harness использует native Codex roles/skills и отдельный журнал
+инженерных задач; проверка — `make harness-check`. Архитектура, порядок независимого
+ревью и ограничения hooks описаны в [agent-harness.md](docs/agent-harness.md).
+
 | Каталог | Назначение |
 |---|---|
 | `xdp/` | C-программа, сборка, загрузка, политика и сборщик метрик |

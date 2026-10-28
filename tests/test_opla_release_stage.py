@@ -76,6 +76,28 @@ class StageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "approved SHA-256"):
             self.staged()
 
+    def test_replace_failure_cleans_temporary_tree(self):
+        with patch.object(stager.os, "replace", side_effect=OSError("rename interrupted")):
+            with self.assertRaisesRegex(OSError, "rename interrupted"):
+                self.staged()
+        self.assertFalse(self.destination.exists())
+        self.assertEqual(list(self.root.glob(".opla-stage-*")), [])
+
+    def test_parent_fsync_failure_reports_ambiguous_persisted_destination(self):
+        calls = []
+
+        def fsync(path):
+            calls.append(Path(path))
+            if Path(path) == self.root:
+                raise OSError("directory sync interrupted")
+
+        with patch.object(stager, "_fsync_directory", side_effect=fsync):
+            with self.assertRaisesRegex(OSError, "directory sync interrupted"):
+                self.staged()
+        self.assertTrue(self.destination.is_dir())
+        self.assertEqual(list(self.root.glob(".opla-stage-*")), [])
+        self.assertEqual(calls[-1], self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

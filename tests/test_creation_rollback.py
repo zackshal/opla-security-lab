@@ -31,12 +31,21 @@ def setup_lab(root, phase='creating'):
     lab = 'lab-Ab1234'
     folder = root / lab
     folder.mkdir()
-    (folder / 'state.env').write_text('LAB_ID=lab-Ab1234\nBRIDGE=br-op7\nGW=10.10.10.1\n')
+    state = folder / 'state.env'
+    state.write_text(
+        'LAB_ID=lab-Ab1234\nBRIDGE=br-op7\nSUBNET=100.64.0.0/29\n'
+        'MGMT_BRIDGE=br-op8\nMGMT_SUBNET=100.64.0.8/29\n'
+        'MGMT_GW=100.64.0.9\nATTACKER_MGMT_IP=100.64.0.10\n'
+        'VICTIM_MGMT_IP=100.64.0.11\nCLIENT_MGMT_IP=100.64.0.12\n'
+    )
+    state.chmod(0o600)
     (folder / 'attacker').mkdir()
     (folder / 'attacker' / 'disk.qcow2').write_bytes(b'fake')
     reg = root / 'registry'
     reg.mkdir()
-    reg.joinpath(lab + '.json').write_text(json.dumps(MOD.registry.receipt(root, lab, phase)))
+    receipt = reg.joinpath(lab + '.json')
+    receipt.write_text(json.dumps(MOD.registry.receipt(root, lab, phase)))
+    receipt.chmod(0o600)
     return lab
 
 

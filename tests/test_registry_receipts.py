@@ -14,7 +14,14 @@ class RegistryReceiptTests(unittest.TestCase):
     def make_lab(self, root, name='lab-Ab12'):
         lab = Path(root) / name
         lab.mkdir()
-        (lab / 'state.env').write_text(f'LAB_ID={name}\nBRIDGE=br-op7\n')
+        state = lab / 'state.env'
+        state.write_text(
+            f'LAB_ID={name}\nBRIDGE=br-op7\nSUBNET=100.64.0.0/29\n'
+            'MGMT_BRIDGE=br-op8\nMGMT_SUBNET=100.64.0.8/29\n'
+            'MGMT_GW=100.64.0.9\nATTACKER_MGMT_IP=100.64.0.10\n'
+            'VICTIM_MGMT_IP=100.64.0.11\nCLIENT_MGMT_IP=100.64.0.12\n'
+        )
+        state.chmod(0o600)
         return lab
 
     def test_atomic_begin_and_ready(self):
@@ -43,13 +50,49 @@ class RegistryReceiptTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 reg.persist(d, 'lab-Ab12', 'ready')
 
+    def test_state_hardlink_and_group_writable_file_are_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            lab = self.make_lab(d)
+            state = lab / 'state.env'
+            copy = Path(d) / 'state-copy.env'
+            copy.write_text(state.read_text())
+            state.unlink()
+            state.hardlink_to(copy)
+            with self.assertRaisesRegex(ValueError, 'state.env'):
+                reg.state_of(d, 'lab-Ab12')
+            state.unlink()
+            state.write_text(copy.read_text())
+            state.chmod(0o666)
+            with self.assertRaisesRegex(ValueError, 'ownership or mode'):
+                reg.state_of(d, 'lab-Ab12')
+
     def test_no_host_calls(self):
         with tempfile.TemporaryDirectory() as d:
             self.make_lab(d)
             reg.persist(d, 'lab-Ab12', 'ready')
             records = reg.inspect(d)
             self.assertEqual(len(records), 1)
-            self.assertEqual(records[0]['resources'], 16)
+            self.assertEqual(records[0]['resources'], 20)
+
+    def test_ready_rejects_single_nic_state(self):
+        with tempfile.TemporaryDirectory() as d:
+            lab = Path(d) / 'lab-Ab12'
+            lab.mkdir()
+            state = lab / 'state.env'
+            state.write_text('LAB_ID=lab-Ab12\nBRIDGE=br-op7\n')
+            state.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, 'dual-NIC'):
+                reg.persist(d, 'lab-Ab12', 'ready')
+
+    def test_ready_rejects_overlapping_management_subnet(self):
+        with tempfile.TemporaryDirectory() as d:
+            lab = self.make_lab(d)
+            state = (lab / 'state.env').read_text().replace(
+                'MGMT_SUBNET=100.64.0.8/29', 'MGMT_SUBNET=100.64.0.0/29')
+            (lab / 'state.env').write_text(state)
+            (lab / 'state.env').chmod(0o600)
+            with self.assertRaisesRegex(ValueError, 'overlapping'):
+                reg.persist(d, 'lab-Ab12', 'ready')
 
 
 if __name__ == '__main__':

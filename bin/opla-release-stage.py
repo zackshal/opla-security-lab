@@ -24,6 +24,15 @@ spec.loader.exec_module(bundle)
 HASH = re.compile(r"[a-fA-F0-9]{64}\Z")
 
 
+def _fsync_directory(path):
+    """Durably flush a directory without following symlinked directories."""
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def safe_directory(path):
     """Require an existing tree without symlink ancestors."""
     path = Path(path).absolute()
@@ -80,6 +89,8 @@ def stage(archive, destination, expected_sha256):
                 data = tar.extractfile(member).read()
                 with target.open("xb") as handle:
                     handle.write(data)
+                    handle.flush()
+                    os.fsync(handle.fileno())
                 os.chmod(target, 0o600)
         if len(seen) != count:
             raise ValueError("unexpected file count")
@@ -89,11 +100,18 @@ def stage(archive, destination, expected_sha256):
             "file_count": count,
             "warning": "NOT TRUSTED, NOT INSTALLED, DO NOT EXECUTE AS ROOT",
         }
-        (temp / "REVIEW.json").write_text(json.dumps(attestation, indent=2) + "\n")
-        os.chmod(temp / "REVIEW.json", 0o600)
-        os.rename(temp, destination)
+        review = temp / "REVIEW.json"
+        with review.open("x", encoding="utf-8") as handle:
+            handle.write(json.dumps(attestation, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(review, 0o600)
+        _fsync_directory(temp)
+        os.replace(temp, destination)
+        _fsync_directory(parent)
     except BaseException:
-        shutil.rmtree(temp)
+        if temp.exists():
+            shutil.rmtree(temp)
         raise
     return count
 

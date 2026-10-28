@@ -13,7 +13,14 @@ class AuditTests(unittest.TestCase):
     def lab(self, root, lab, bridge):
         d = Path(root)/lab
         d.mkdir()
-        (d/'state.env').write_text(f'LAB_ID={lab}\nBRIDGE={bridge}\n')
+        state = d/'state.env'
+        state.write_text(
+            f'LAB_ID={lab}\nBRIDGE={bridge}\nSUBNET=100.64.0.0/29\n'
+            f'MGMT_BRIDGE={"br-op9" if bridge == "br-op8" else "br-op8"}\nMGMT_SUBNET=100.64.0.8/29\n'
+            'MGMT_GW=100.64.0.9\nATTACKER_MGMT_IP=100.64.0.10\n'
+            'VICTIM_MGMT_IP=100.64.0.11\nCLIENT_MGMT_IP=100.64.0.12\n'
+        )
+        state.chmod(0o600)
         mod.verify_mod.reg.persist(root, lab, 'ready')
         return d
 

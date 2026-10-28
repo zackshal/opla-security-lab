@@ -1,4 +1,5 @@
 import importlib.util
+import math
 from pathlib import Path
 import struct
 import unittest
@@ -85,3 +86,20 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 policy.main()
         update.assert_not_called()
+
+    def test_bpftool_dispatch_receives_finite_timeout(self):
+        with patch.object(sys, 'argv', ['policy', '--mode', 'off']), \
+             patch.object(policy.subprocess, 'check_output', return_value='{"type":"hash","bytes_key":4,"bytes_value":12,"max_entries":1}') as inspect, \
+             patch.object(policy.subprocess, 'run') as update:
+            policy.main(timeout=3.5)
+        self.assertEqual(inspect.call_args.kwargs['timeout'], 3.5)
+        self.assertEqual(update.call_args.kwargs['timeout'], 3.5)
+
+    def test_invalid_bpftool_timeout_rejected_before_dispatch(self):
+        for timeout in (True, 0, -1, math.nan, math.inf, '5'):
+            with self.subTest(timeout=timeout), \
+                 patch.object(sys, 'argv', ['policy', '--mode', 'off']), \
+                 patch.object(policy.subprocess, 'check_output') as inspect:
+                with self.assertRaises(SystemExit):
+                    policy.main(timeout=timeout)
+                inspect.assert_not_called()

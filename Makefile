@@ -82,6 +82,11 @@ xdp-stats:
 	@./bin/control.sh collect
 check:
 	@python3 tests/check.py
+
+.PHONY: harness-check
+harness-check:
+	@python3 -m unittest discover -s tests -p 'test_agent_harness.py' -v
+	@python3 bin/opla-harness.py evaluate
 monitoring-up monitoring-down monitoring-configure monitoring-start monitoring-stop:
 	@./monitoring/manage.sh "$@"
 versions:
@@ -285,6 +290,20 @@ monitoring-experiment-publish:
 .PHONY: acceptance-check
 acceptance-check:
 	@python3 bin/opla-acceptance-check.py --check
+
+# Pure fake adapters and private temporary journals; no VM/SSH/network.
+.PHONY: acceptance-offline
+acceptance-offline:
+	@python3 -m unittest discover -s tests -p 'test_lifecycle_*.py' -v
+
+.PHONY: ci-offline
+ci-offline:
+	@git diff --check
+	@python3 -m compileall -q bin tests
+	@python3 -m unittest -q tests.test_opla_platform tests.test_integration_readiness_docs
+	@python3 bin/opla-platform.py --json >/tmp/opla-platform-capabilities.json
+	@$(MAKE) acceptance-offline
+	@$(MAKE) check
 
 .PHONY: lab-configure
 lab-configure:

@@ -75,7 +75,9 @@ def promote(bundle, root, expected_sha256):
         raise ValueError('temporary activation link already exists')
     try:
         new_link.symlink_to('releases/' + ident)
+        stage_mod._fsync_directory(root)
         os.replace(new_link, current)
+        stage_mod._fsync_directory(root)
     finally:
         if new_link.is_symlink():
             new_link.unlink()

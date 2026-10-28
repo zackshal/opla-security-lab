@@ -1,5 +1,8 @@
 import importlib.util
+import json
+import math
 import os
+import signal
 import subprocess
 import tempfile
 import unittest
@@ -86,6 +89,87 @@ class CreateLauncherTests(unittest.TestCase):
             self.assertEqual(result, 17)
             self.assertEqual(len(calls), 1)
             self.assertEqual(held, [])
+
+    def test_timeout_is_forwarded_and_reconciliation_blocks_retry(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            calls = []
+
+            def fake_lock(path):
+                from contextlib import nullcontext
+                return nullcontext(8)
+
+            def runner(*args, **kwargs):
+                calls.append(kwargs)
+                raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
+
+            with patch.object(launcher, "verify_root"), \
+                 patch.object(launcher, "verify_trusted_code"), \
+                 patch.object(launcher, "load_locks", return_value=type(
+                     "Locks", (), {"lifecycle_lock": staticmethod(fake_lock)})()):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    launcher.run_creation(root, Path("create.sh"), runner=runner, timeout=12)
+                receipt = root / launcher.CREATE_RECONCILIATION_FILENAME
+                self.assertEqual(json.loads(receipt.read_text())["status"],
+                                 "RECONCILIATION_REQUIRED")
+                with self.assertRaisesRegex(RuntimeError, "reconciliation required"):
+                    launcher.run_creation(root, Path("create.sh"), runner=runner, timeout=12)
+            self.assertEqual(calls[0]["timeout"], 12)
+
+    def test_invalid_create_timeout_is_rejected_before_dispatch(self):
+        for timeout in (True, False, 0, -1, math.nan, math.inf, 7201):
+            with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                launcher.validate_create_timeout(timeout)
+
+    def test_owned_group_timeout_terminates_and_reaps(self):
+        class Process:
+            pid = 4455
+            def __init__(self):
+                self.waits = 0
+            def wait(self, timeout=None):
+                self.waits += 1
+                if self.waits < 3:
+                    raise subprocess.TimeoutExpired("create", timeout)
+                return 137
+
+        signals = []
+        with self.assertRaises(subprocess.TimeoutExpired) as caught:
+            launcher._run_owned(
+                ["create"], env={}, pass_fds=(), timeout=1,
+                popen_factory=lambda *a, **k: Process(),
+                killpg=lambda pid, sig: signals.append((pid, sig)), grace=1,
+            )
+        self.assertEqual(signals, [(4455, signal.SIGTERM), (4455, signal.SIGKILL)])
+        self.assertEqual(caught.exception.cleanup_evidence["status"], "reaped-after-kill")
+
+    def test_malformed_runner_result_persists_reconciliation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            from contextlib import nullcontext
+
+            def fake_lock(path):
+                return nullcontext(8)
+
+            def runner(*args, **kwargs):
+                return object()
+
+            with patch.object(launcher, "verify_root"), \
+                 patch.object(launcher, "verify_trusted_code"), \
+                 patch.object(launcher, "load_locks", return_value=type(
+                     "Locks", (), {"lifecycle_lock": staticmethod(fake_lock)})()):
+                with self.assertRaises(ValueError):
+                    launcher.run_creation(root, Path("create.sh"), runner=runner)
+            receipt = root / launcher.CREATE_RECONCILIATION_FILENAME
+            payload = json.loads(receipt.read_text())
+            self.assertEqual(payload["cleanup"]["error_type"], "ValueError")
+
+    def test_reconciliation_persistence_fsyncs_file_and_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with patch.object(launcher.os, "fsync", wraps=launcher.os.fsync) as fsync:
+                path = launcher.persist_create_reconciliation(root, 10, {})
+            self.assertTrue(path.exists())
+            self.assertGreaterEqual(fsync.call_count, 2)
 
     def test_untrusted_code_blocks_before_import_and_runner(self):
         with patch.object(launcher, "verify_root"), patch.object(

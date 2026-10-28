@@ -4,6 +4,10 @@
 import argparse
 import hashlib
 import json
+import math
+import os
+import tempfile
+import stat
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -24,9 +28,11 @@ EVIDENCE_FILES = (
     "events.jsonl",
     "suricata-evidence-meta.json",
     "scan-evidence-meta.json",
+    "client-probes.json",
 )
 
 MAX_EVIDENCE_BYTES = 32 * 1024 * 1024
+REPORT_INPUTS = ("interval.json", "before.json", "after.json", "eve.json", "events.jsonl")
 
 
 def sha256(path):
@@ -35,6 +41,61 @@ def sha256(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _read_stable(path):
+    """Read a pinned regular file and reject replacement during the read."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise ValueError(f"unsafe evidence file: {path.name}")
+        data = bytearray()
+        while True:
+            block = os.read(descriptor, 1024 * 1024)
+            if not block:
+                break
+            data.extend(block)
+            if len(data) > MAX_EVIDENCE_BYTES:
+                raise ValueError(f"evidence exceeds byte limit: {path.name}")
+        after = os.fstat(descriptor)
+        if ((before.st_dev, before.st_ino, before.st_size, before.st_nlink)
+                != (after.st_dev, after.st_ino, after.st_size, after.st_nlink)):
+            raise ValueError(f"evidence changed during read: {path.name}")
+        return bytes(data)
+    finally:
+        os.close(descriptor)
+
+
+def inventory_file(path):
+    try:
+        st = path.lstat()
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+            return {"status": "unsafe"}
+        if st.st_size > MAX_EVIDENCE_BYTES:
+            return {"status": "not_hashed_size_limit", "size_bytes": st.st_size}
+        data = _read_stable(path)
+    except (OSError, ValueError):
+        return {"status": "missing"}
+    return {"status": "present", "size_bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest()}
+
+
+def _snapshot(experiment, evidence):
+    root = Path(tempfile.mkdtemp(prefix="opla-report-snapshot-"))
+    snapshot = root / experiment.name
+    snapshot.mkdir()
+    try:
+        for name in (*EVIDENCE_FILES, *REPORT_INPUTS):
+            if evidence.get(name, {}).get("status") != "present":
+                continue
+            data = _read_stable(experiment / name)
+            (snapshot / name).write_bytes(data)
+        return root, snapshot
+    except Exception:
+        import shutil
+        shutil.rmtree(root, ignore_errors=True)
+        raise
 
 
 def save_json(path, data):
@@ -49,7 +110,14 @@ def save_json(path, data):
         tmp.unlink(missing_ok=True)
 
 
-def build(experiment):
+def _validate_timeout(timeout):
+    if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout) or timeout <= 0):
+        raise ValueError("reporter timeout must be finite and positive")
+
+
+def build(experiment, *, runner=None, timeout=30):
+    _validate_timeout(timeout)
     experiment = experiment.resolve(strict=True)
 
     if not experiment.is_dir():
@@ -63,65 +131,69 @@ def build(experiment):
 
     evidence = {}
     for name in EVIDENCE_FILES:
-        path = experiment / name
-        if not path.is_file() or path.is_symlink():
-            evidence[name] = {"status": "missing"}
-            continue
+        evidence[name] = inventory_file(experiment / name)
 
-        size = path.stat().st_size
-        if size > MAX_EVIDENCE_BYTES:
-            evidence[name] = {
-                "status": "not_hashed_size_limit",
-                "size_bytes": size,
-            }
-            continue
-
-        evidence[name] = {
-            "status": "present",
-            "size_bytes": size,
-            "sha256": sha256(path),
-        }
-
-    report_command = [
-        sys.executable,
-        str(ROOT / "bin/opla-incident-report.py"),
-        str(experiment),
-    ]
-
-    if evidence["eve.json"]["status"] == "present":
-        report_command += ["--eve", str(experiment / "eve.json")]
-
-    if evidence["events.jsonl"]["status"] == "present":
-        report_command += [
-            "--scan-events",
-            str(experiment / "events.jsonl"),
-        ]
-
-    result = subprocess.run(
-        report_command,
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    snapshot_root = snapshot = None
 
     incident = None
     report_error = None
 
-    if result.returncode == 0:
-        try:
-            incident = json.loads(result.stdout)
-            save_json(output / "incident-report.json", incident)
-        except (ValueError, TypeError) as exc:
-            report_error = f"Invalid incident JSON: {exc}"
-    else:
-        report_error = (
-            result.stderr.strip()
-            or f"Incident reporter exit code: {result.returncode}"
+    dispatch = subprocess.run if runner is None else runner
+    try:
+        snapshot_root, snapshot = _snapshot(experiment, evidence)
+        report_command = [sys.executable, str(ROOT / "bin/opla-incident-report.py"), str(snapshot)]
+        if evidence["eve.json"]["status"] == "present":
+            report_command += ["--eve", str(snapshot / "eve.json")]
+        if evidence["events.jsonl"]["status"] == "present":
+            report_command += ["--scan-events", str(snapshot / "events.jsonl")]
+        result = dispatch(
+            report_command,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
         )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        report_error = f"Incident reporter dispatch failed: {type(exc).__name__}: {exc}"
+    except ValueError as exc:
+        report_error = f"Incident evidence snapshot failed: {exc}"
+    else:
+        if result.returncode == 0:
+            try:
+                candidate = json.loads(result.stdout)
+                if not isinstance(candidate, dict):
+                    raise ValueError("incident report must be an object")
+                coverage = candidate.get("client_continuity")
+                if not isinstance(coverage, dict):
+                    raise ValueError("incident report lacks client continuity")
+                inventoried = evidence["client-probes.json"]
+                if inventory_file(experiment / "client-probes.json") != inventoried:
+                    raise ValueError("client evidence changed after inventory")
+                reported_hash = coverage.get("artifact_sha256")
+                if inventoried["status"] == "present":
+                    if reported_hash != inventoried["sha256"]:
+                        raise ValueError("client evidence changed after inventory")
+                elif reported_hash is not None or coverage.get("status") != "unavailable":
+                    raise ValueError("client evidence changed after inventory")
+                for name in REPORT_INPUTS:
+                    if inventory_file(experiment / name) != evidence[name]:
+                        raise ValueError(f"report input changed after inventory: {name}")
+                incident = candidate
+                save_json(output / "incident-report.json", incident)
+            except (ValueError, TypeError) as exc:
+                report_error = f"Invalid incident JSON: {exc}"
+        else:
+            report_error = (
+                result.stderr.strip()
+                or f"Incident reporter exit code: {result.returncode}"
+            )
 
     if report_error:
         (output / "incident-report.json").unlink(missing_ok=True)
+    if snapshot_root is not None:
+        import shutil
+        shutil.rmtree(snapshot_root, ignore_errors=True)
 
     # Status indicates report generation, NOT completeness or attack attribution.
     report_status = "generated" if incident is not None else "blocked"

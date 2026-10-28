@@ -69,6 +69,29 @@ class ReleaseBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe member path"):
             module.verify(self.output)
 
+    def test_rejects_noncanonical_member_paths(self):
+        for name in ("source/bin/./tool", "source/bin//tool"):
+            with self.subTest(name=name):
+                with tarfile.open(self.output, "w:gz") as tar:
+                    info = tarfile.TarInfo(name)
+                    info.size = 1
+                    tar.addfile(info, io.BytesIO(b"x"))
+                with self.assertRaisesRegex(ValueError, "unsafe member path"):
+                    module.verify(self.output)
+
+    def test_rejects_file_count_overflow_before_manifest_validation(self):
+        with tarfile.open(self.output, "w:gz") as tar:
+            manifest = tarfile.TarInfo("MANIFEST.json")
+            manifest_data = b"{}"
+            manifest.size = len(manifest_data)
+            tar.addfile(manifest, io.BytesIO(manifest_data))
+            for index in range(module.MAX_FILES + 1):
+                info = tarfile.TarInfo(f"source/extra-{index}")
+                info.size = 1
+                tar.addfile(info, io.BytesIO(b"x"))
+        with self.assertRaisesRegex(ValueError, "bundle exceeds limits"):
+            module.verify(self.output)
+
 
 if __name__ == "__main__":
     unittest.main()

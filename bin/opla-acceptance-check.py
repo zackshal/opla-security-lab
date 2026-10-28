@@ -11,6 +11,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def verify_builtin_topology(root=ROOT):
+    """Check the built-in dual-NIC source contract without executing it."""
+    root = Path(root)
+    paths = {
+        "create": root / "bin/create-lab.sh",
+        "resume": root / "bin/vm-disk.py",
+        "state": root / "bin/state.py",
+        "registry": root / "bin/opla-registry.py",
+        "lifecycle": root / "bin/lab-lifecycle.py",
+    }
+    try:
+        source = {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
+    except (OSError, UnicodeError) as exc:
+        return False, f"Topology source unavailable: {exc}"
+    required = {
+        "create": ("MGMT_BRIDGE", "MGMT_SUBNET", "id=n0", "id=n1",
+                   "set-name: ens3", "set-name: ens4", "MGMT_GW"),
+        "resume": ("MGMT_BRIDGE", "id=n0", "id=n1", "mgmt_tap"),
+        "state": ("MGMT_BRIDGE", "MGMT_SUBNET", "MGMT_GW", "SSH_IP"),
+        "registry": ("management_bridge", "management_tap", "require_management"),
+        "lifecycle": ("MGMT_BRIDGE", "management=True", "dual-NIC laboratory state required"),
+    }
+    missing = [f"{name}:{marker}" for name, markers in required.items()
+               for marker in markers if marker not in source[name]]
+    if missing:
+        return False, "Built-in dual-NIC contract missing: " + ", ".join(missing)
+    # ens4 has no gateway/default-route stanza in generated network-config.
+    if "management:\n    match:" not in source["create"] or "gateway4" in source["create"]:
+        return False, "Management interface route separation contract missing"
+    return True, "Built-in local-QEMU dual-NIC source contract validated"
+
+
 
 def verify_inventory(path, home):
     """Validate the pinned acceptance target without connecting to it."""
@@ -78,6 +110,18 @@ def check():
             "present" if path.is_file() else f"missing: {path}",
         )
 
+    topology_ok, topology_detail = verify_builtin_topology()
+    record(
+        "builtin_topology_contract",
+        "PASS" if topology_ok else "BLOCKED",
+        topology_detail,
+    )
+    record(
+        "management_data_separation",
+        "PASS" if topology_ok else "BLOCKED",
+        "Source contract only; runtime bridge/NIC separation is NOT TESTED",
+    )
+
     inventory = guest_dir / "inventory.yml"
     inventory_ok, inventory_detail = verify_inventory(inventory, home)
     record(
@@ -110,6 +154,7 @@ def check():
         "suricata_live",
         "zabbix_delivery",
         "three_vm_experiment",
+        "live_acceptance_authorization",
     ):
         record(
             name,
@@ -125,6 +170,8 @@ def check():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "mode": "read_only",
         "execution_performed": False,
+        "fixture_mode": "ansible-debian12",
+        "builtin_mode": "local-qemu-dual-nic",
         "preflight_configuration_valid": blocked == 0,
         "ready_for_automatic_execution": False,
         "overall_status": "BLOCKED" if blocked else "NOT TESTED",

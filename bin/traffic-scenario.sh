@@ -6,6 +6,7 @@ source xdp/lib.sh
 scenario="${1:-}"
 victim_ip="$(get_victim_ip)"
 attacker_ip="$(python3 bin/state.py "$LAB_DIR" ATTACKER_IP)"
+client_ip="$(python3 bin/state.py "$LAB_DIR" CLIENT_IP)"
 case "$scenario" in
     syn) command_text="sudo hping3 -q -n -S -p 80 -i u1000 -c 2000 $victim_ip" ;;
     ack) command_text="sudo hping3 -q -n -A -p 80 -i u2000 -c 1000 $victim_ip" ;;
@@ -35,13 +36,13 @@ ssh_vm "$attacker_ip" "$command_text" > "$output_dir/generator.txt" 2>&1 || resu
 
 finished_at="$(ssh_vm "$victim_ip" 'date -u +%Y-%m-%dT%H:%M:%S.%NZ')"
 
-python3 - "$output_dir/interval.json" "$started_at" "$finished_at" "$attacker_ip" "$victim_ip" <<'INTERVAL'
+python3 - "$output_dir/interval.json" "$started_at" "$finished_at" "$attacker_ip" "$victim_ip" "$client_ip" "${LAB_DIR##*/}" "${output_dir##*/}" <<'INTERVAL'
 import ipaddress
 import json
 import sys
 from datetime import datetime
 
-path, start, end, attacker, victim = sys.argv[1:]
+path, start, end, attacker, victim, client, lab, experiment = sys.argv[1:]
 
 a = datetime.fromisoformat(start.replace("Z", "+00:00"))
 b = datetime.fromisoformat(end.replace("Z", "+00:00"))
@@ -56,6 +57,9 @@ data = {
     "end": end,
     "source_ip": str(ipaddress.ip_address(attacker)),
     "target_ip": str(ipaddress.ip_address(victim)),
+    "client_ip": str(ipaddress.ip_address(client)),
+    "lab_id": lab,
+    "experiment": experiment,
 }
 
 with open(path, "x", encoding="utf-8") as stream:

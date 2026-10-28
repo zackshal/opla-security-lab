@@ -78,7 +78,7 @@ def metadata(files):
 
 def safe_member(name):
     path = PurePosixPath(name)
-    return (not path.is_absolute() and len(path.parts) > 1
+    return (path.as_posix() == name and not path.is_absolute() and len(path.parts) > 1
             and path.parts[0] == "source" and ".." not in path.parts
             and all(p not in ("", ".") for p in path.parts))
 
@@ -125,7 +125,10 @@ def verify(bundle):
             if name in files or (name == "MANIFEST.json" and manifest is not None):
                 raise ValueError(f"duplicate member: {name}")
             total += member.size
-            if total > MAX_TOTAL or len(files) > MAX_FILES:
+            # Check the candidate member before accepting it.  Checking the
+            # current length alone permits MAX_FILES + 1 source entries.
+            source_count = len(files) + (name != "MANIFEST.json")
+            if total > MAX_TOTAL or source_count > MAX_FILES:
                 raise ValueError("bundle exceeds limits")
             contents = tar.extractfile(member).read()
             if name == "MANIFEST.json":

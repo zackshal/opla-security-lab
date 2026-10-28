@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only OPLA resource inventory and cleanup preview. Never deletes anything."""
 import argparse
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,33 @@ LAB_ROOT = Path('/var/lib/opla')
 VM_NAMES = ('attacker', 'victim', 'client')
 LAB_PATTERN = re.compile(r'lab-[A-Za-z0-9]+\Z')
 BRIDGE_PATTERN = re.compile(r'br-op[0-9]+\Z')
+
+
+def validate_state(data, lab_name):
+    if data.get('LAB_ID') != lab_name or not BRIDGE_PATTERN.fullmatch(data.get('BRIDGE', '')):
+        raise ValueError('Invalid LAB_ID or BRIDGE')
+    keys = ('MGMT_BRIDGE', 'MGMT_SUBNET', 'MGMT_GW',
+            'ATTACKER_MGMT_IP', 'VICTIM_MGMT_IP', 'CLIENT_MGMT_IP')
+    present = [key in data for key in keys]
+    if not any(present):
+        return data
+    if not all(present) or not BRIDGE_PATTERN.fullmatch(data['MGMT_BRIDGE']) \
+            or data['MGMT_BRIDGE'] == data['BRIDGE']:
+        raise ValueError('Invalid management state')
+    try:
+        data_net = ipaddress.ip_network(data['SUBNET'])
+        mgmt_net = ipaddress.ip_network(data['MGMT_SUBNET'])
+    except (KeyError, ValueError) as exc:
+        raise ValueError('Invalid data or management subnet') from exc
+    allowed = ipaddress.ip_network('100.64.0.0/10')
+    if (data_net.prefixlen != 29 or mgmt_net.prefixlen != 29
+            or not data_net.subnet_of(allowed) or not mgmt_net.subnet_of(allowed)
+            or data_net.overlaps(mgmt_net)):
+        raise ValueError('Invalid or overlapping management subnet')
+    for key in keys[2:]:
+        if ipaddress.ip_address(data[key]) not in mgmt_net:
+            raise ValueError('Management address outside subnet')
+    return data
 
 
 def call(*command):
@@ -34,9 +62,7 @@ def read_state(lab):
         if '=' in line:
             key, value = line.split('=', 1)
             state[key] = value
-    if state.get('LAB_ID') != lab.name or not BRIDGE_PATTERN.fullmatch(state.get('BRIDGE', '')):
-        raise ValueError('Invalid LAB_ID or BRIDGE')
-    return state
+    return validate_state(state, lab.name)
 
 
 def item(items, lab, kind, name, present, evidence, scope='lab', confidence='candidate'):
@@ -78,12 +104,19 @@ def inventory(root=LAB_ROOT, inspect_runtime=True):
              call('systemctl', 'is-active', '--quiet', dhcp)[0] == 0 if inspect_runtime else False,
              'derived unit name')
         interfaces = [bridge] + ['op' + bridge.removeprefix('br-op') + c for c in 'avc']
+        if state.get('MGMT_BRIDGE'):
+            mgmt_bridge = state['MGMT_BRIDGE']
+            interfaces += [mgmt_bridge] + ['op' + mgmt_bridge.removeprefix('br-op') + c for c in 'AVC']
         for name in interfaces:
             status = call('ip', 'link', 'show', 'dev', name)[0] == 0 if inspect_runtime else False
             item(records, labid, 'bridge' if name == bridge else 'tap', name, status, 'derived interface name')
         table = 'opla_' + labid.replace('-', '_')
         status = call('nft', 'list', 'table', 'inet', table)[0] == 0 if inspect_runtime else False
         item(records, labid, 'nft_table', table, status, 'derived table name')
+        if state.get('MGMT_BRIDGE'):
+            mgmt_table = 'opla_mgmt_' + labid.replace('-', '_')
+            status = call('nft', 'list', 'table', 'inet', mgmt_table)[0] == 0 if inspect_runtime else False
+            item(records, labid, 'nft_table', mgmt_table, status, 'derived management table name')
         # User units may belong to the invoking user or a different lab operator.
         item(records, labid, 'metrics_collector', f'opla-monitor-{labid}.service', None,
              'user-scoped unit; ownership unverified')
@@ -120,9 +153,7 @@ def parse_test_state(lab):
     if path.is_symlink():
         raise ValueError('Symlink state.env')
     data = dict(line.split('=', 1) for line in path.read_text().splitlines() if '=' in line)
-    if data.get('LAB_ID') != lab.name or not BRIDGE_PATTERN.fullmatch(data.get('BRIDGE', '')):
-        raise ValueError('Invalid state')
-    return data
+    return validate_state(data, lab.name)
 
 
 def render(items, warnings, action, lab=None, json_mode=False):

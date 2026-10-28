@@ -72,5 +72,25 @@ class ReviewPromoteTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 promote.promote(self.archive, link / 'review', self.digest)
 
+    def test_current_replace_failure_does_not_change_existing_current(self):
+        self.call()
+        old = os.readlink(self.install / 'current')
+        second_source = self.root / 'src-second'
+        second_source.mkdir()
+        for name in ('Makefile', 'bin/opla-create-launcher.py',
+                     'bin/opla-lab-configure-launcher.py', 'bin/create-lab.sh',
+                     'bin/opla-lifecycle-lock.py'):
+            p = second_source / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text('second\n')
+        second_archive = self.root / 'bundle-second.tar.gz'
+        bundle.build(second_source, second_archive)
+        second_digest = hashlib.sha256(second_archive.read_bytes()).hexdigest()
+        with patch.object(promote.os, 'replace', side_effect=OSError('activation interrupted')):
+            with self.assertRaisesRegex(OSError, 'activation interrupted'):
+                promote.promote(second_archive, self.install, second_digest)
+        self.assertEqual(os.readlink(self.install / 'current'), old)
+        self.assertFalse((self.install / ('.current-' + second_digest)).exists())
+
 if __name__ == '__main__':
     unittest.main()

@@ -5,8 +5,10 @@ Records describe creation intent and successful lab setup, not proof of exclusiv
 ownership of kernel or Docker objects. Never authorize deletion from this data alone.
 """
 import argparse
+import ipaddress
 import json
 import os
+import stat
 from pathlib import Path
 import re
 import sys
@@ -17,16 +19,28 @@ VALID = re.compile(r"lab-[A-Za-z0-9]{4,32}\Z")
 BRIDGE = re.compile(r"br-op[0-9]+\Z")
 
 
-def state_of(root, labid):
+def _trusted_file(path, label, *, private=False):
+    """Validate evidence file identity before parsing untrusted contents."""
+    path = Path(path)
+    try:
+        st = path.lstat()
+    except OSError as exc:
+        raise ValueError(f"unsafe or missing {label}") from exc
+    if (not stat.S_ISREG(st.st_mode) or st.st_nlink != 1
+            or st.st_uid != os.getuid() or st.st_mode & 0o022
+            or (private and st.st_mode & 0o077)):
+        raise ValueError(f"unsafe {label} ownership or mode")
+    return path
+
+
+def state_of(root, labid, *, require_management=False):
     if not VALID.fullmatch(labid):
         raise ValueError("invalid lab ID")
     root = Path(root)
     lab = root / labid
     if lab.is_symlink() or not lab.is_dir():
         raise ValueError("lab missing or symlink")
-    statefile = lab / "state.env"
-    if statefile.is_symlink() or not statefile.is_file():
-        raise ValueError("unsafe or missing state.env")
+    statefile = _trusted_file(lab / "state.env", "state.env")
     state = {}
     for line in statefile.read_text(encoding="utf-8").splitlines():
         if "=" in line:
@@ -34,11 +48,32 @@ def state_of(root, labid):
             state[key] = value
     if state.get("LAB_ID") != labid or not BRIDGE.fullmatch(state.get("BRIDGE", "")):
         raise ValueError("state identity mismatch")
+    if "MGMT_BRIDGE" in state and (
+            not BRIDGE.fullmatch(state.get("MGMT_BRIDGE", ""))
+            or state.get("BRIDGE") == state.get("MGMT_BRIDGE")):
+        raise ValueError("management bridge identity mismatch")
+    mgmt_keys = ("MGMT_BRIDGE", "MGMT_SUBNET", "MGMT_GW", "ATTACKER_MGMT_IP",
+                 "VICTIM_MGMT_IP", "CLIENT_MGMT_IP")
+    if require_management and not all(key in state for key in mgmt_keys):
+        raise ValueError("dual-NIC state required before registry ready")
+    if any(key in state for key in mgmt_keys):
+        if not all(key in state for key in mgmt_keys):
+            raise ValueError("incomplete management state")
+        data_net = ipaddress.ip_network(state.get("SUBNET", ""))
+        mgmt_net = ipaddress.ip_network(state["MGMT_SUBNET"])
+        if (data_net.prefixlen != 29 or mgmt_net.prefixlen != 29
+                or not data_net.subnet_of(ipaddress.ip_network("100.64.0.0/10"))
+                or not mgmt_net.subnet_of(ipaddress.ip_network("100.64.0.0/10"))
+                or data_net.overlaps(mgmt_net)):
+            raise ValueError("invalid or overlapping management subnet")
+        for key in mgmt_keys[2:]:
+            if ipaddress.ip_address(state[key]) not in mgmt_net:
+                raise ValueError("management address outside subnet")
     return state
 
 
 def receipt(root, labid, phase):
-    state = state_of(root, labid)
+    state = state_of(root, labid, require_management=(phase == "ready"))
     bridge = state["BRIDGE"]
     n = bridge.removeprefix("br-op")
     entries = [
@@ -49,6 +84,11 @@ def receipt(root, labid, phase):
     ]
     for suffix in "avc":
         entries.append({"kind": "tap", "name": "op" + n + suffix})
+    if "MGMT_BRIDGE" in state:
+        mgmt_n = state["MGMT_BRIDGE"].removeprefix("br-op")
+        entries.append({"kind": "management_bridge", "name": state["MGMT_BRIDGE"]})
+        for suffix in "AVC":
+            entries.append({"kind": "management_tap", "name": "op" + mgmt_n + suffix})
     for role in ("attacker", "victim", "client"):
         entries.extend([
             {"kind": "qemu_unit", "name": f"qemu-{labid}-{role}.service"},
@@ -105,7 +145,9 @@ def inspect(root, labid=None):
     for path in sorted(regdir.glob("lab-*.json")):
         if labid and path.name != labid + ".json":
             continue
-        if path.is_symlink() or not path.is_file():
+        try:
+            _trusted_file(path, "registry receipt", private=True)
+        except ValueError:
             results.append({"file": path.name, "status": "unsafe"})
             continue
         try:
@@ -113,7 +155,7 @@ def inspect(root, labid=None):
             lab = path.stem
             if obj.get("schema") != 1 or obj.get("lab_id") != lab or obj.get("lab_dir") != str(root / lab):
                 raise ValueError("identity mismatch")
-            state_of(root, lab)
+            state_of(root, lab, require_management=(obj.get("phase") == "ready"))
             status = "recorded" if obj.get("phase") == "ready" else "incomplete"
             results.append({"file": path.name, "lab": lab, "status": status,
                             "resources": len(obj.get("resources", []))})

@@ -51,7 +51,7 @@ def host_absent(resources, runner=run_probe):
     reasons=[]
     for entry in resources:
         kind, name = entry['kind'], entry['name']
-        if kind in ('bridge', 'tap'):
+        if kind in ('bridge', 'management_bridge', 'tap', 'management_tap'):
             p=runner(['ip','-o','link','show','dev',name])
             # ip exits 1 when interface absent; other codes may indicate failure.
             if p.returncode != 1 or 'does not exist' not in (p.stderr + p.stdout).lower():

@@ -2,9 +2,12 @@
 """Offline incident report from OPLA experiment evidence."""
 
 import argparse
+import hashlib
 import importlib.util
 import ipaddress
 import json
+import os
+import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,10 +25,60 @@ def load_module(name, filename):
 eve = load_module("opla_incident_eve", "opla-eve-correlator.py")
 counters = load_module("opla_incident_counters", "opla-event-correlator.py")
 
+MAX_CLIENT_EVIDENCE_BYTES = 1024 * 1024
+
+
+def client_continuity_report(experiment, interval, *, max_gap_seconds=2):
+    """Read only the optional bounded regular artifact; preserve uncertainty."""
+    unavailable = {"status": "unavailable", "covered_at_cadence": False,
+                   "continuous_availability_verified": False}
+    directory_fd = None
+    descriptor = None
+    evidence_hash = None
+    try:
+        if not isinstance(interval, dict):
+            raise ValueError("client interval must be an object")
+        directory_fd = os.open(experiment, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            descriptor = os.open("client-probes.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                 dir_fd=directory_fd)
+        except FileNotFoundError:
+            return {**unavailable, "reason": "client-probes.json not supplied"}
+        file_stat = os.fstat(descriptor)
+        if (not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1
+                or file_stat.st_size > MAX_CLIENT_EVIDENCE_BYTES):
+            raise ValueError("unsafe or oversized client evidence")
+        data = bytearray()
+        while len(data) <= MAX_CLIENT_EVIDENCE_BYTES:
+            block = os.read(descriptor, min(65536, MAX_CLIENT_EVIDENCE_BYTES + 1 - len(data)))
+            if not block:
+                break
+            data.extend(block)
+        if len(data) > MAX_CLIENT_EVIDENCE_BYTES:
+            raise ValueError("client evidence exceeds byte limit")
+        evidence_hash = hashlib.sha256(data).hexdigest()
+        if interval.get("experiment") != Path(experiment).name:
+            raise ValueError("client interval experiment differs from artifact directory")
+        return {**counters.client_continuity(interval, json.loads(data.decode("utf-8")),
+                                             parse_time=eve.parse_time, max_gap_seconds=max_gap_seconds),
+                "artifact_sha256": evidence_hash}
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError, OverflowError) as exc:
+        return {**unavailable, "status": "invalid", "artifact_sha256": evidence_hash,
+                "reason": f"{type(exc).__name__}: {str(exc)[:300]}"}
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if directory_fd is not None:
+            os.close(directory_fd)
+
 
 def read_json(path):
     path = Path(path)
-    if path.is_symlink() or not path.is_file():
+    try:
+        file_stat = path.lstat()
+    except OSError as exc:
+        raise ValueError(f"missing or unsafe file: {path}") from exc
+    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
         raise ValueError(f"missing or unsafe file: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -33,7 +86,11 @@ def read_json(path):
 def scan_events(path, start, end, source, target):
     """Filter detector JSONL by UTC second and source/target IP pair."""
     path = Path(path)
-    if path.is_symlink() or not path.is_file():
+    try:
+        file_stat = path.lstat()
+    except OSError as exc:
+        raise ValueError("missing or unsafe scan events file") from exc
+    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
         raise ValueError("missing or unsafe scan events file")
 
     # The detector records integer Unix seconds, not subsecond timestamps.
@@ -105,7 +162,7 @@ def scan_events(path, start, end, source, target):
     }
 
 
-def build_report(experiment, eve_path=None, scan_path=None):
+def build_report(experiment, eve_path=None, scan_path=None, *, max_client_gap_seconds=2):
     experiment = Path(experiment)
 
     if experiment.is_symlink() or not experiment.is_dir():
@@ -142,6 +199,8 @@ def build_report(experiment, eve_path=None, scan_path=None):
             "reason": "scan event log not supplied",
         },
         "attack_attribution": "unverified",
+        "client_continuity": client_continuity_report(
+            experiment, interval, max_gap_seconds=max_client_gap_seconds),
     }
 
     if eve_path is not None:

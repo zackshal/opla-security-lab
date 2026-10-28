@@ -19,9 +19,18 @@ class OfflinePruneTests(unittest.TestCase):
         self.lab='lab-Test123'
         (self.root/self.lab).mkdir()
         (self.root/'registry').mkdir()
-        (self.root/self.lab/'state.env').write_text('LAB_ID=lab-Test123\nBRIDGE=br-op7\n')
+        state = self.root/self.lab/'state.env'
+        state.write_text(
+            'LAB_ID=lab-Test123\nBRIDGE=br-op7\nSUBNET=100.64.0.0/29\n'
+            'MGMT_BRIDGE=br-op8\nMGMT_SUBNET=100.64.0.8/29\n'
+            'MGMT_GW=100.64.0.9\nATTACKER_MGMT_IP=100.64.0.10\n'
+            'VICTIM_MGMT_IP=100.64.0.11\nCLIENT_MGMT_IP=100.64.0.12\n'
+        )
+        state.chmod(0o600)
         receipt=module.registry.receipt(self.root,self.lab,'ready')
-        (self.root/'registry'/(self.lab+'.json')).write_text(json.dumps(receipt))
+        receipt_path = self.root/'registry'/(self.lab+'.json')
+        receipt_path.write_text(json.dumps(receipt))
+        receipt_path.chmod(0o600)
         self.own=patch.object(module,'safe_root',side_effect=lambda p: Path(p))
         self.own.start();self.addCleanup(self.own.stop)
     def runner(self,cmd):

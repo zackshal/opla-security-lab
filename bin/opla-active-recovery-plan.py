@@ -7,6 +7,7 @@ A creation receipt is an intent record, not exclusive kernel ownership proof.
 import argparse
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -27,8 +28,15 @@ registry = rollback.registry
 Blocked = rollback.Blocked
 
 
-def run(args):
-    return subprocess.run(args, capture_output=True, text=True, check=False)
+DEFAULT_PROBE_TIMEOUT = 10.0
+
+
+def run(args, *, timeout=DEFAULT_PROBE_TIMEOUT, runner=None):
+    if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout) or timeout <= 0):
+        raise ValueError("recovery probe timeout must be positive")
+    dispatch = subprocess.run if runner is None else runner
+    return dispatch(args, capture_output=True, text=True, check=False, timeout=timeout)
 
 
 def require(args, runner):
@@ -158,7 +166,8 @@ def main(argv=None):
     if os.geteuid()!=0:p.error('root required')
     try:
         print(json.dumps(audit(args.root,args.lab),indent=2))
-    except (OSError,ValueError,KeyError,TypeError,RuntimeError) as exc:
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError,
+            subprocess.SubprocessError) as exc:
         print('BLOCKED:',exc,file=sys.stderr)
         return 2
     return 0

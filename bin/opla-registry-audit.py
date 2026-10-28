@@ -12,7 +12,7 @@ spec = importlib.util.spec_from_file_location("opla_registry_verify", HERE / "op
 verify_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(verify_mod)
 
-RESOURCE_KINDS = frozenset({"lab_directory", "bridge", "tap", "nft_table", "dhcp_unit", "qemu_unit", "qcow2", "cloud_init_iso"})
+RESOURCE_KINDS = frozenset({"lab_directory", "bridge", "management_bridge", "tap", "management_tap", "nft_table", "dhcp_unit", "qemu_unit", "qcow2", "cloud_init_iso"})
 
 
 def audit(root, inspector=None):

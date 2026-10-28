@@ -2,7 +2,10 @@
 """Offline correlation of OPLA security telemetry snapshots."""
 
 import argparse
+import ipaddress
 import json
+import math
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +14,89 @@ METRICS = {
     "scan_detector": ("scan_alerts", "scan_capture_drops"),
     "suricata": ("ids_alerts", "ids_blocked", "ids_parse_errors"),
 }
+
+MAX_CLIENT_SAMPLES = 10000
+
+
+def client_continuity(interval, probes, *, parse_time, max_gap_seconds=2):
+    """Verify bounded sampled coverage; never infer uninterrupted availability.
+
+    parse_time is the existing UTC-aware EVE timestamp parser supplied by the
+    reporter. Expected client identity belongs to the interval produced from
+    lab state; interval.source_ip remains the attacker and is never the client.
+    The artifact cannot select its own acceptance cadence.
+    """
+    if (type(max_gap_seconds) not in (int, float)
+            or not math.isfinite(max_gap_seconds) or max_gap_seconds <= 0):
+        raise ValueError("client maximum sampling gap must be finite and positive")
+    if not isinstance(interval, dict) or not isinstance(probes, dict):
+        raise ValueError("client interval and evidence must be objects")
+    for record in (interval, probes):
+        if type(record.get("schema_version")) is not int or record["schema_version"] != 1:
+            raise ValueError("unsupported client evidence schema")
+    lab = interval.get("lab_id")
+    experiment = interval.get("experiment")
+    if (not isinstance(lab, str) or re.fullmatch(r"lab-[A-Za-z0-9]{4,32}", lab) is None
+            or not isinstance(experiment, str)
+            or re.fullmatch(r"scenario-[A-Za-z0-9][A-Za-z0-9-]{0,127}", experiment) is None):
+        raise ValueError("independently recorded lab/experiment identity required")
+    if probes.get("lab_id") != lab or probes.get("experiment") != experiment:
+        raise ValueError("client lab or experiment identity mismatch")
+    if interval.get("clock_source") != "victim" or probes.get("clock_source") != "victim":
+        raise ValueError("client samples require the experiment victim clock domain")
+    if probes.get("source_role") != "client" or probes.get("target_role") != "victim":
+        raise ValueError("independent client-to-victim observations required")
+    client = str(ipaddress.ip_address(interval["client_ip"]))
+    target = str(ipaddress.ip_address(interval["target_ip"]))
+    attacker = str(ipaddress.ip_address(interval["source_ip"]))
+    if client in (target, attacker):
+        raise ValueError("client must differ from victim and attacker")
+    if (str(ipaddress.ip_address(probes.get("source_ip"))) != client
+            or str(ipaddress.ip_address(probes.get("target_ip"))) != target):
+        raise ValueError("client source or target address mismatch")
+    start, end = parse_time(interval["start"]), parse_time(interval["end"])
+    if end <= start:
+        raise ValueError("client interval must have positive duration")
+    samples = probes.get("samples")
+    if not isinstance(samples, list) or not 2 <= len(samples) <= MAX_CLIENT_SAMPLES:
+        raise ValueError("client evidence requires a bounded series of at least two samples")
+    times = []
+    unsuccessful = 0
+    for sample in samples:
+        if not isinstance(sample, dict):
+            raise ValueError("invalid client sample")
+        timestamp = parse_time(sample.get("timestamp"))
+        if times and timestamp <= times[-1]:
+            raise ValueError("client timestamps must be strictly increasing")
+        if type(sample.get("returncode")) is not int or type(sample.get("http_status")) is not int:
+            raise ValueError("client return code and HTTP status must be integers")
+        if sample["returncode"] != 0 or sample["http_status"] != 200:
+            unsuccessful += 1
+        times.append(timestamp)
+    observed_gap = max((right - left).total_seconds() for left, right in zip(times, times[1:]))
+    inside = sum(start <= timestamp <= end for timestamp in times)
+    reasons = []
+    if times[0] > start or times[-1] < end:
+        reasons.append("interval_boundaries_not_covered")
+    if inside < 2:
+        reasons.append("insufficient_samples_within_interval")
+    if observed_gap > max_gap_seconds:
+        reasons.append("sampling_gap_exceeds_limit")
+    if unsuccessful:
+        reasons.append("unsuccessful_client_probe")
+    covered = not reasons
+    return {
+        "status": "covered_at_cadence" if covered else "insufficient_coverage",
+        "covered_at_cadence": covered,
+        "continuous_availability_verified": False,
+        "lab_id": lab, "experiment": experiment, "clock_source": "victim",
+        "client_ip": client, "target_ip": target,
+        "interval_start": start.isoformat(), "interval_end": end.isoformat(),
+        "sample_count": len(times), "interval_sample_count": inside,
+        "maximum_gap_seconds": max_gap_seconds, "observed_maximum_gap_seconds": observed_gap,
+        "unsuccessful_samples": unsuccessful, "reasons": reasons,
+        "provenance": "unverified",
+    }
 
 
 def delta(before, after, key):

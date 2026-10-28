@@ -14,7 +14,14 @@ class VerifyTests(unittest.TestCase):
     def lab(self, root):
         path = Path(root) / 'lab-Ab12'
         path.mkdir()
-        (path / 'state.env').write_text('LAB_ID=lab-Ab12\nBRIDGE=br-op7\n')
+        state = path / 'state.env'
+        state.write_text(
+            'LAB_ID=lab-Ab12\nBRIDGE=br-op7\nSUBNET=100.64.0.0/29\n'
+            'MGMT_BRIDGE=br-op8\nMGMT_SUBNET=100.64.0.8/29\n'
+            'MGMT_GW=100.64.0.9\nATTACKER_MGMT_IP=100.64.0.10\n'
+            'VICTIM_MGMT_IP=100.64.0.11\nCLIENT_MGMT_IP=100.64.0.12\n'
+        )
+        state.chmod(0o600)
         mod.reg.persist(root, 'lab-Ab12', 'ready')
         return path
 
@@ -26,7 +33,7 @@ class VerifyTests(unittest.TestCase):
                 seen.append((kind, name))
                 return 'present', 'fake'
             result = mod.verify(root, inspector=fake)[0]
-            self.assertEqual(len(seen), 16)
+            self.assertEqual(len(seen), 20)
             self.assertFalse(result['verified_for_deletion'])
             self.assertEqual(result['status'], 'observed_unverified')
 
@@ -55,6 +62,31 @@ class VerifyTests(unittest.TestCase):
             path.unlink()
             path.symlink_to('/etc/passwd')
             self.assertEqual(mod.verify(root)[0]['status'], 'blocked')
+
+    def test_hardlink_or_writable_receipt_stays_blocked(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.lab(root)
+            path = Path(root) / 'registry/lab-Ab12.json'
+            other = Path(root) / 'receipt-copy.json'
+            path.unlink()
+            other.write_text('{}')
+            path.hardlink_to(other)
+            self.assertEqual(mod.verify(root)[0]['status'], 'blocked')
+            path.unlink()
+            path.write_text('{}')
+            path.chmod(0o666)
+            self.assertEqual(mod.verify(root)[0]['status'], 'blocked')
+
+    def test_inspector_failure_and_malformed_result_stay_blocked(self):
+        for inspector in (
+                lambda *_: (_ for _ in ()).throw(RuntimeError('backend down')),
+                lambda *_: (object(), 'detail')):
+            with tempfile.TemporaryDirectory() as root:
+                self.lab(root)
+                result = mod.verify(root, inspector=inspector)[0]
+                self.assertEqual(result['status'], 'blocked')
+                self.assertFalse(result['verified_for_deletion'])
+                self.assertTrue(result['errors'])
 
     def test_no_registry_does_not_create_files(self):
         with tempfile.TemporaryDirectory() as root:

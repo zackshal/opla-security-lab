@@ -28,7 +28,9 @@ def probe(kind, name):
         return ('present' if path.is_file() else 'missing'), 'filesystem'
     commands = {
         'bridge': ['ip', '-o', 'link', 'show', 'dev', name],
+        'management_bridge': ['ip', '-o', 'link', 'show', 'dev', name],
         'tap': ['ip', '-o', 'link', 'show', 'dev', name],
+        'management_tap': ['ip', '-o', 'link', 'show', 'dev', name],
         'nft_table': ['nft', 'list', 'table', 'inet', name],
         'qemu_unit': ['systemctl', 'is-active', '--quiet', name],
         'dhcp_unit': ['systemctl', 'is-active', '--quiet', name],
@@ -59,7 +61,9 @@ def verify(root, labid=None, inspector=probe):
         record = {'lab': file.stem, 'receipt': str(file), 'verified_for_deletion': False,
                   'status': 'blocked', 'checks': [], 'errors': []}
         results.append(record)
-        if file.is_symlink() or not file.is_file():
+        try:
+            reg._trusted_file(file, 'registry receipt', private=True)
+        except ValueError:
             record['errors'].append('unsafe receipt path')
             continue
         try:
@@ -76,7 +80,13 @@ def verify(root, labid=None, inspector=probe):
             if normalize(data['resources']) != normalize(expected['resources']):
                 raise ValueError('receipt resources differ from state.env')
             for resource in expected['resources']:
-                status, detail = inspector(resource['kind'], resource['name'])
+                try:
+                    status, detail = inspector(resource['kind'], resource['name'])
+                except Exception as exc:
+                    raise ValueError(
+                        f"resource inspector failed: {type(exc).__name__}") from exc
+                if not isinstance(status, str) or not isinstance(detail, str):
+                    raise ValueError('resource inspector returned malformed evidence')
                 record['checks'].append({'kind': resource['kind'], 'name': resource['name'],
                                          'status': status, 'source': detail,
                                          'ownership_verified': False})

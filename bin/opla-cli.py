@@ -2,12 +2,17 @@
 """Unified OPLA Security Lab CLI."""
 
 import argparse
+import math
+import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CLI_TIMEOUT = 7200.0
+CLI_TERMINATION_GRACE = 5.0
 
 GROUPS = {
     "lab": "Создание, выбор и управление лабораториями",
@@ -241,7 +246,55 @@ def make_command(args):
     ]
 
 
-def main(argv=None):
+def validate_cli_timeout(timeout):
+    if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout) or timeout <= 0):
+        raise ValueError("CLI timeout must be finite and positive")
+    return timeout
+
+
+def _run_owned(command, *, timeout=DEFAULT_CLI_TIMEOUT, popen_factory=None,
+               killpg=os.killpg):
+    validate_cli_timeout(timeout)
+    dispatch = subprocess.Popen if popen_factory is None else popen_factory
+    process = dispatch(command, start_new_session=True)
+    try:
+        returncode = process.wait(timeout=timeout)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        cleanup = {"term_sent": False, "kill_sent": False}
+        try:
+            killpg(process.pid, signal.SIGTERM)
+            cleanup["term_sent"] = True
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=CLI_TERMINATION_GRACE)
+        except subprocess.TimeoutExpired:
+            try:
+                killpg(process.pid, signal.SIGKILL)
+                cleanup["kill_sent"] = True
+            except OSError:
+                pass
+            try:
+                process.wait()
+            except OSError:
+                pass
+        except OSError:
+            try:
+                killpg(process.pid, signal.SIGKILL)
+                cleanup["kill_sent"] = True
+            except OSError:
+                pass
+            try:
+                process.wait()
+            except OSError:
+                pass
+        exc.cleanup_evidence = cleanup
+        raise
+    return subprocess.CompletedProcess(command, returncode)
+
+
+def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
     argv = list(sys.argv[1:] if argv is None else argv)
 
     if argv and argv[0] == "help":
@@ -278,8 +331,14 @@ def main(argv=None):
         return 2
 
     try:
-        return subprocess.run(command, check=False).returncode
-    except OSError as exc:
+        validate_cli_timeout(timeout)
+        if runner is None:
+            return _run_owned(command, timeout=timeout).returncode
+        result = runner(command, check=False, timeout=timeout)
+        if type(getattr(result, "returncode", None)) is not int:
+            raise ValueError("CLI runner returned invalid exit status")
+        return result.returncode
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"OPLA: ошибка запуска: {exc}", file=sys.stderr)
         return 2
 

@@ -32,7 +32,38 @@ EXECUTABLES = {
 MAX_DEB = 40 * 1024 * 1024
 
 
-def build(bundle, expected, output):
+def _validate_package_layout(pkg, destination):
+    """Validate the inert package tree before invoking dpkg-deb."""
+    control_dir = pkg / 'DEBIAN'
+    entries = {entry.name for entry in control_dir.iterdir()}
+    if entries != {'control'} or not (control_dir / 'control').is_file():
+        raise ValueError('maintainer scripts or incomplete control metadata')
+    if (destination / 'current').exists() or (destination / 'current').is_symlink():
+        raise ValueError('current symlink is forbidden in package payload')
+    for path in pkg.rglob('*'):
+        if path.is_symlink():
+            raise ValueError('symlink in package tree')
+        if path.is_file() and path.name in {'postinst', 'prerm', 'preinst', 'postrm', 'config', 'triggers'}:
+            raise ValueError('maintainer scripts are forbidden')
+    for rel in EXECUTABLES:
+        path = destination / rel
+        if path.exists() and (not path.is_file() or path.stat().st_mode & 0o111 == 0):
+            raise ValueError(f'missing executable payload: {rel}')
+
+
+def _run_dpkg_deb(argv, *, runner=None, timeout=60):
+    dispatch = subprocess.run if runner is None else runner
+    return dispatch(
+        argv,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def build(bundle, expected, output, *, runner=None):
     if os.geteuid() == 0:
         raise ValueError('root execution forbidden')
 
@@ -120,25 +151,21 @@ def build(bundle, expected, output):
             'Description: Inert OPLA code release (not activated)\n'
         )
 
-        result = subprocess.run(
+        _validate_package_layout(pkg, destination)
+
+        result = _run_dpkg_deb(
             [
-                'dpkg-deb',
-                '--root-owner-group',
-                '--build',
-                str(pkg),
-                str(output),
+                'dpkg-deb', '--root-owner-group', '--build',
+                str(pkg), str(output),
             ],
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
+            runner=runner,
         )
 
         if result.returncode != 0:
             output.unlink(missing_ok=True)
+            stderr = result.stderr if isinstance(result.stderr, str) else ''
             raise ValueError(
-                'dpkg-deb failed: ' + result.stderr[-500:]
+                'dpkg-deb failed: ' + stderr[-500:]
             )
 
         if output.stat().st_size > MAX_DEB:

@@ -31,13 +31,15 @@ Blocked = rollback.Blocked
 
 ROLES = ('attacker', 'victim', 'client')
 
-def process_evidence(root, lab):
+def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
     """Fail closed when another process has any lab file open or wrong PID.
 
     Checks command lines and /proc fd symlink targets. PID reuse is checked
     again before mutation. Unknown /proc access is not interpreted as absence.
     """
     base = str(root / lab)
+    runner = preflight.run if runner is None else runner
+    proc_root = Path(proc_root)
     trusted = {}
     for role in ROLES:
         unit = f'qemu-{lab}-{role}.service'
@@ -45,7 +47,7 @@ def process_evidence(root, lab):
     trusted[f'dhcp-{lab}.service'] = ('dnsmasq', base + '/dnsmasq.conf')
     pids = {}
     for unit, (binary, marker) in trusted.items():
-        raw = preflight.require(['systemctl', 'show', unit, '-p', 'ActiveState', '-p', 'MainPID', '--no-pager'], preflight.run)
+        raw = preflight.require(['systemctl', 'show', unit, '-p', 'ActiveState', '-p', 'MainPID', '--no-pager'], runner)
         data = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
         if data.get('ActiveState') not in ('active','inactive','failed','activating','deactivating'):
             raise Blocked('unknown service status: ' + unit)
@@ -57,19 +59,27 @@ def process_evidence(root, lab):
         if data['ActiveState'] == 'active':
             if int(pid) == 0:
                 raise Blocked('active unit without PID: ' + unit)
-            cmd = (Path('/proc') / pid / 'cmdline').read_bytes().replace(b'\x00', b' ')
-            exe = os.readlink(Path('/proc') / pid / 'exe')
-            cgroup = (Path('/proc') / pid / 'cgroup').read_text()
-            if (Path(exe).name != binary or marker.encode() not in cmd or
-                    unit not in cgroup):
+            cmd = (proc_root / pid / 'cmdline').read_bytes().split(b'\x00')
+            exe = os.readlink(proc_root / pid / 'exe')
+            cgroup = (proc_root / pid / 'cgroup').read_text()
+            paths = [line.split(':', 2)[-1].split('/') for line in cgroup.splitlines()]
+            marker_matches = any(
+                argument == marker.encode()
+                or argument == ('--conf-file=' + marker).encode()
+                or argument.startswith(('file=' + marker + ',').encode())
+                for argument in cmd)
+            if (Path(exe).name != binary or not marker_matches or
+                    not any(unit in path for path in paths)):
                 raise Blocked('process identity mismatch: ' + unit)
+            if int(pid) in pids:
+                raise Blocked('systemd units share PID: ' + unit)
             pids[int(pid)] = unit
         elif int(pid) != 0:
             raise Blocked('inactive unit retains PID: ' + unit)
     # Require that every process with this lab in cmdline or open fd is tracked.
     # Do not use /proc/<pid>/fd symlink alone for ownership: all references must
     # belong to independently verified systemd PIDs.
-    for proc in Path('/proc').iterdir():
+    for proc in proc_root.iterdir():
         if not proc.name.isdecimal():
             continue
         try:

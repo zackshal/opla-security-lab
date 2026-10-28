@@ -74,9 +74,14 @@ chmod 755 "$LAB_DIR"
 LAB_ID="${LAB_DIR##*/}"
 BRIDGE="$(find_free_bridge)"
 BASE="$(find_free_subnet)"
+MGMT_BRIDGE="$(OPLA_EXCLUDE_BRIDGE="$BRIDGE" find_free_bridge)"
+MGMT_BASE="$(find_free_subnet_excluding "$BASE")"
 NET3="${BASE%.*}"; NET4="${BASE##*.}"
 GW="$NET3.$((NET4+1))"; ATTACKER_IP="$NET3.$((NET4+2))"
 VICTIM_IP="$NET3.$((NET4+3))"; CLIENT_IP="$NET3.$((NET4+4))"
+MNET3="${MGMT_BASE%.*}"; MNET4="${MGMT_BASE##*.}"
+MGMT_GW="$MNET3.$((MNET4+1))"; ATTACKER_MGMT_IP="$MNET3.$((MNET4+2))"
+VICTIM_MGMT_IP="$MNET3.$((MNET4+3))"; CLIENT_MGMT_IP="$MNET3.$((MNET4+4))"
 cat > "$LAB_DIR/state.env" <<STATE
 LAB_ID=$LAB_ID
 BRIDGE=$BRIDGE
@@ -85,6 +90,12 @@ GW=$GW
 ATTACKER_IP=$ATTACKER_IP
 VICTIM_IP=$VICTIM_IP
 CLIENT_IP=$CLIENT_IP
+MGMT_BRIDGE=$MGMT_BRIDGE
+MGMT_SUBNET=$MGMT_BASE/29
+MGMT_GW=$MGMT_GW
+ATTACKER_MGMT_IP=$ATTACKER_MGMT_IP
+VICTIM_MGMT_IP=$VICTIM_MGMT_IP
+CLIENT_MGMT_IP=$CLIENT_MGMT_IP
 STATE
 # Fail closed: never invoke legacy cleanup-lab.sh on a partially created lab.
 # The receipt remains in the "creating" phase for a separately verified recovery.
@@ -95,6 +106,9 @@ install -m 600 -o "$CALLER" /dev/null "$LAB_DIR/known_hosts"
 ip link add "$BRIDGE" type bridge
 ip addr add "$GW/29" dev "$BRIDGE"
 ip link set "$BRIDGE" up
+ip link add "$MGMT_BRIDGE" type bridge
+ip addr add "$MGMT_GW/29" dev "$MGMT_BRIDGE"
+ip link set "$MGMT_BRIDGE" up
 TABLE="opla_${LAB_ID//-/_}"
 # Разрешаем связь ВМ друг с другом, но запрещаем маршрутизацию через хост.
 nft -f - <<NFT
@@ -106,6 +120,15 @@ add chain inet $TABLE input { type filter hook input priority -20; policy accept
 add rule inet $TABLE input iifname "$BRIDGE" ct state established,related accept
 add rule inet $TABLE input iifname "$BRIDGE" udp dport 67 accept
 add rule inet $TABLE input iifname "$BRIDGE" drop
+NFT
+MGMT_TABLE="opla_mgmt_${LAB_ID//-/_}"
+nft -f - <<NFT
+add table inet $MGMT_TABLE
+add chain inet $MGMT_TABLE forward { type filter hook forward priority -19; policy accept; }
+add rule inet $MGMT_TABLE forward iifname "$MGMT_BRIDGE" oifname != "$MGMT_BRIDGE" drop
+add rule inet $MGMT_TABLE forward oifname "$MGMT_BRIDGE" iifname != "$MGMT_BRIDGE" drop
+add chain inet $MGMT_TABLE input { type filter hook input priority -19; policy accept; }
+add rule inet $MGMT_TABLE input iifname "$MGMT_BRIDGE" drop
 NFT
 cat > "$LAB_DIR/dnsmasq.conf" <<CONF
 port=0
@@ -124,6 +147,7 @@ CONF
 systemd-run --quiet --collect --unit="dhcp-$LAB_ID" dnsmasq --keep-in-foreground --conf-file="$LAB_DIR/dnsmasq.conf"
 create_vm() {
     local name="$1" mem="$2" cpus="$3" mac="$4" addr="$5" tap="$6"
+    local mgmt_mac="$7" mgmt_addr="$8" mgmt_tap="$9"
     local dir="$LAB_DIR/$name"
     local image
     case "$name" in
@@ -154,16 +178,28 @@ ethernets:
     dhcp4: false
     dhcp6: false
     accept-ra: false
+  management:
+    match: {macaddress: "$mgmt_mac"}
+    set-name: ens4
+    addresses: [$mgmt_addr/29]
+    dhcp4: false
+    dhcp6: false
+    accept-ra: false
 NET
     cloud-localds --network-config="$dir/network-config" "$dir/seed.iso" "$dir/user-data" "$dir/meta-data"
     ip tuntap add dev "$tap" mode tap
     ip link set "$tap" master "$BRIDGE"
     ip link set "$tap" up
+    ip tuntap add dev "$mgmt_tap" mode tap
+    ip link set "$mgmt_tap" master "$MGMT_BRIDGE"
+    ip link set "$mgmt_tap" up
     systemd-run --quiet --collect --property=UMask=0077 --unit="qemu-$LAB_ID-$name" \
         qemu-system-x86_64 -enable-kvm -cpu host -m "$mem" -smp "$cpus" \
         -drive "file=$dir/disk.qcow2,if=virtio" -drive "file=$dir/seed.iso,media=cdrom" \
         -netdev "tap,id=n0,ifname=$tap,script=no,downscript=no" \
         -device "virtio-net-pci,netdev=n0,mac=$mac" \
+        -netdev "tap,id=n1,ifname=$mgmt_tap,script=no,downscript=no" \
+        -device "virtio-net-pci,netdev=n1,mac=$mgmt_mac" \
         -chardev "socket,id=c0,path=$LAB_DIR/$name-console.sock,server=on,wait=off" \
         -serial chardev:c0 -display none -monitor none \
         -qmp "unix:$LAB_DIR/$name-qmp.sock,server=on,wait=off" -no-reboot
@@ -177,11 +213,13 @@ NET
     systemctl show "qemu-$LAB_ID-$name.service" -p ExecStart --value > "$dir/execstart.txt"
 }
 N="${BRIDGE#br-op}"
-create_vm attacker 1024 1 52:54:00:00:00:02 "$ATTACKER_IP" "op${N}a"
-create_vm victim 2048 2 52:54:00:00:00:03 "$VICTIM_IP" "op${N}v"
-create_vm client 512 1 52:54:00:00:00:04 "$CLIENT_IP" "op${N}c"
+create_vm attacker 1024 1 52:54:00:00:00:02 "$ATTACKER_IP" "op${N}a" 52:54:00:01:00:02 "$ATTACKER_MGMT_IP" "op${N}A"
+create_vm victim 2048 2 52:54:00:00:00:03 "$VICTIM_IP" "op${N}v" 52:54:00:01:00:03 "$VICTIM_MGMT_IP" "op${N}V"
+create_vm client 512 1 52:54:00:00:00:04 "$CLIENT_IP" "op${N}c" 52:54:00:01:00:04 "$CLIENT_MGMT_IP" "op${N}C"
 python3 "$SCRIPT_DIR/opla-registry.py" ready --lab "$LAB_ID"
+printf 'OPLA_CREATED_LAB_ID=%s\n' "$LAB_ID"
 trap - ERR
 echo "Стенд запущен: $LAB_DIR"
-echo "Victim: $VICTIM_IP; attacker: $ATTACKER_IP; client: $CLIENT_IP"
+echo "Data bridge $BRIDGE: victim $VICTIM_IP; attacker $ATTACKER_IP; client $CLIENT_IP"
+echo "Management bridge $MGMT_BRIDGE: victim $VICTIM_MGMT_IP; attacker $ATTACKER_MGMT_IP; client $CLIENT_MGMT_IP"
 echo 'Дождитесь cloud-init: make ready. При нескольких стендах указывайте LAB_DIR.'

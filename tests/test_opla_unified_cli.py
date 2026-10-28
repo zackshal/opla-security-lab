@@ -1,5 +1,8 @@
 import importlib.util
 import io
+import math
+import signal
+import subprocess
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
@@ -80,9 +83,38 @@ class UnifiedCLITests(unittest.TestCase):
     def test_execution_routes_to_make(self):
         with patch.object(cli.subprocess, "run") as run:
             run.return_value.returncode = 0
-            self.assertEqual(cli.main(["system", "versions"]), 0)
+            self.assertEqual(cli.main(["system", "versions"], runner=run), 0)
             run.assert_called_once()
             self.assertIn("versions", run.call_args.args[0])
+            self.assertEqual(run.call_args.kwargs["timeout"], cli.DEFAULT_CLI_TIMEOUT)
+
+    def test_make_nonzero_exit_is_preserved(self):
+        runner = lambda *args, **kwargs: subprocess.CompletedProcess(args, 7)
+        self.assertEqual(cli.main(["system", "versions"], runner=runner), 7)
+
+    def test_cli_timeout_is_validated_before_runner(self):
+        for timeout in (True, 0, -1, math.nan, math.inf, "10"):
+            with self.subTest(timeout=timeout):
+                with self.assertRaises(ValueError):
+                    cli.validate_cli_timeout(timeout)
+
+    def test_owned_cli_group_terminates_and_reaps(self):
+        class Process:
+            pid = 7788
+            def __init__(self):
+                self.waits = 0
+            def wait(self, timeout=None):
+                self.waits += 1
+                if self.waits < 3:
+                    raise subprocess.TimeoutExpired("make", timeout)
+                return 137
+
+        signals = []
+        with self.assertRaises(subprocess.TimeoutExpired):
+            cli._run_owned(["make", "check"], timeout=1,
+                           popen_factory=lambda *a, **k: Process(),
+                           killpg=lambda pid, sig: signals.append((pid, sig)))
+        self.assertEqual(signals, [(7788, signal.SIGTERM), (7788, signal.SIGKILL)])
 
     def test_legacy_command_gives_hint(self):
         with redirect_stderr(io.StringIO()) as output:

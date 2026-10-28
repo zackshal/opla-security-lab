@@ -17,10 +17,12 @@ ROLE_IMAGES = {
 }
 
 
-def verify(role, filename, expected_size):
-    image = IMAGES / filename
-    checksum = IMAGES / (filename + ".sha256")
-    role_file = IMAGES / (filename + ".role")
+def verify(role, filename, expected_size, *, images=None, runner=None):
+    images = IMAGES if images is None else Path(images)
+    runner = subprocess.run if runner is None else runner
+    image = images / filename
+    checksum = images / (filename + ".sha256")
+    role_file = images / (filename + ".role")
 
     for path in (image, checksum, role_file):
         if path.is_symlink() or not path.is_file():
@@ -47,11 +49,12 @@ def verify(role, filename, expected_size):
     if digest.hexdigest() != expected_hash:
         raise ValueError(f"checksum mismatch: {filename}")
 
-    result = subprocess.run(
+    result = runner(
         ["qemu-img", "info", "--output=json", str(image)],
         check=True,
         capture_output=True,
         text=True,
+        timeout=10,
     )
     info = json.loads(result.stdout)
 
@@ -70,13 +73,15 @@ def verify(role, filename, expected_size):
         raise ValueError(f"unexpected backing image: {filename}")
 
     print(f"PASS: {role} | {filename} | SHA-256 verified")
+    return {"role": role, "filename": filename, "sha256": expected_hash,
+            "virtual_size": info["virtual-size"]}
 
 
 def main():
     try:
         for role, (filename, size) in ROLE_IMAGES.items():
             verify(role, filename, size)
-    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"BLOCKED: image verification failed: {exc}", file=sys.stderr)
         return 2
 

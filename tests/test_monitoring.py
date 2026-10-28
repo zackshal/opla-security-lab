@@ -42,7 +42,15 @@ class MonitoringTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             collect.attachment_mode({'attached':[{'mode':1,'prog':{'id':3}}]},4)
     def exchange(self,reply):
-        listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen(1)
+        listener = None
+        try:
+            listener = socket.socket()
+            listener.bind(('127.0.0.1', 0))
+            listener.listen(1)
+        except PermissionError:
+            if listener is not None:
+                listener.close()
+            self.skipTest('Environment forbids local TCP sockets')
         got=[]
         def server():
             with listener:
