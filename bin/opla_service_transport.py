@@ -76,3 +76,52 @@ class UnixServiceRouter:
         if client is None:
             raise ServiceTransportError(f"no socket configured for service: {service}")
         return client.dispatch(envelope)
+
+
+class JsonLineServiceWorker:
+    """Worker-side one-request handler for a dedicated service process."""
+
+    def __init__(self, envelope_type: Any, handler, *, max_frame: int = 1_048_576):
+        if not callable(getattr(envelope_type, "from_dict", None)):
+            raise ValueError("envelope_type must provide from_dict()")
+        if not callable(handler):
+            raise ValueError("handler must be callable")
+        if isinstance(max_frame, bool) or not isinstance(max_frame, int) or max_frame < 256:
+            raise ValueError("max_frame must be an integer >= 256")
+        self.envelope_type = envelope_type
+        self.handler = handler
+        self.max_frame = max_frame
+
+    def process_line(self, raw: bytes) -> bytes:
+        if not raw or len(raw) > self.max_frame:
+            raise ServiceTransportError("request frame is empty or too large")
+        try:
+            request = json.loads(raw.decode("utf-8"))
+            envelope = self.envelope_type.from_dict(request)
+            result = self.handler(envelope)
+            if hasattr(result, "__await__"):
+                raise ServiceTransportError("async handlers require an async worker")
+            if not isinstance(result, dict):
+                raise ServiceTransportError("service handler must return an object")
+            return (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        except ServiceTransportError:
+            raise
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
+            raise ServiceTransportError("invalid service request") from exc
+
+    def serve_connection(self, connection) -> None:
+        """Serve exactly one newline-delimited request on an accepted socket."""
+        data = bytearray()
+        while len(data) <= self.max_frame:
+            chunk = connection.recv(min(65536, self.max_frame + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+            if b"\n" in chunk:
+                break
+        line = bytes(data).split(b"\n", 1)[0]
+        try:
+            response = self.process_line(line)
+        except ServiceTransportError as exc:
+            response = json.dumps({"status": "BLOCKED", "error": str(exc)}).encode() + b"\n"
+        connection.sendall(response)

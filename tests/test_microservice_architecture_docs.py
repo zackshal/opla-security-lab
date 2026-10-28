@@ -32,6 +32,7 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
         self.assertIn("единственный владелец состояния операции", text)
         self.assertIn("operation_id", text)
         self.assertIn("UnixServiceRouter", text)
+        self.assertIn("JsonLineServiceWorker", text)
 
     def test_docs_do_not_claim_microservices_are_already_deployed(self):
         architecture = (ROOT / "docs" / "architecture.md").read_text()
@@ -152,6 +153,64 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
                         evidence={},
                     )
                 )
+
+    def test_worker_validates_and_handles_one_request(self):
+        received = []
+
+        def handler(envelope):
+            received.append(envelope)
+            return {"status": "PASS", "lab_id": envelope.lab_id}
+
+        worker = TRANSPORT.JsonLineServiceWorker(CONTRACT.ServiceEnvelope, handler)
+
+        class Connection:
+            def __init__(self, data):
+                self.data = data
+                self.sent = b""
+
+            def recv(self, _size):
+                data, self.data = self.data, b""
+                return data
+
+            def sendall(self, data):
+                self.sent += data
+
+        connection = Connection((json.dumps({
+            "schema_version": 1,
+            "service": "opla-evidence",
+            "operation": "probe",
+            "operation_id": "op-worker",
+            "lab_id": "lab-ABC123",
+            "requested_at": "2026-01-01T00:00:00Z",
+            "payload": {},
+            "evidence": {},
+        }) + "\n").encode())
+        worker.serve_connection(connection)
+        self.assertEqual(json.loads(connection.sent), {"status": "PASS", "lab_id": "lab-ABC123"})
+        self.assertEqual(received[0].service, "opla-evidence")
+
+    def test_worker_rejects_malformed_request_without_handler_call(self):
+        called = []
+        worker = TRANSPORT.JsonLineServiceWorker(
+            CONTRACT.ServiceEnvelope, lambda _envelope: called.append(True)
+        )
+        class Connection:
+            def __init__(self):
+                self.sent = b""
+
+            def recv(self, _size):
+                return b"{}\n"
+
+            def sendall(self, data):
+                self.sent += data
+
+        connection = Connection()
+        worker.serve_connection(connection)
+        self.assertEqual(
+            json.loads(connection.sent),
+            {"error": "invalid service request", "status": "BLOCKED"},
+        )
+        self.assertEqual(called, [])
 
 
 if __name__ == "__main__":
