@@ -87,8 +87,9 @@ class ReviewPromoteTests(unittest.TestCase):
         bundle.build(second_source, second_archive)
         second_digest = hashlib.sha256(second_archive.read_bytes()).hexdigest()
         with patch.object(promote.os, 'replace', side_effect=OSError('activation interrupted')):
-            with self.assertRaisesRegex(OSError, 'activation interrupted'):
-                promote.promote(second_archive, self.install, second_digest)
+            with patch.object(promote.os, 'geteuid', return_value=1000):
+                with self.assertRaisesRegex(OSError, 'activation interrupted'):
+                    promote.promote(second_archive, self.install, second_digest)
         self.assertEqual(os.readlink(self.install / 'current'), old)
         self.assertFalse((self.install / ('.current-' + second_digest)).exists())
 
