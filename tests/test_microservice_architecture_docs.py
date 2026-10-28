@@ -32,6 +32,15 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
         self.assertIn("независимый production runtime ещё не заявлен", adr)
         self.assertIn("модульный монолит с целевыми сервисными границами", adr)
 
+    def test_architecture_docs_follow_check_boundaries(self):
+        architecture = (ROOT / "docs" / "architecture.md").read_text()
+        platform = (ROOT / "docs" / "platform-compatibility.md").read_text()
+        checks = (ROOT / "tests" / "check.py").read_text()
+        self.assertIn("Live three-VM acceptance для текущей ветки не выполнена", architecture)
+        self.assertIn("Остальные ОС и ISA должны отображаться как `UNKNOWN`, `BLOCKED` или `FEASIBLE`", architecture)
+        self.assertIn("NOT RUN: clang -target bpf, kernel verifier, KVM, live Zabbix API and dashboard", checks)
+        self.assertIn("no non-Debian live acceptance evidence exists", platform)
+
     def test_envelope_is_exact_and_identity_bound(self):
         envelope = CONTRACT.ServiceEnvelope(
             service="opla-host-backend",
