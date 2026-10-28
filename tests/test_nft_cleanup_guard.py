@@ -28,6 +28,20 @@ GOOD = f"""table inet {TABLE} {{
 }}"""
 
 class GuardTests(unittest.TestCase):
+    def test_legacy_management_taps_removed_only_from_owned_bridge(self):
+        from tempfile import TemporaryDirectory
+        state = {'LAB_ID': 'lab-ABCD', 'BRIDGE': 'br-op0', 'MGMT_BRIDGE': 'br-op1',
+                 'GW': '100.64.0.1', 'MGMT_GW': '100.64.0.9'}
+        def fake_call(*args, **kwargs):
+            return SimpleNamespace(stdout='master br-op1 state DOWN', returncode=0)
+        with TemporaryDirectory() as temp, patch.object(mod, 'call', side_effect=fake_call) as call, \
+                patch.object(mod, 'active', return_value=False), \
+                patch.object(mod, 'verify_nft_before_network_cleanup', return_value=False), \
+                patch.object(mod, 'interface', side_effect=lambda name: name in {'op0A', 'op0V', 'op0C'}):
+            mod.remove_network(Path(temp), state)
+            for name in ('op0A', 'op0V', 'op0C'):
+                call.assert_any_call('ip', 'link', 'delete', 'dev', name)
+
     def test_management_allows_replies_but_blocks_unsolicited_input(self):
         management = GOOD.replace('priority -20;', 'priority -19;').replace(
             f'        iifname "{BRIDGE}" udp dport 67 accept\n', '')

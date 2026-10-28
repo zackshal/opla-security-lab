@@ -172,12 +172,18 @@ def remove_network(lab, state):
             if f'master {bridge}' not in detail:
                 raise RuntimeError(f'{tap} не принадлежит {bridge}; очистка сети прервана')
             call('ip', 'link', 'delete', 'dev', tap)
-        mgmt_tap = 'op' + mgmt_bridge.removeprefix('br-op') + mgmt_suffix
-        if interface(mgmt_tap):
-            detail = call('ip', '-o', 'link', 'show', 'dev', mgmt_tap).stdout
-            if f'master {mgmt_bridge}' not in detail:
-                raise RuntimeError(f'{mgmt_tap} не принадлежит {mgmt_bridge}; очистка сети прервана')
-            call('ip', 'link', 'delete', 'dev', mgmt_tap)
+        # Older create used the data bridge index for management TAP names.
+        # Accept that legacy name only when it is attached to this lab's bridge.
+        management_taps = dict.fromkeys((
+            'op' + mgmt_bridge.removeprefix('br-op') + mgmt_suffix,
+            'op' + bridge.removeprefix('br-op') + mgmt_suffix,
+        ))
+        for mgmt_tap in management_taps:
+            if interface(mgmt_tap):
+                detail = call('ip', '-o', 'link', 'show', 'dev', mgmt_tap).stdout
+                if not re.search(r'\bmaster ' + re.escape(mgmt_bridge) + r'(?:\s|$)', detail):
+                    raise RuntimeError(f'{mgmt_tap} не принадлежит {mgmt_bridge}; очистка сети прервана')
+                call('ip', 'link', 'delete', 'dev', mgmt_tap)
     for current_bridge, gateway in ((bridge, state['GW']), (mgmt_bridge, state['MGMT_GW'])):
       if interface(current_bridge):
         # Don't destroy a bridge shared with unexpected interfaces.

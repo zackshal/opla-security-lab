@@ -214,9 +214,10 @@ NET
     systemctl show "qemu-$LAB_ID-$name.service" -p ExecStart --value > "$dir/execstart.txt"
 }
 N="${BRIDGE#br-op}"
-create_vm attacker 1024 1 52:54:00:00:00:02 "$ATTACKER_IP" "op${N}a" 52:54:00:01:00:02 "$ATTACKER_MGMT_IP" "op${N}A"
-create_vm victim 2048 2 52:54:00:00:00:03 "$VICTIM_IP" "op${N}v" 52:54:00:01:00:03 "$VICTIM_MGMT_IP" "op${N}V"
-create_vm client 512 1 52:54:00:00:00:04 "$CLIENT_IP" "op${N}c" 52:54:00:01:00:04 "$CLIENT_MGMT_IP" "op${N}C"
+MN="${MGMT_BRIDGE#br-op}"
+create_vm attacker 1024 1 52:54:00:00:00:02 "$ATTACKER_IP" "op${N}a" 52:54:00:01:00:02 "$ATTACKER_MGMT_IP" "op${MN}A"
+create_vm victim 2048 2 52:54:00:00:00:03 "$VICTIM_IP" "op${N}v" 52:54:00:01:00:03 "$VICTIM_MGMT_IP" "op${MN}V"
+create_vm client 512 1 52:54:00:00:00:04 "$CLIENT_IP" "op${N}c" 52:54:00:01:00:04 "$CLIENT_MGMT_IP" "op${MN}C"
 python3 "$SCRIPT_DIR/opla-registry.py" ready --lab "$LAB_ID"
 printf 'OPLA_CREATED_LAB_ID=%s\n' "$LAB_ID"
 trap - ERR
