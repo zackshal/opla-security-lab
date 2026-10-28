@@ -333,6 +333,8 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
     try:
         validate_cli_timeout(timeout)
         if runner is None:
+            if args.group == 'lab' and args.action == 'create':
+                return create_lab_interactive()
             return _run_owned(command, timeout=timeout).returncode
         result = runner(command, check=False, timeout=timeout)
         if type(getattr(result, "returncode", None)) is not int:
@@ -341,6 +343,26 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"OPLA: ошибка запуска: {exc}", file=sys.stderr)
         return 2
+
+
+def create_lab_interactive():
+    """Let sudo read the caller's terminal; the launcher owns bounded execution.
+
+    Do not detach this authentication step or re-enter Make: nested sudo loses
+    the original SUDO_USER, which also selects the guest SSH public key.
+    """
+    command = ['python3', str(ROOT / 'bin/opla-create-launcher.py')]
+    if os.geteuid() != 0:
+        command.insert(0, 'sudo')
+    print('Создание стенда: три VM, отдельные data/management сети и firewall rules.', flush=True)
+    result = subprocess.run(command, check=False)
+    if result.returncode == 0:
+        print('Создание завершено. Проверка загрузки: opla lab ready')
+        print('Список и выбор: opla lab list; opla lab select lab-XXXXXXXX')
+    else:
+        print('Создание не завершено. Проверьте ошибку выше; при частичном создании '
+              'требуется сверка ресурсов перед повторным запуском.', file=sys.stderr)
+    return result.returncode
 
 
 if __name__ == "__main__":

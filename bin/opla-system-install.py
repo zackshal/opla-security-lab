@@ -92,7 +92,7 @@ def main():
             if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
                 raise ValueError(f'untrusted installation parent: {parent}')
         print('Installed local snapshot:', install(args.source, args.destination, args.expected_sha256))
-        print('No lab created. Register user CLI: python3 /opt/opla/bin/opla-cli-install.py install')
+        print(f'No lab created. Register user CLI: python3 {args.destination}/bin/opla-cli-install.py install')
     except (OSError, ValueError) as exc:
         parser.exit(2, f'BLOCKED: {exc}\n')
 
