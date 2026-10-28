@@ -54,7 +54,11 @@ bootstrap:
 image:
 	@./bin/prepare-image.sh "$(or $(ROLE),victim)"
 up:
-	@sudo python3 bin/opla-create-launcher.py
+	@if [ "$$(id -u)" -eq 0 ]; then \
+		python3 bin/opla-create-launcher.py; \
+	else \
+		sudo python3 bin/opla-create-launcher.py; \
+	fi
 ready ssh console:
 	@./bin/control.sh $@ "$(VM)"
 # Legacy down deletes VM overlay disks. Require explicit acknowledgment.
