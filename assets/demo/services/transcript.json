@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-28T14:43:48.415690+00:00",
+  "kind": "actual local process recording with synthetic evidence",
+  "live_vm_operations": false,
+  "fixture": {
+    "interval.json": {
+      "schema_version": 1,
+      "lab_id": "lab-DEMO",
+      "clock_source": "victim",
+      "start": "2026-10-27T13:00:00Z",
+      "end": "2026-10-27T13:00:10Z",
+      "source_ip": "100.64.0.2",
+      "target_ip": "100.64.0.3"
+    },
+    "before.json": {
+      "loaded": 1,
+      "syn": 100,
+      "drop": 0
+    },
+    "after.json": {
+      "loaded": 1,
+      "syn": 150,
+      "drop": 30
+    }
+  },
+  "sources": {
+    "bin/opla-cli.py": "bdeca5d4723b83d613bab83e1999281ed3a30efd572f49a34804cd66cdab9516",
+    "bin/opla-service.py": "75f95042eba8a523c3e9bdbbe36471f50f71dbeeeac7126708ee5db714468d84",
+    "bin/opla-services.py": "5fac7c2ebe7a22875af90aaf2efc043b43defbdcb72ecb8360af2cfd0667d465",
+    "bin/opla_service_runtime.py": "5dffdb172218ec46ba53607f39d073541db8dacd15ee12f0513cf5207cf16e23",
+    "bin/opla_service_operations.py": "c4f957a457e71c825a5023b3f861f04ba1c9c9b7c79edf1d92a0ff6f050c4e3f",
+    "bin/opla_service_contract.py": "d3d654f1eab0ffa74e19c8b2f9aa82a6b29272a8432b01563635de7e532329d5",
+    "bin/opla_service_handlers.py": "f61cdb5f8ef1a97e5dc8008e6568daa542459b9a7a6bb85e02feef5b8c139b42",
+    "bin/opla_service_transport.py": "6d9b81b8a3800c4c6ad062b61ef13c7a57dc8522dd7c0f49564946724f47adc5",
+    "bin/opla-incident-report.py": "9c3a35a22008bb2c99bd426e04b53bf94bb9ba40ca1fecc065dff13b00589705",
+    "bin/opla-event-correlator.py": "d00317354861aa5ed733bb032ee3ab08c6879048b39440c1fd1f1cc9c18815ac",
+    "bin/opla-eve-correlator.py": "ae17a8bdfe11b0672fb4ca474e4afd167ac07e40d8d4b6cccaadf5bfc6e7bc64",
+    "tools/record-service-demo.py": "ee1055af40564cd891e0109d9362de7abc5f88c5a71dc9e635f1e1a86556eab7"
+  },
+  "source_unchanged": true,
+  "steps": [
+    {
+      "command": [
+        "python3",
+        "bin/opla-cli.py",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout": "usage: opla [-h] [--version]\n            {lab,vm,deploy,xdp,ids,scenario,report,monitoring,system} ...\n\nOPLA Security Lab — управление изолированными лабораториями\n\npositional arguments:\n  {lab,vm,deploy,xdp,ids,scenario,report,monitoring,system}\n    lab                 Создание, выбор и управление лабораториями\n    vm                  Виртуальные машины, снимки и резервирование\n    deploy              Пользовательская инфраструктура и планирование\n    xdp                 Загрузка XDP и просмотр телеметрии\n    ids                 Управление Suricata\n    scenario            Проверка и выполнение сценариев\n    report              Отчёты по экспериментам и инцидентам\n    monitoring          Мониторинг Zabbix\n    system              Установка, диагностика и обслуживание\n\noptions:\n  -h, --help            show this help message and exit\n  --version             show program's version number and exit\n\nСправка: opla help <раздел> | opla <раздел> --help\n",
+      "stderr": "",
+      "elapsed_seconds": 0.079
+    },
+    {
+      "command": [
+        "python3",
+        "bin/opla-cli.py",
+        "system",
+        "services"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": 1,\n  \"lab_readiness\": \"NOT TESTED\",\n  \"services\": {\n    \"opla-control\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-evidence\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-guest-agent\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-host-backend\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-monitoring\": {\n      \"status\": \"NOT_STARTED\"\n    }\n  }\n}\n",
+      "stderr": "",
+      "elapsed_seconds": 0.244
+    },
+    {
+      "command": [
+        "python3",
+        "bin/opla-cli.py",
+        "system",
+        "services"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": 1,\n  \"lab_readiness\": \"NOT TESTED\",\n  \"services\": {\n    \"opla-control\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-evidence\": {\n      \"status\": \"RESPONDING\",\n      \"service\": \"opla-evidence\",\n      \"pid\": 710644,\n      \"uid\": 1000,\n      \"protocol\": 1,\n      \"business_adapter\": true,\n      \"runtime_sha256\": \"5dffdb172218ec46ba53607f39d073541db8dacd15ee12f0513cf5207cf16e23\",\n      \"lab_readiness\": \"NOT TESTED\"\n    },\n    \"opla-guest-agent\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-host-backend\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-monitoring\": {\n      \"status\": \"NOT_STARTED\"\n    }\n  }\n}\n",
+      "stderr": "",
+      "elapsed_seconds": 0.245
+    },
+    {
+      "command": [
+        "python3",
+        "bin/opla-cli.py",
+        "report",
+        "incident",
+        "<experiment>",
+        "--via-service",
+        "--lab",
+        "lab-DEMO"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": 1,\n  \"mode\": \"offline_incident_report\",\n  \"experiment\": \"demo-experiment\",\n  \"actual_execution_by_reporter\": false,\n  \"interval\": {\n    \"schema_version\": 1,\n    \"lab_id\": \"lab-DEMO\",\n    \"clock_source\": \"victim\",\n    \"start\": \"2026-10-27T13:00:00Z\",\n    \"end\": \"2026-10-27T13:00:10Z\",\n    \"source_ip\": \"100.64.0.2\",\n    \"target_ip\": \"100.64.0.3\"\n  },\n  \"counters\": {\n    \"schema_version\": 1,\n    \"mode\": \"offline_correlation\",\n    \"metrics\": {\n      \"xdp\": {\n        \"syn\": 50,\n        \"pass\": null,\n        \"drop\": 30,\n        \"xdp_scan_events\": null,\n        \"xdp_scan_drop\": null\n      },\n      \"scan_detector\": {\n        \"scan_alerts\": null,\n        \"scan_capture_drops\": null\n      },\n      \"suricata\": {\n        \"ids_alerts\": null,\n        \"ids_blocked\": null,\n        \"ids_parse_errors\": null\n      }\n    },\n    \"availability\": {\n      \"xdp\": \"available\",\n      \"scan_detector\": \"unknown\",\n      \"suricata\": \"unknown\"\n    },\n    \"observations\": {\n      \"syn_traffic_observed\": true,\n      \"xdp_packets_dropped\": true,\n      \"xdp_scan_events\": null,\n      \"scan_detector_alerts\": null,\n      \"suricata_alerts\": null\n    },\n    \"attack_attribution\": \"unverified\",\n    \"limitations\": [\n      \"Counters are cumulative and do not identify a specific flow.\",\n      \"Unavailable or unknown sources cannot prove absence of alerts.\",\n      \"XDP scan support must be verified separately.\"\n    ]\n  },\n  \"suricata\": {\n    \"status\": \"unavailable\",\n    \"reason\": \"EVE log not supplied\"\n  },\n  \"scan_detector\": {\n    \"status\": \"unavailable\",\n    \"reason\": \"scan event log not supplied\"\n  },\n  \"attack_attribution\": \"unverified\",\n  \"client_continuity\": {\n    \"status\": \"unavailable\",\n    \"covered_at_cadence\": false,\n    \"continuous_availability_verified\": false,\n    \"reason\": \"client-probes.json not supplied\"\n  },\n  \"evidence_exports\": {\n    \"suricata\": {\n      \"status\": \"unavailable\",\n      \"coverage\": \"unavailable\",\n      \"reason\": \"export metadata not available\"\n    },\n    \"scan\": {\n      \"status\": \"unavailable\",\n      \"coverage\": \"unavailable\",\n      \"reason\": \"export metadata not available\"\n    }\n  },\n  \"evidence_quality\": {\n    \"status\": \"unavailable\",\n    \"sources\": {\n      \"suricata\": {\n        \"status\": \"unavailable\",\n        \"coverage\": \"unavailable\",\n        \"truncated\": null\n      },\n      \"scan\": {\n        \"status\": \"unavailable\",\n        \"coverage\": \"unavailable\",\n        \"truncated\": null\n      }\n    },\n    \"complete_evidence_verified\": false\n  }\n}\n",
+      "stderr": "",
+      "elapsed_seconds": 0.122
+    },
+    {
+      "command": [
+        "python3",
+        "bin/opla-cli.py",
+        "report",
+        "incident",
+        "<experiment>",
+        "--via-service",
+        "--lab",
+        "lab-OTHER"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "OPLA: ошибка запуска: service blocked request; inspect operation evidence before retry\n",
+      "elapsed_seconds": 0.125
+    },
+    {
+      "command": [
+        "python3",
+        "bin/opla-cli.py",
+        "system",
+        "services"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"schema_version\": 1,\n  \"lab_readiness\": \"NOT TESTED\",\n  \"services\": {\n    \"opla-control\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-evidence\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-guest-agent\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-host-backend\": {\n      \"status\": \"NOT_STARTED\"\n    },\n    \"opla-monitoring\": {\n      \"status\": \"NOT_STARTED\"\n    }\n  }\n}\n",
+      "stderr": "",
+      "elapsed_seconds": 0.248
+    }
+  ]
+}

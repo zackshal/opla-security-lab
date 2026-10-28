@@ -11,7 +11,7 @@ DOCS = ROOT / 'docs' / 'user-guide'
 
 SECTIONS = [
     ('НАЧАЛО РАБОТЫ', [
-        ('bootstrap', 'Подготовка хоста; может устанавливать пакеты и менять систему'),
+        ('bootstrap', 'Скачать и проверить base image; не устанавливает host packages'),
         ('install', 'Установить команду opla для текущего пользователя'),
         ('uninstall', 'Удалить команду opla; VM и Docker не затрагиваются'),
         ('image ROLE=victim', 'Подготовить базовый образ Debian выбранной роли'),
@@ -24,14 +24,14 @@ SECTIONS = [
         ('lab-status', 'Показать выбранный стенд и его узлы'),
         ('lab-start', 'Восстановить сеть и запустить сохранённые VM без пересоздания дисков'),
         ('lab-stop', 'Выключить VM, DHCP и удалить TAP/bridge/nft; сохранить диски'),
-        ('lab-delete CONFIRM_LAB=lab-...', 'НАВСЕГДА удалить выбранный стенд, включая диски'),
+        ('lab-delete LAB=lab-... CONFIRM_DELETE=lab-...', 'Verified удаление конкретного стенда и дисков'),
         ('lab-infra-status', 'Состояние виртуальных машин, bridge и DHCP'),
         ('lab-stack-down', 'Дополнительно остановить общий Zabbix/PostgreSQL (все стенды!)'),
         ('stack-down', 'Синоним lab-stack-down; влияет на общий мониторинг'),
         ('nodes', 'Показать роли, IP и состояние QEMU'),
         ('ssh VM=victim', 'SSH в victim, attacker или client'),
         ('console VM=victim', 'Последовательная консоль выбранной VM'),
-        ('down CONFIRM_DELETE=yes', 'УДАЛИТЬ выбранный стенд и диски (необратимо)'),
+        ('down', 'BLOCKED: legacy cleanup; для остановки используйте lab-stop'),
     ]),
     ('ЗАЩИТА', [
         ('xdp-all', 'Скопировать, собрать и загрузить XDP на victim'),
@@ -76,7 +76,7 @@ def brief():
     print('Справка по подсистеме: opla lab --help | opla scenario --help')
     print('Ниже приведены команды Makefile для разработки и совместимости.')
     print('Все команды выполняются из корня репозитория. make up СОЗДАЁТ стенд.')
-    print('ВНИМАНИЕ: make down УДАЛЯЕТ каталог стенда и его виртуальные диски!\n')
+    print('make down заблокирован. lab-stop сохраняет диски; lab-delete удаляет их после проверок.\n')
     for title, entries in SECTIONS:
         print(f'[{title}]')
         for command, description in entries:

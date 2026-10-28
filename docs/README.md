@@ -1,0 +1,40 @@
+# Документация OPLA
+
+## Пользователю
+
+1. [Установка и обновление](local-system-install.md): checkout, root-owned code и wrapper.
+2. [Руководство оператора](operator-guide.md): create/start/ready/stop, права и статусы.
+3. [Справочник команд](user-guide/commands.md) и [VM](user-guide/virtual-machines.md).
+4. [Демонстрации](demonstrations.md): реальные recordings и их ограничения.
+5. [Диагностика](operations.md), [backup/restore](backup-restore.md), [данные и удаление](data-lifecycle.md).
+
+## Архитектура и подтверждение
+
+- [Краткая архитектура](architecture.md), [сервисное управление](service-management-architecture.md), [ADR](adr-microservice-architecture.md).
+- [Ресурсы и обычный пользователь](resource-and-user-operation.md), [модель доверия](security-model.md).
+- [Платформы](platform-compatibility.md), [multiarch](multiarch-support.md), [host specification](test-host-spec.md).
+- [Evidence index](evidence/README.md), [матрица приёмки](acceptance.md), [протокол](run-protocol.md).
+- [Метрики](metrics-catalog.md), [XDP](user-guide/xdp.md), [Zabbix](zabbix-guide.md).
+
+## Разработка и поставка
+
+- [Engineering workflow](engineering-workflow.md), [offline lifecycle](offline-lifecycle.md).
+- [Ansible deployment](deployment.md), [релиз](release.md), [CI/CD](ci-cd-release-practices.md).
+- [CHANGELOG](CHANGELOG.md), [история Git](git-history.md).
+
+## Как читать документы
+
+Операционные руководства описывают текущий код. Файлы `task-*.md`, датированные
+протоколы и старые CHANGELOG entries сохраняют историю конкретных изменений;
+их числа тестов и промежуточные ограничения не являются статусом текущего HEAD.
+Учебные материалы methodology/fos/portfolio не заменяют руководство установки.
+
+При расхождении документа и кода результат не считается PASS: воспроизведите
+проверку, сохраните команду, exit status, scope и source hashes. Новый GIF/SVG
+или health сервиса не доказывает работу VM, XDP/IDS или production deployment.
+
+Проверить local links и literal CLI examples без исполнения операций:
+
+```bash
+python3 tools/check-documentation.py
+```
