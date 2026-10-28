@@ -14,7 +14,7 @@ case "$ACTION" in
         ssh_vm "$IP" ;;
     ready) for VM in attacker victim client; do
         IP="$(python3 "$PROJECT_DIR/bin/state.py" "$LAB_DIR" "${VM^^}_IP")"
-        ssh_vm "$IP" 'sudo cloud-init status --wait' || exit 1
+        wait_vm_ready "$IP" "$VM" || exit 1
         done ;;
     console) exec "$PROJECT_DIR/bin/console.sh" "$LAB_DIR" "${1:-victim}" ;;
     down) systemctl --user stop "opla-monitor-${LAB_DIR##*/}.service" 2>/dev/null || true
