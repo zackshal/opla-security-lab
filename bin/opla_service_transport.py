@@ -55,3 +55,24 @@ class JsonLineServiceClient:
         if not isinstance(result, dict):
             raise ServiceTransportError("service response must be an object")
         return result
+
+
+class UnixServiceRouter:
+    """Offline-adapter compatible router for independently hosted services."""
+
+    mode = "offline"
+
+    def __init__(self, sockets: dict[str, str], *, timeout: float = 5.0):
+        if not isinstance(sockets, dict) or not sockets:
+            raise ValueError("sockets must be a non-empty mapping")
+        self._clients = {
+            service: JsonLineServiceClient(path, timeout=timeout)
+            for service, path in sockets.items()
+        }
+
+    def dispatch(self, envelope: Any) -> dict[str, Any]:
+        service = getattr(envelope, "service", None)
+        client = self._clients.get(service)
+        if client is None:
+            raise ServiceTransportError(f"no socket configured for service: {service}")
+        return client.dispatch(envelope)

@@ -31,6 +31,7 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
             self.assertIn(service, text)
         self.assertIn("единственный владелец состояния операции", text)
         self.assertIn("operation_id", text)
+        self.assertIn("UnixServiceRouter", text)
 
     def test_docs_do_not_claim_microservices_are_already_deployed(self):
         architecture = (ROOT / "docs" / "architecture.md").read_text()
@@ -110,6 +111,47 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
         with patch.object(TRANSPORT.socket, "socket", FakeSocket):
             result = TRANSPORT.JsonLineServiceClient("/run/opla/evidence.sock", timeout=1).dispatch(envelope)
         self.assertEqual(result, {"lab_id": "lab-ABC123", "ok": True})
+
+    def test_unix_service_router_selects_service_socket(self):
+        envelope = CONTRACT.ServiceEnvelope(
+            service="opla-guest-agent",
+            operation="probe",
+            operation_id="op-router",
+            lab_id="lab-ABC123",
+            requested_at="2026-01-01T00:00:00Z",
+            payload={},
+            evidence={},
+        )
+
+        class FakeClient:
+            def __init__(self, path, timeout):
+                self.path = path
+                self.timeout = timeout
+
+            def dispatch(self, request):
+                return {"path": self.path, "lab_id": request.lab_id}
+
+        with patch.object(TRANSPORT, "JsonLineServiceClient", FakeClient):
+            router = TRANSPORT.UnixServiceRouter(
+                {"opla-host-backend": "/run/opla/host.sock", "opla-guest-agent": "/run/opla/guest.sock"},
+                timeout=1,
+            )
+            self.assertEqual(
+                router.dispatch(envelope),
+                {"path": "/run/opla/guest.sock", "lab_id": "lab-ABC123"},
+            )
+            with self.assertRaises(TRANSPORT.ServiceTransportError):
+                router.dispatch(
+                    CONTRACT.ServiceEnvelope(
+                        service="opla-evidence",
+                        operation="probe",
+                        operation_id="op-router-2",
+                        lab_id="lab-ABC123",
+                        requested_at="2026-01-01T00:00:00Z",
+                        payload={},
+                        evidence={},
+                    )
+                )
 
 
 if __name__ == "__main__":
