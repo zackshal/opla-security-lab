@@ -1,0 +1,36 @@
+apiVersion: opla/v1
+kind: Infrastructure
+
+metadata:
+  name: custom-connectivity
+
+connectivity:
+  type: direct
+
+nodes:
+  - name: local01
+    address: 192.168.1.10
+    ssh_user: admin
+    components: [xdp]
+    interfaces:
+      protection: eth0
+
+  - name: remote01
+    address: 10.100.0.11
+    ssh_user: admin
+    components: [suricata]
+    interfaces:
+      capture: ens4
+    connectivity:
+      type: existing_vpn
+
+  - name: remote02
+    address: 10.200.0.12
+    ssh_user: admin
+    components: [xdp]
+    interfaces:
+      protection: ens3
+    connectivity:
+      type: managed_vpn
+      engine: amneziawg
+      gateway: vpn.example.org

@@ -1,5 +1,7 @@
 # Мониторинг
 
+В подсистеме мониторинга я разделил сбор телеметрии, настройку объектов Zabbix и доставку уведомлений. Состояние источника данных и состояние защитного механизма рассматриваются отдельно.
+
 Полный порядок запуска: [README](../README.md#метрики-и-панели-zabbix).
 
 Источники: pinned BPF maps, sysfs, nginx JSON log/probe, Suricata EVE и пассивный scan detector. Host bridge получает данные по SSH и отправляет в Zabbix trapper. Пароль API нужен provisioning, а не collector.

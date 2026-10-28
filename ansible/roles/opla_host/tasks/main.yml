@@ -1,0 +1,18 @@
+---
+- name: Require explicit package-management approval
+  ansible.builtin.assert:
+    that:
+      - opla_host_manage_packages | bool
+      - opla_host_dedicated_target | bool
+    fail_msg: "BLOCKED: package installation requires explicit approval"
+
+- name: Install OPLA host dependencies
+  become: true
+  ansible.builtin.apt:
+    name: "{{ opla_platform_packages }}"
+    state: present
+    update_cache: false
+    install_recommends: false
+    fail_on_autoremove: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive

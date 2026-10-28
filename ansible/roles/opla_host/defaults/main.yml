@@ -1,0 +1,5 @@
+---
+opla_host_manage_packages: false
+
+# Never enable on a shared workstation or CI host.
+opla_host_dedicated_target: false

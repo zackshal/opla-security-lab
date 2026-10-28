@@ -1,0 +1,3 @@
+# No model, sandbox, approval or provider overrides: inherit parent settings.
+[agents]
+max_concurrent_threads_per_session = 4

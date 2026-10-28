@@ -9,6 +9,32 @@ concurrency:
   group: checks-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  platform-contract:
+    runs-on: ubuntu-24.04
+    container: debian:13-slim
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install contract dependencies
+        run: |
+          apt-get -o APT::Update::Error-Mode=any update
+          apt-get install -y --no-install-recommends python3
+      - name: Validate platform and readiness contracts
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q bin tests
+          python3 -m unittest -q tests.test_opla_platform tests.test_integration_readiness_docs
+          python3 bin/opla-platform.py --json > platform-capabilities.json
+      - name: Upload capability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-contract
+          path: platform-capabilities.json
+          if-no-files-found: error
+          retention-days: 14
   portable:
     runs-on: ubuntu-24.04
     container: debian:13-slim

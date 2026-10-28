@@ -1,17 +1,37 @@
-# Пересборка методички
+# PDF-сборка OPLA
 
-Из корня проекта:
+Генерацию PDF я оставил в составе проекта, чтобы методические материалы можно было пересобирать из Markdown и SVG после каждого исправления. Публичные документы и ключ преподавателя создаются раздельно.
+
+Markdown и SVG — исходники документов. PDF создаются автоматически, их не нужно редактировать вручную.
+
+## Первоначальная подготовка
 
 ```bash
-python3 -m venv .venv-docs
-.venv-docs/bin/pip install -r tools/requirements-docs.txt
-.venv-docs/bin/python tools/build-docs.py
-libreoffice --headless --convert-to pdf --outdir docs docs/Методические_указания_ОПЛКА_XDP.docx
+make docs-deps
 ```
 
-Нужен шрифт DejaVu Sans по пути /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
-(в Debian пакет fonts-dejavu-core). Для Times New Roman при отсутствии локального
-шрифта офисный пакет выбирает замену; после экспорта проверьте все страницы.
-DOCX хранит редактируемый текст и таблицы, рисунки дополнительно есть в SVG.
-Для пересборки нужны пакеты python3-venv, LibreOffice Writer и шрифты; они
-не требуются для запуска самого стенда.
+Требуются Python 3, `venv`, DejaVu/Liberation fonts. Зависимости закреплены в `tools/requirements-docs.txt`.
+
+## Публичные PDF
+
+```bash
+make docs
+```
+
+Файлы `OPLA_Lab_Manual.pdf`, `OPLA_Engineering_Report.pdf`, `OPLA_Portfolio.pdf` появятся в `release-artifacts/public/`. **Ключ ответов не создаётся этой командой**. Публичные PDF можно прикладывать к GitHub/GitLab Release либо отправлять отдельно.
+
+## Отдельный ключ преподавателя
+
+```bash
+make docs-teacher
+```
+
+`OPLA_Teacher_Key.pdf` сохраняется в `~/Documents/OPLA-private/` с ограниченными правами. Этот файл передаётся лично преподавателю; он не является публичным release asset. Путь можно изменить через `DOCS_PRIVATE_DIR`.
+
+`docs/teacher-key.md` также является закрытым материалом. Если он уже отслеживается Git, одного `.gitignore` недостаточно: выполните `git rm --cached docs/teacher-key.md` и проверьте индекс. Старая история при этом остаётся неизменной: **не публикуйте ветки/историю, в которых ключ уже присутствует**, без отдельного решения вопроса с историей.
+
+## Проверка
+
+После экспорта проверьте открытие файлов, оглавление, нумерацию, таблицы и иллюстрации. Формат: A4, основной текст 12 pt, интервал 1,5; листинги и таблицы имеют отдельные стили. `make check` проверяет исходники и тесты, но не заменяет визуальную проверку PDF и испытания стенда.
+
+Скрипты `tools/export-pdf.py` и `tools/export-pdf-gost.py` остаются в Git. Служебный `release-artifacts/` и готовые PDF по умолчанию исключены из Git; для публикации используйте release assets.

@@ -54,6 +54,22 @@ def provision(api, name):
     hosts = api.call('host.get', {'filter': {'host': [name]}})
     hid = hosts[0]['hostid'] if hosts else api.call('host.create', {'host': name, 'groups': [{'groupid': gid}]})['hostids'][0]
     api.call('host.update', {'hostid': hid, 'status': 0})
+
+    # Completed experiment events, separate from periodic XDP snapshots.
+    upsert_item(api, hid, {
+        'hostid': hid,
+        'name': 'OPLA experiment and incident evidence',
+        'key_': 'opla.experiment.event',
+        'type': 2,
+        'value_type': 4,
+        'delay': '0',
+        'history': '30d',
+        'trends': '0',
+        'status': 0,
+        'trapper_hosts': '',
+        'tags': [{'tag': 'component', 'value': 'experiment'}],
+    })
+
     ids = {}
     labels = {}
     for key, wire, label, kind, units in DEFINITIONS:

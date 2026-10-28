@@ -1,0 +1,69 @@
+---
+- name: OPLA host acceptance
+  hosts: opla_hosts
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Validate target platform
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Debian'
+          - ansible_facts['distribution_major_version'] in ['12', '13']
+          - ansible_facts['architecture'] == 'x86_64'
+
+    - name: Inspect runtime directory
+      ansible.builtin.stat:
+        path: /var/lib/opla
+        follow: false
+      register: runtime
+
+    - name: Validate trusted runtime
+      ansible.builtin.assert:
+        that:
+          - runtime.stat.isdir | default(false)
+          - not (runtime.stat.islnk | default(false))
+          - runtime.stat.uid | default(-1) == 0
+          - runtime.stat.gid | default(-1) == 0
+          - runtime.stat.mode | default('') == '0755'
+
+    - name: Inspect KVM
+      ansible.builtin.stat:
+        path: /dev/kvm
+        follow: false
+      register: kvm
+
+    - name: Validate KVM device
+      ansible.builtin.assert:
+        that:
+          - kvm.stat.ischr | default(false)
+
+    - name: Check required executable paths
+      ansible.builtin.shell: |
+        set -eu
+        export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
+        for cmd in qemu-system-x86_64 qemu-img cloud-localds \
+                   dnsmasq ip nft virt-customize systemd-run; do
+          command -v "$cmd" >/dev/null 2>&1 || {
+            echo "MISSING: $cmd" >&2
+            exit 1
+          }
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Check QEMU executable
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/qemu-system-x86_64
+          - --version
+      register: qemu_version
+      changed_when: false
+
+    - name: Report acceptance
+      ansible.builtin.debug:
+        msg:
+          - "OPLA host acceptance: PASS"
+          - "{{ qemu_version.stdout_lines[0] }}"
+          - "No virtual machines or networks were created"

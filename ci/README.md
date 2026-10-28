@@ -1,5 +1,7 @@
 # CI and delivery
 
+CI я использую для повторяемых проверок исходников и конфигураций. Результаты автоматизированных тестов не подменяют запуск XDP в ядре и испытания реальной сети.
+
 [Root README](../README.md#cicd) describes validation boundaries and observed pipeline results.
 
 GitLab runs portable/configuration tests, BPF compilation and package generation. `bpf-build` has `dependencies: []`; `delivery` fetches only its BPF artifacts via `needs`. `FF_USE_DIRECT_DOWNLOAD=false` avoids requesting the direct download mode that produced an observed CDN 403.

@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -29,11 +30,15 @@ class QMPTests(unittest.TestCase):
     def exchange(self, error=False):
         with tempfile.TemporaryDirectory() as tmp:
             path = str(Path(tmp)/'qmp.sock')
+            listener = None
             try:
                 listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                listener.bind(path)
+                listener.listen()
             except PermissionError:
+                if listener is not None:
+                    listener.close()
                 self.skipTest('Environment forbids Unix sockets; protocol tape tests still run')
-            listener.bind(path); listener.listen()
             failures=[]
             def server():
                 try:
@@ -109,6 +114,49 @@ class QMPTests(unittest.TestCase):
             with patch.object(disk,'validate_image') as check:
                 with self.assertRaises(RuntimeError):disk.restore(p/'lab',p,'victim')
                 check.assert_not_called()
+
+    def test_disk_validate_uses_injected_finite_timeout_runner(self):
+        calls = []
+
+        def runner(argv, **kwargs):
+            calls.append((argv, kwargs))
+            if argv[1] == 'info':
+                return subprocess.CompletedProcess(argv, 0,
+                    json.dumps({'format': 'qcow2'}), '')
+            return subprocess.CompletedProcess(argv, 0, '', '')
+
+        disk.validate_image(Path('/tmp/fixture.qcow2'), timeout=4.5, runner=runner)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call[1]['timeout'] == 4.5 for call in calls))
+
+    def test_disk_timeout_is_rejected_before_injected_dispatch(self):
+        for timeout in (True, 0, -1, float('nan'), float('inf')):
+            with self.subTest(timeout=timeout):
+                with self.assertRaises(ValueError):
+                    disk.validate_image(Path('/tmp/fixture.qcow2'), timeout=timeout,
+                                        runner=lambda *a, **k: self.fail('dispatched'))
+
+    def test_disk_injected_nonzero_result_keeps_check_semantics(self):
+        def runner(argv, **kwargs):
+            if argv[1] == 'info':
+                return subprocess.CompletedProcess(argv, 0,
+                    json.dumps({'format': 'qcow2'}), '')
+            return subprocess.CompletedProcess(argv, 7, '', 'qemu-img failed')
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            disk.validate_image(Path('/tmp/fixture.qcow2'), runner=runner)
+
+    def test_disk_initial_communicate_oserror_cleans_owned_group(self):
+        class Process:
+            pid = 9876
+            def communicate(self, timeout=None):
+                raise OSError('communicate failed')
+
+        with patch.object(disk.subprocess, 'Popen', return_value=Process()), \
+             patch.object(disk.os, 'killpg') as killpg:
+            with self.assertRaises(OSError):
+                disk._run_owned(['qemu-img', 'check'], timeout=0.1)
+        self.assertEqual(killpg.call_count, 2)
 
 class EVETests(unittest.TestCase):
     def test_alert_drop_not_double_counted_and_cursor_incremental(self):

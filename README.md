@@ -2,6 +2,8 @@
 
 **Воспроизводимые эксперименты с сетевой защитой Linux: eBPF/XDP, Suricata IDS/IPS, Zabbix и проверяемое восстановление стенда.**
 
+Я разрабатываю OPLA в рамках учебной работы на 4-м курсе бакалавриата по направлению «Информационная безопасность» в РТУ МИРЭА. Моя задача — не только собрать стенд, но и показать, какие механизмы защиты действительно срабатывают, как это проверить и где заканчиваются их возможности. Поэтому в репозитории вместе с кодом находятся методические материалы, протоколы опытов и ограничения результатов.
+
 [![GitHub Actions](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml/badge.svg)](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml)
 
 ![C/eBPF](https://img.shields.io/badge/C%20%2F%20eBPF-clang%2014.0.6-00599C?logo=c&logoColor=white)
@@ -23,7 +25,7 @@
 
 ## Что делает проект
 
-OPLA связывает защитное решение с наблюдаемыми данными: пакетом, BPF-счётчиком, событием Suricata, HTTP-ответом, проблемой Zabbix и уведомлением. Три ВМ разделяют роли источника тестового трафика, защищаемого сервиса и независимого клиента.
+В OPLA я связал защитное решение с наблюдаемыми данными: пакетом, BPF-счётчиком, событием Suricata, HTTP-ответом, проблемой Zabbix и уведомлением. Три ВМ разделяют роли источника тестового трафика, защищаемого сервиса и независимого клиента.
 
 - XDP разбирает заголовки, ограничивает начальные TCP SYN и обнаруживает сканирование по различным портам источника.
 - Suricata обнаруживает события в режиме IDS или блокирует выбранный HTTP-трафик через NFQUEUE.
@@ -353,6 +355,15 @@ Deployment Ansible рассчитан на отдельный Debian 13 security
 
 ## Структура исходников
 
+Офлайн-приёмка жизненного цикла с fake-адаптерами: `make acceptance-offline`.
+Она проверяет журнал, probes, отказы и возобновление без VM/SSH/сети.
+Контракт и границы подтверждения описаны в [offline-lifecycle.md](docs/offline-lifecycle.md);
+план дальнейшей интеграции — в [PLANS.md](PLANS.md).
+
+Проектный Agent Harness использует native Codex roles/skills и отдельный журнал
+инженерных задач; проверка — `make harness-check`. Архитектура, порядок независимого
+ревью и ограничения hooks описаны в [agent-harness.md](docs/agent-harness.md).
+
 | Каталог | Назначение |
 |---|---|
 | `xdp/` | C-программа, сборка, загрузка, политика и сборщик метрик |
@@ -371,3 +382,52 @@ Deployment Ansible рассчитан на отдельный Debian 13 security
 См. [CONTRIBUTING.md](CONTRIBUTING.md) и [SECURITY.md](SECURITY.md). В issue укажите commit, окружение, команду, ожидаемый/фактический результат и обезличенные before/after counters. Не публикуйте ключи, app passwords, API tokens, дампы БД или packet captures с чужими данными.
 
 Лицензионные условия: [LICENSE](LICENSE); файл XDP дополнительно содержит свой SPDX identifier. Пояснение и полный текст GPL находятся в [LICENSING.md](LICENSING.md).
+
+
+### Полное выключение лабораторного стенда без удаления данных
+
+```bash
+make lab-select LAB=lab-ZV3bwu5z
+unset LAB_DIR
+make lab-stop          # VM, DHCP, TAP, bridge, nft; QCOW2 сохранены
+make lab-infra-status
+make lab-start         # восстановить сеть и запустить те же VM
+make ready
+```
+
+`make lab-stack-down` дополнительно останавливает общий Zabbix/PostgreSQL, затрагивая другие стенды.
+
+
+## Установка команды и удаление стендов
+
+`make install` добавляет команду `opla` в `~/.local/bin` текущего пользователя.
+Это **не** `bootstrap`: не устанавливает системные зависимости, не создаёт стенды.
+`opla help`, `opla labs` и `opla doctor` доступны после добавления `~/.local/bin` в `PATH`.
+`make uninstall` удаляет только этот CLI wrapper.
+
+Для окончательного удаления выбранного стенда: `make lab-delete CONFIRM_LAB=lab-XXXXXXXX`.
+Удаляются его QCOW2 и конфигурация. Используйте только после резервного копирования.
+`make lab-stop` сохраняет диски; `make stack-down` дополнительно останавливает общий мониторинг.
+Никакая из этих команд не выполняет `drop_caches`: RAM QEMU освобождается ядром автоматически.
+
+## Инвентаризация ресурсов OPLA (v5 preview)
+
+Команды `make resources` и `make prune` безопасны для ознакомления с ресурсами проекта: обе работают **только на чтение**. `prune` пока не удаляет объекты, даже если передать `CONFIRM=yes`. См. [документацию по реестру ресурсов](docs/user-guide/resources.md).
+
+### OPLA v5.3 registry verification
+
+`make registry-verify` and `make prune-verified` provide non-destructive checks. See `docs/user-guide/registry-verification.md`.
+
+Registry cross-lab audit: `make registry-audit` (read-only; see `docs/user-guide/resource-audit.md`).
+
+
+### v5.6: controlled lab-deletion migration (fail closed)
+
+`make lab-delete-plan LAB=lab-...` prints a read-only per-lab deletion preflight.
+The old `make down` and `make lab-delete` paths are **temporarily blocked**:
+existing cleanup removed lab disks from name patterns without proving exclusive
+ownership. `CONFIRM_DELETE` and `CONFIRM_LAB` do not override this gate.
+VM shutdown remains available via `make lab-stop`; monitoring cleanup remains
+a separate verified workflow. The next iteration must implement ownership
+attestation, idempotent step execution and an on-disk operation journal before
+re-enabling destructive lab deletion.

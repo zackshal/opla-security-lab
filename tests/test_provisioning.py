@@ -33,7 +33,7 @@ class ProvisioningTests(unittest.TestCase):
         result = setup.provision(api, 'opla-lab-example')
         self.assertFalse(any(method.endswith('.create') for method, _ in api.calls))
         updates = {p['itemid']: p for m, p in api.calls if m == 'item.update'}
-        self.assertEqual(len(updates), 49)
+        self.assertEqual(len(updates), 50)
         self.assertEqual(result['items']['syn'], 'xdp.syn')
         self.assertEqual(updates['xdp.syn']['value_type'], 3)
         self.assertEqual(updates['xdp.syn']['type'], 2)
@@ -100,7 +100,7 @@ class ProvisioningTests(unittest.TestCase):
                 return {}
         api = NewAPI()
         result = setup.provision(api, 'opla-lab-example')
-        self.assertEqual(sum(m == 'item.create' for m, _ in api.calls), 49)
+        self.assertEqual(sum(m == 'item.create' for m, _ in api.calls), 50)
         self.assertEqual(sum(m == 'trigger.create' for m, _ in api.calls), 23)
         self.assertEqual(sum(m == 'graph.create' for m, _ in api.calls), 5)
         self.assertEqual(len(result['dashboard']['pages']), 5)
