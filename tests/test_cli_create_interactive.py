@@ -6,6 +6,17 @@ from tests.test_opla_unified_cli import cli
 
 
 class InteractiveCreateTests(unittest.TestCase):
+    def test_interactive_commands_keep_terminal(self):
+        for command in (['vm', 'ssh'], ['vm', 'console'], ['lab', 'infra']):
+            with self.subTest(command=command), patch.object(cli.subprocess, 'run') as run:
+                run.return_value = subprocess.CompletedProcess([], 0)
+                self.assertEqual(cli.main(command), 0)
+                self.assertEqual(run.call_args.kwargs, {'check': False})
+
+    def test_console_interrupt_returns_130_without_traceback(self):
+        with patch.object(cli.subprocess, 'run', side_effect=KeyboardInterrupt):
+            self.assertEqual(cli.main(['vm', 'console']), 130)
+
     def test_user_authenticates_in_original_terminal_without_make(self):
         with patch.object(cli.os, 'geteuid', return_value=1000), patch.object(cli.subprocess, 'run') as run:
             run.return_value = subprocess.CompletedProcess([], 0)

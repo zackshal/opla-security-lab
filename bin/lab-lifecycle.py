@@ -126,6 +126,7 @@ def verify_nft_before_network_cleanup(table, bridge, *, management=False):
         expected.update({
             'chain input',
             'type filter hook input priority -19; policy accept;',
+            f'iifname "{bridge}" ct state established,related accept',
             f'iifname "{bridge}" drop',
         })
         expected = {line.replace('priority -20;', 'priority -19;') for line in expected}
@@ -295,6 +296,7 @@ add chain inet {mgmt_table} forward {{ type filter hook forward priority -19; po
 add rule inet {mgmt_table} forward iifname "{mgmt_bridge}" oifname != "{mgmt_bridge}" drop
 add rule inet {mgmt_table} forward oifname "{mgmt_bridge}" iifname != "{mgmt_bridge}" drop
 add chain inet {mgmt_table} input {{ type filter hook input priority -19; policy accept; }}
+add rule inet {mgmt_table} input iifname "{mgmt_bridge}" ct state established,related accept
 add rule inet {mgmt_table} input iifname "{mgmt_bridge}" drop
 '''
         call('nft', '-f', '-', input=rules)

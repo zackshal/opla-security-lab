@@ -128,6 +128,7 @@ add chain inet $MGMT_TABLE forward { type filter hook forward priority -19; poli
 add rule inet $MGMT_TABLE forward iifname "$MGMT_BRIDGE" oifname != "$MGMT_BRIDGE" drop
 add rule inet $MGMT_TABLE forward oifname "$MGMT_BRIDGE" iifname != "$MGMT_BRIDGE" drop
 add chain inet $MGMT_TABLE input { type filter hook input priority -19; policy accept; }
+add rule inet $MGMT_TABLE input iifname "$MGMT_BRIDGE" ct state established,related accept
 add rule inet $MGMT_TABLE input iifname "$MGMT_BRIDGE" drop
 NFT
 cat > "$LAB_DIR/dnsmasq.conf" <<CONF

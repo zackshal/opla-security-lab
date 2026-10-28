@@ -28,6 +28,16 @@ GOOD = f"""table inet {TABLE} {{
 }}"""
 
 class GuardTests(unittest.TestCase):
+    def test_management_allows_replies_but_blocks_unsolicited_input(self):
+        management = GOOD.replace('priority -20;', 'priority -19;').replace(
+            f'        iifname "{BRIDGE}" udp dport 67 accept\n', '')
+        with patch.object(mod, 'call', return_value=SimpleNamespace(returncode=0, stdout=management, stderr='')):
+            self.assertTrue(mod.verify_nft_before_network_cleanup(TABLE, BRIDGE, management=True))
+        broken = management.replace(f'        iifname "{BRIDGE}" ct state established,related accept\n', '')
+        with patch.object(mod, 'call', return_value=SimpleNamespace(returncode=0, stdout=broken, stderr='')):
+            with self.assertRaises(RuntimeError):
+                mod.verify_nft_before_network_cleanup(TABLE, BRIDGE, management=True)
+
     def test_expected_rules_accepted(self):
         with patch.object(mod, 'call', return_value=SimpleNamespace(returncode=0, stdout=GOOD, stderr='')):
             self.assertTrue(mod.verify_nft_before_network_cleanup(TABLE, BRIDGE))

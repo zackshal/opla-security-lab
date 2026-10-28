@@ -335,11 +335,17 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
         if runner is None:
             if args.group == 'lab' and args.action == 'create':
                 return create_lab_interactive()
+            if ((args.group == 'vm' and args.action in {'ssh', 'console'})
+                    or (args.group == 'lab' and args.action == 'infra')):
+                # Interactive SSH/console and sudo must retain the controlling TTY.
+                return subprocess.run(command, check=False).returncode
             return _run_owned(command, timeout=timeout).returncode
         result = runner(command, check=False, timeout=timeout)
         if type(getattr(result, "returncode", None)) is not int:
             raise ValueError("CLI runner returned invalid exit status")
         return result.returncode
+    except KeyboardInterrupt:
+        return 130
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"OPLA: ошибка запуска: {exc}", file=sys.stderr)
         return 2
