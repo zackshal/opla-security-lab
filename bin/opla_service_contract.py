@@ -43,14 +43,14 @@ class ServiceEnvelope:
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if self.schema_version != SCHEMA_VERSION:
+        if type(self.schema_version) is not int or self.schema_version != SCHEMA_VERSION:
             raise ValueError("unsupported service envelope schema")
-        if self.service not in SERVICES:
+        if not isinstance(self.service, str) or self.service not in SERVICES:
             raise ValueError("unknown service")
         _nonempty_string(self.operation, "operation")
-        if not _OPERATION_ID.fullmatch(self.operation_id):
+        if not isinstance(self.operation_id, str) or not _OPERATION_ID.fullmatch(self.operation_id):
             raise ValueError("invalid operation_id")
-        if not _LAB_ID.fullmatch(self.lab_id):
+        if not isinstance(self.lab_id, str) or not _LAB_ID.fullmatch(self.lab_id):
             raise ValueError("invalid lab_id")
         try:
             parsed = datetime.fromisoformat(self.requested_at.replace("Z", "+00:00"))

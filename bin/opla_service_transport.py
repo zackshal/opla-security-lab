@@ -8,7 +8,9 @@ operation state before dispatching a command.
 import json
 import asyncio
 import inspect
+import math
 import socket
+import time
 from typing import Any
 
 
@@ -16,11 +18,39 @@ class ServiceTransportError(RuntimeError):
     pass
 
 
+MAX_FRAME = 1_048_576
+
+
+async def _bounded_handler(result):
+    return await asyncio.wait_for(result, timeout=5.0)
+
+
+def _read_frame(connection, limit, timeout):
+    deadline = time.monotonic() + timeout
+    data = bytearray()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ServiceTransportError("service frame deadline exceeded")
+        connection.settimeout(remaining)
+        chunk = connection.recv(min(65536, limit + 1 - len(data)))
+        if not chunk:
+            raise ServiceTransportError("incomplete service frame")
+        data.extend(chunk)
+        if len(data) > limit:
+            raise ServiceTransportError("service frame too large")
+        if b"\n" in data:
+            line, trailing = bytes(data).split(b"\n", 1)
+            if trailing:
+                raise ServiceTransportError("multiple service frames are forbidden")
+            return line
+
+
 class JsonLineServiceClient:
     def __init__(self, socket_path: str, *, timeout: float = 5.0):
         if not isinstance(socket_path, str) or not socket_path:
             raise ValueError("socket_path must be non-empty")
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be positive")
         self.socket_path = socket_path
         self.timeout = float(timeout)
@@ -29,25 +59,19 @@ class JsonLineServiceClient:
         if not hasattr(envelope, "as_dict"):
             raise ValueError("envelope must provide as_dict()")
         try:
-            wire = json.dumps(envelope.as_dict(), sort_keys=True, separators=(",", ":"))
+            wire = json.dumps(envelope.as_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False)
         except (TypeError, ValueError) as exc:
             raise ServiceTransportError("envelope is not serializable") from exc
+        if len(wire.encode("utf-8")) + 1 > MAX_FRAME:
+            raise ServiceTransportError("request frame too large")
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                 sock.settimeout(self.timeout)
                 sock.connect(self.socket_path)
                 sock.sendall((wire + "\n").encode("utf-8"))
-                chunks = []
-                while True:
-                    chunk = sock.recv(65536)
-                    if not chunk:
-                        break
-                    chunks.append(chunk)
-                    if b"\n" in chunk:
-                        break
+                raw = _read_frame(sock, MAX_FRAME, self.timeout)
         except (OSError, TimeoutError) as exc:
             raise ServiceTransportError(f"service dispatch failed: {exc}") from exc
-        raw = b"".join(chunks).split(b"\n", 1)[0]
         if not raw:
             raise ServiceTransportError("service returned empty response")
         try:
@@ -102,28 +126,25 @@ class JsonLineServiceWorker:
             envelope = self.envelope_type.from_dict(request)
             result = self.handler(envelope)
             if inspect.isawaitable(result):
-                result = asyncio.run(result)
+                result = asyncio.run(_bounded_handler(result))
             if not isinstance(result, dict):
                 raise ServiceTransportError("service handler must return an object")
-            return (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()
+            response = (json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
+            if len(response) > self.max_frame:
+                raise ServiceTransportError("response frame too large")
+            return response
         except ServiceTransportError:
             raise
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
             raise ServiceTransportError("invalid service request") from exc
+        except Exception as exc:
+            raise ServiceTransportError("service handler failed; reconciliation required") from exc
 
     def serve_connection(self, connection) -> None:
         """Serve exactly one newline-delimited request on an accepted socket."""
-        data = bytearray()
-        while len(data) <= self.max_frame:
-            chunk = connection.recv(min(65536, self.max_frame + 1 - len(data)))
-            if not chunk:
-                break
-            data.extend(chunk)
-            if b"\n" in chunk:
-                break
-        line = bytes(data).split(b"\n", 1)[0]
         try:
+            line = _read_frame(connection, self.max_frame, 5.0)
             response = self.process_line(line)
-        except ServiceTransportError as exc:
+        except (ServiceTransportError, OSError) as exc:
             response = json.dumps({"status": "BLOCKED", "error": str(exc)}).encode() + b"\n"
         connection.sendall(response)

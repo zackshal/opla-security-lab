@@ -26,7 +26,7 @@ class AdapterServiceHandler:
     def __init__(self, service: str, adapter: Any):
         if service not in SERVICE_STEPS:
             raise ServiceHandlerError("unknown service")
-        if not hasattr(adapter, "execute") or not hasattr(adapter, "probe"):
+        if not callable(getattr(adapter, "execute", None)) or not callable(getattr(adapter, "probe", None)):
             raise ServiceHandlerError("adapter must provide execute and probe")
         self.service = service
         self.adapter = adapter
@@ -35,7 +35,7 @@ class AdapterServiceHandler:
         if envelope.service != self.service:
             raise ServiceHandlerError("envelope service does not match handler")
         step = envelope.payload.get("step")
-        if step not in SERVICE_STEPS[self.service]:
+        if not isinstance(step, str) or step not in SERVICE_STEPS[self.service]:
             raise ServiceHandlerError("step is outside service boundary")
         method_name = envelope.operation
         if method_name not in {"execute", "probe"}:

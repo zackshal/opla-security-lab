@@ -169,6 +169,9 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
         worker = TRANSPORT.JsonLineServiceWorker(CONTRACT.ServiceEnvelope, handler)
 
         class Connection:
+            def settimeout(self, timeout):
+                pass
+
             def __init__(self, data):
                 self.data = data
                 self.sent = b""
@@ -200,6 +203,9 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
             CONTRACT.ServiceEnvelope, lambda _envelope: called.append(True)
         )
         class Connection:
+            def settimeout(self, timeout):
+                pass
+
             def __init__(self):
                 self.sent = b""
 
