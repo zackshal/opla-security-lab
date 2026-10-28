@@ -1,4 +1,5 @@
 import importlib.util
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +22,25 @@ spec.loader.exec_module(module)
 
 
 class OrchestratorTests(unittest.TestCase):
+
+    def test_service_dispatch_receives_identity_bound_envelope(self):
+        received = []
+
+        class ServiceAdapter:
+            mode = "offline"
+
+            async def dispatch(self, envelope):
+                received.append(envelope)
+                return {"lab_id": envelope.lab_id, "ok": True}
+
+        result = asyncio.run(
+            module._call_service(
+                ServiceAdapter(), "probe", "create", "lab-ABC1"
+            )
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(received[0].service, "opla-host-backend")
+        self.assertEqual(received[0].operation_id, "offline:lab-ABC1:create:probe")
 
     def test_all_steps_success(self):
         results = module.run_steps(

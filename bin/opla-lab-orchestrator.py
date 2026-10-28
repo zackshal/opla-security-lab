@@ -7,6 +7,7 @@ lifecycle locks and explicit authorization.
 
 import argparse
 import asyncio
+from datetime import datetime, timezone
 import importlib.util
 import json
 import math
@@ -74,6 +75,51 @@ def load_progress():
 progress = load_progress()
 
 
+def _load_service_contract():
+    spec = importlib.util.spec_from_file_location(
+        "opla_service_contract",
+        Path(__file__).with_name("opla_service_contract.py"),
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+service_contract = _load_service_contract()
+
+
+def _service_for_step(step):
+    if step in {"preflight", "create"}:
+        return "opla-host-backend"
+    if step in {"configure", "health", "scenario"}:
+        return "opla-guest-agent"
+    return "opla-evidence"
+
+
+async def _call_service(adapter, method_name, step, lab_id):
+    """Call a service adapter while retaining the offline adapter contract.
+
+    A process-backed adapter implements ``dispatch(envelope)``. Existing fake
+    adapters may continue to expose ``execute``/``probe`` during migration.
+    """
+    dispatch = getattr(adapter, "dispatch", None)
+    if dispatch is None:
+        return await getattr(adapter, method_name)(step, lab_id)
+    envelope = service_contract.ServiceEnvelope(
+        service=_service_for_step(step),
+        operation=method_name,
+        operation_id=f"offline:{lab_id}:{step}:{method_name}",
+        lab_id=lab_id,
+        requested_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        payload={"step": step},
+        evidence={},
+    )
+    result = dispatch(envelope)
+    if hasattr(result, "__await__"):
+        result = await result
+    return result
+
+
 class ProbeFailure(ValueError):
     def __init__(self, message, evidence):
         super().__init__(message)
@@ -130,12 +176,14 @@ def run_acceptance(adapter, journal_path, lab_id, *, resume=False, timeout=30.0,
     async def bounded(method, step):
         budget = deadline(step)
         try:
-            return await asyncio.wait_for(method(step, lab_id), timeout=budget)
+            return await asyncio.wait_for(method(step), timeout=budget)
         except asyncio.TimeoutError as exc:
             raise StageTimeout(step, budget) from exc
 
     def probe(step):
-        evidence = asyncio.run(bounded(adapter.probe, step))
+        evidence = asyncio.run(
+            bounded(lambda current_step: _call_service(adapter, "probe", current_step, lab_id), step)
+        )
         if not isinstance(evidence, dict) or evidence.get("lab_id") != lab_id:
             raise ValueError(f"{step}: probe identity mismatch")
         json.dumps(evidence, allow_nan=False)
@@ -147,7 +195,9 @@ def run_acceptance(adapter, journal_path, lab_id, *, resume=False, timeout=30.0,
         index = ACCEPTANCE_STEPS.index(step)
         if index:
             probe(ACCEPTANCE_STEPS[index - 1])
-        action = asyncio.run(bounded(adapter.execute, step))
+        action = asyncio.run(
+            bounded(lambda current_step: _call_service(adapter, "execute", current_step, lab_id), step)
+        )
         if not isinstance(action, dict) or action.get("lab_id") != lab_id:
             raise ValueError(f"{step}: action identity mismatch")
         try:
