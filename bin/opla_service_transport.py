@@ -6,6 +6,8 @@ operation state before dispatching a command.
 """
 
 import json
+import asyncio
+import inspect
 import socket
 from typing import Any
 
@@ -99,8 +101,8 @@ class JsonLineServiceWorker:
             request = json.loads(raw.decode("utf-8"))
             envelope = self.envelope_type.from_dict(request)
             result = self.handler(envelope)
-            if hasattr(result, "__await__"):
-                raise ServiceTransportError("async handlers require an async worker")
+            if inspect.isawaitable(result):
+                result = asyncio.run(result)
             if not isinstance(result, dict):
                 raise ServiceTransportError("service handler must return an object")
             return (json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n").encode()

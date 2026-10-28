@@ -16,6 +16,11 @@ TRANSPORT_SPEC = importlib.util.spec_from_file_location(
 )
 TRANSPORT = importlib.util.module_from_spec(TRANSPORT_SPEC)
 TRANSPORT_SPEC.loader.exec_module(TRANSPORT)
+HANDLER_SPEC = importlib.util.spec_from_file_location(
+    "opla_service_handlers", ROOT / "bin" / "opla_service_handlers.py"
+)
+HANDLERS = importlib.util.module_from_spec(HANDLER_SPEC)
+HANDLER_SPEC.loader.exec_module(HANDLERS)
 
 
 class MicroserviceArchitectureDocsTests(unittest.TestCase):
@@ -211,6 +216,40 @@ class MicroserviceArchitectureDocsTests(unittest.TestCase):
             {"error": "invalid service request", "status": "BLOCKED"},
         )
         self.assertEqual(called, [])
+
+    def test_service_handler_enforces_boundary_and_preserves_adapter(self):
+        class Adapter:
+            async def execute(self, step, lab_id):
+                return {"lab_id": lab_id, "step": step, "action": True}
+
+            async def probe(self, step, lab_id):
+                return {"lab_id": lab_id, "step": step, "probe": True}
+
+        handler = HANDLERS.AdapterServiceHandler("opla-guest-agent", Adapter())
+        envelope = CONTRACT.ServiceEnvelope(
+            service="opla-guest-agent",
+            operation="probe",
+            operation_id="op-handler",
+            lab_id="lab-ABC123",
+            requested_at="2026-01-01T00:00:00Z",
+            payload={"step": "health"},
+            evidence={},
+        )
+        import asyncio
+        self.assertEqual(
+            asyncio.run(handler(envelope)),
+            {"lab_id": "lab-ABC123", "step": "health", "probe": True},
+        )
+        with self.assertRaises(ValueError):
+            asyncio.run(handler(CONTRACT.ServiceEnvelope(
+                service="opla-guest-agent",
+                operation="probe",
+                operation_id="op-handler-bad",
+                lab_id="lab-ABC123",
+                requested_at="2026-01-01T00:00:00Z",
+                payload={"step": "create"},
+                evidence={},
+            )))
 
 
 if __name__ == "__main__":
