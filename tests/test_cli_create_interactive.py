@@ -7,7 +7,9 @@ from tests.test_opla_unified_cli import cli
 
 class InteractiveCreateTests(unittest.TestCase):
     def test_interactive_commands_keep_terminal(self):
-        for command in (['vm', 'ssh'], ['vm', 'console'], ['lab', 'infra']):
+        for command in (['vm', 'ssh'], ['vm', 'console'], ['lab', 'infra'],
+                        ['lab', 'start'], ['lab', 'stop'], ['vm', 'snapshots'],
+                        ['vm', 'save', '--tag', 'fixture']):
             with self.subTest(command=command), patch.object(cli.subprocess, 'run') as run:
                 run.return_value = subprocess.CompletedProcess([], 0)
                 self.assertEqual(cli.main(command), 0)

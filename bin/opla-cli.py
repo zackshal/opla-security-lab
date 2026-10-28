@@ -335,8 +335,9 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
         if runner is None:
             if args.group == 'lab' and args.action == 'create':
                 return create_lab_interactive()
-            if ((args.group == 'vm' and args.action in {'ssh', 'console'})
-                    or (args.group == 'lab' and args.action == 'infra')):
+            if ((args.group == 'vm')
+                    or (args.group == 'lab' and args.action in {
+                        'start', 'stop', 'infra', 'configure', 'delete'})):
                 # Interactive SSH/console and sudo must retain the controlling TTY.
                 return subprocess.run(command, check=False).returncode
             return _run_owned(command, timeout=timeout).returncode

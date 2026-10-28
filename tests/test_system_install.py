@@ -9,6 +9,15 @@ SPEC.loader.exec_module(INSTALL)
 
 
 class SystemInstallTests(unittest.TestCase):
+    def test_sparse_copy_preserves_data_holes_and_trailing_size(self):
+        import io
+        content = b'a' * (1024 * 1024) + b'\0' * (2 * 1024 * 1024)
+        with tempfile.TemporaryFile() as output:
+            INSTALL.copy_sparse(io.BytesIO(content), output)
+            self.assertEqual(output.tell(), len(content))
+            output.seek(0)
+            self.assertEqual(output.read(), content)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

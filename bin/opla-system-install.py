@@ -16,6 +16,25 @@ import tempfile
 EXCLUDED = {'.git', '.venv', '.venv-docs', '__pycache__', '.codex', '.agents', '.aws', 'root'}
 
 
+def copy_sparse(incoming, outgoing):
+    """Preserve zero regions as holes without changing file contents.
+
+    Bounded memory, works with ordinary filesystems and needs no image tooling.
+    Existing VM backing images are never rewritten.
+    """
+    size = 0
+    while True:
+        chunk = incoming.read(1024 * 1024)
+        if not chunk:
+            break
+        size += len(chunk)
+        if not chunk.strip(b'\0'):
+            outgoing.seek(len(chunk), os.SEEK_CUR)
+        else:
+            outgoing.write(chunk)
+    outgoing.truncate(size)
+
+
 def inventory(source):
     source = Path(source).absolute()
     records = []
@@ -51,7 +70,7 @@ def install(source, destination, expected):
             target = staging / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             with (source / relative).open('rb') as incoming, target.open('xb') as outgoing:
-                shutil.copyfileobj(incoming, outgoing)
+                copy_sparse(incoming, outgoing)
             with target.open('rb') as stream:
                 if hashlib.file_digest(stream, 'sha256').hexdigest() != approved:
                     raise ValueError(f'source changed during copy: {relative}')
