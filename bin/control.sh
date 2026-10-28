@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-LAB_DIR="${LAB_DIR:-$(python3 "$PROJECT_DIR/bin/state.py" --latest)}"
+LAB_DIR="${LAB_DIR:-}"
 export LAB_DIR
-[[ -n "$LAB_DIR" ]] || { echo 'Нет активного стенда: make up' >&2; exit 1; }
+[[ -n "$LAB_DIR" ]] || { echo 'BLOCKED: LAB_DIR обязателен; выберите стенд явно через make lab-select' >&2; exit 2; }
 ACTION="${1:?}"; shift
 VICTIM_IP="$(python3 "$PROJECT_DIR/bin/state.py" "$LAB_DIR" VICTIM_IP)"
 source "$PROJECT_DIR/xdp/lib.sh"
@@ -17,8 +17,9 @@ case "$ACTION" in
         wait_vm_ready "$IP" "$VM" || exit 1
         done ;;
     console) exec "$PROJECT_DIR/bin/console.sh" "$LAB_DIR" "${1:-victim}" ;;
-    down) systemctl --user stop "opla-monitor-${LAB_DIR##*/}.service" 2>/dev/null || true
-        exec sudo "$PROJECT_DIR/bin/cleanup-lab.sh" "$LAB_DIR" ;;
+    down)
+        echo 'BLOCKED: direct control.sh down is disabled; use the verified lab-stop/lab-delete workflow.' >&2
+        exit 2 ;;
     dashboard) exec python3 "$PROJECT_DIR/xdp/dashboard.py" "$VICTIM_IP" ;;
     collect) ssh_vm "$VICTIM_IP" 'sudo python3 /tmp/xdp-build/collect.py' ;;
     test) ATTACKER_IP="$(python3 "$PROJECT_DIR/bin/state.py" "$LAB_DIR" ATTACKER_IP)"

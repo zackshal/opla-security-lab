@@ -6,7 +6,9 @@ mkdir -p reports
   cat images/*.sha256 2>/dev/null || true;
   docker compose -f monitoring/compose.yaml images 2>/dev/null || true;
 } > reports/versions-host.txt
-LAB_DIR="${LAB_DIR:-$(python3 bin/state.py --latest)}"; export LAB_DIR
+LAB_DIR="${LAB_DIR:-}"
+[[ -n "$LAB_DIR" ]] || { echo 'BLOCKED: LAB_DIR обязателен; выберите стенд явно' >&2; exit 2; }
+export LAB_DIR
 source xdp/lib.sh
 ssh_vm "$(get_victim_ip)" 'set -eu
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

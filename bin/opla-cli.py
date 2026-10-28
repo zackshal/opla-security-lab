@@ -97,7 +97,7 @@ COMMANDS = {
         "configure": ("monitoring-configure", "Настроить Zabbix API", []),
         "start": ("monitoring-start", "Запустить сбор метрик", []),
         "stop": ("monitoring-stop", "Остановить сбор метрик", []),
-        "down": ("monitoring-down", "Остановить мониторинг", []),
+        "down": ("monitoring-down", "Остановить общий мониторинг и все collectors", [("--confirm-global", "CONFIRM_GLOBAL")]),
     },
     "system": {
         "services": ("services-status", "Процессы сервисов: health, PID и версия протокола", []),
@@ -121,6 +121,7 @@ COMMANDS = {
 SAFE_VALUE = re.compile(r"^[A-Za-z0-9_./:@+-]+$")
 LAB_ID = re.compile(r"^lab-[A-Za-z0-9_-]+$")
 HOST_ID = re.compile(r"^[0-9a-f]{32}$")
+GLOBAL_MONITORING_CONFIRM = "I_UNDERSTAND_GLOBAL_MONITORING_DOWN"
 
 LEGACY = {
     "labs": "opla lab list",
@@ -215,6 +216,10 @@ def make_command(args):
 
     if group == "system" and action == "acceptance" and not args.check:
         raise ValueError("Требуется --check; выполнение приёмки не разрешено")
+
+    if group == "monitoring" and action == "down":
+        if args.confirm_global != GLOBAL_MONITORING_CONFIRM:
+            raise ValueError("Остановка общего monitoring требует --confirm-global I_UNDERSTAND_GLOBAL_MONITORING_DOWN")
 
     if group == "system" and action == "admission-import" and not HOST_ID.fullmatch(args.expected_host_id):
         raise ValueError("--expected-host-id должен быть независимым 32-символьным lowercase hex machine ID")

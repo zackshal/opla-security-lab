@@ -17,6 +17,13 @@ spec.loader.exec_module(acceptance)
 
 class AcceptanceCheckTests(unittest.TestCase):
 
+    def test_default_ansible_venv_is_deterministic_and_user_local(self):
+        home = Path("/tmp/example-user")
+        self.assertEqual(
+            acceptance.default_ansible_venv(home),
+            home / ".local/share/opla-acceptance/ansible-venv",
+        )
+
     def test_builtin_dual_nic_contract_is_verified_offline(self):
         valid, detail = acceptance.verify_builtin_topology()
         self.assertTrue(valid, detail)

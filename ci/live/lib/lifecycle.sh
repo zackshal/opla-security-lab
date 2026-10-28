@@ -25,24 +25,24 @@ else
 fi
 
 # 3. Create lab (autonomous, non-interactive by flag)
-CREATE_OUT="$(step lab_create opla lab create --confirm-host-changes 2>&1 | tee -a "$OUTPUT_DIR/logs/lab_create.log")" || true
-LAB_ID="$(echo "$CREATE_OUT" | grep -oE 'lab-[A-Za-z0-9]{8}' | tail -1)"
-if [[ -z "$LAB_ID" ]]; then
-  LAB_ID="$(opla lab list 2>/dev/null | grep -oE 'lab-[A-Za-z0-9]{8}' | tail -1)"
+CREATE_OUT=""
+if ! CREATE_OUT="$(step lab_create opla lab create --confirm-host-changes 2>&1)"; then
+  die "lab creation failed; refusing to select or clean up an inferred lab"
 fi
-[[ -n "$LAB_ID" ]] || die "could not resolve LAB_ID"
+LAB_ID="$(printf '%s\n' "$CREATE_OUT" | sed -n 's/^OPLA_CREATED_LAB_ID=\(lab-[A-Za-z0-9]\{8\}\)$/\1/p' | tail -1)"
+[[ -n "$LAB_ID" ]] || die "lab creation did not return a verified LAB_ID"
 echo "LAB_ID=$LAB_ID" >> "$LIFECYCLE_STATE"
 log "LAB_ID=$LAB_ID"
 
 opla lab select "$LAB_ID" 2>&1 | tee -a "$OUTPUT_DIR/logs/select.log"
-step lab_ready opla lab ready --lab "$LAB_ID"
+step lab_ready env LAB_DIR="/var/lib/opla/$LAB_ID" opla lab ready
 
 # 4. Activate. Zabbix prompts: prefer env, otherwise mark PARTIAL.
 if [[ -n "${OPLA_ZABBIX_USER:-}" && -n "${OPLA_ZABBIX_PASSWORD:-}" ]]; then
   step lab_activate opla lab activate "$LAB_ID"
 else
   log "WARN: OPLA_ZABBIX_* not set; activation may prompt. Will mark zabbix=SKIPPED."
-  step lab_activate opla lab activate "$LAB_ID" || log "activate failed or interrupted"
+  step lab_activate opla lab activate "$LAB_ID"
 fi
 
 # 5. Before-state
@@ -72,9 +72,9 @@ capture "$OUTPUT_DIR/evidence/ip-link-after.txt"         ip link
 # 8. Optional recovery drill
 if [[ "$OPLA_SKIP_RECOVERY" != "1" ]]; then
   T0="$(date +%s)"
-  step lab_stop    opla lab stop  --lab "$LAB_ID"
-  step lab_start   opla lab start --lab "$LAB_ID"
-  step lab_ready2  opla lab ready --lab "$LAB_ID"
+  step lab_stop    env LAB_DIR="/var/lib/opla/$LAB_ID" opla lab stop
+  step lab_start   env LAB_DIR="/var/lib/opla/$LAB_ID" opla lab start
+  step lab_ready2  env LAB_DIR="/var/lib/opla/$LAB_ID" opla lab ready
   step xdp_stats_after_recovery opla xdp stats
   echo "RECOVERY_DOWNTIME_S=$(( $(date +%s) - T0 ))" >> "$LIFECYCLE_STATE"
 fi

@@ -17,10 +17,20 @@ R[os_version]="$(grep -E '^VERSION_ID=' /etc/os-release 2>/dev/null | cut -d= -f
 # KVM
 if [[ -c /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then R[kvm]="ok"; else R[kvm]="missing_or_no_access"; fi
 
-# Tools
-for t in qemu-system-x86_64 qemu-img nft python3 make git jq clang bpftool; do
+# Tools used by bootstrap, image preparation, lifecycle, activation and evidence.
+REQUIRED_TOOLS=(
+  qemu-system-x86_64 qemu-img virt-customize virt-resize cloud-localds dnsmasq
+  ip nft flock systemd-run systemctl python3 make git jq clang bpftool curl
+  ssh scp docker
+)
+for t in "${REQUIRED_TOOLS[@]}"; do
   if command -v "$t" >/dev/null 2>&1; then R["tool_$t"]="ok"; else R["tool_$t"]="missing"; fi
 done
+if docker compose version >/dev/null 2>&1; then
+  R[docker_compose]="ok"
+else
+  R[docker_compose]="missing"
+fi
 
 # Free RAM (MiB)
 RAM_MB="$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)"
@@ -37,17 +47,21 @@ if sudo -n true >/dev/null 2>&1; then R[sudo_nopasswd]="ok"; else R[sudo_nopassw
 if curl -fsI --max-time 10 https://cloud.debian.org/images/cloud/ >/dev/null 2>&1; then
   R[outbound_debian]="ok"; else R[outbound_debian]="missing"; fi
 
-# Emit JSON
-{
-  echo "{"
-  first=1
-  for k in "${!R[@]}"; do
-    [[ $first -eq 1 ]] && first=0 || echo ","
-    printf '  %q: %q' "$k" "${R[$k]}"
-  done
-  echo
-  echo "}"
-} >"$PRE"
+# Emit JSON with a real encoder; shell quoting (%q) is not JSON quoting.
+json_args=()
+for k in "${!R[@]}"; do
+  json_args+=("$k" "${R[$k]}")
+done
+python3 - "$PRE" "${json_args[@]}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+if len(sys.argv[2:]) % 2:
+    raise SystemExit("preflight JSON encoder received an uneven key/value list")
+values = dict(zip(sys.argv[2::2], sys.argv[3::2]))
+Path(sys.argv[1]).write_text(json.dumps(values, ensure_ascii=False, sort_keys=True) + "\n")
+PY
 
 # Fail-closed decisions
 fails=()
@@ -56,7 +70,7 @@ fails=()
 [[ "${R[disk_available_gib]}" -ge 30 ]] || fails+=("disk<30GiB")
 [[ "${R[sudo_nopasswd]}" == "ok" ]] || fails+=("sudo -n")
 [[ "${R[outbound_debian]}" == "ok" ]] || fails+=("no outbound to cloud.debian.org")
-for t in qemu-system-x86_64 qemu-img nft python3 make git jq clang bpftool; do
+for t in "${REQUIRED_TOOLS[@]}"; do
   [[ "${R[tool_$t]}" == "ok" ]] || fails+=("tool:$t")
 done
 

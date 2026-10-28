@@ -42,8 +42,10 @@ lab-stop:
 lab-infra-status:
 	@sudo python3 bin/lab-lifecycle.py status --lab "$(LAB_DIR)"
 # Zabbix/PostgreSQL are shared between labs; stop globally only when explicit.
-lab-stack-down: lab-stop
-	@bash monitoring/manage.sh monitoring-down
+lab-stack-down:
+	@test "$(CONFIRM_GLOBAL)" = "I_UNDERSTAND_GLOBAL_MONITORING_DOWN" || { echo "BLOCKED: pass CONFIRM_GLOBAL=I_UNDERSTAND_GLOBAL_MONITORING_DOWN before stopping any shared monitoring" >&2; exit 2; }
+	@$(MAKE) --no-print-directory lab-stop
+	@CONFIRM_GLOBAL="$(CONFIRM_GLOBAL)" bash monitoring/manage.sh monitoring-down
 .PHONY: install uninstall lab-delete stack-down
 # Only installs/removes a per-user CLI wrapper; not OS dependencies.
 install:
@@ -104,13 +106,16 @@ xdp-stats:
 	@./bin/control.sh collect
 check:
 	@python3 tests/check.py
+	@python3 tools/check-documentation.py
 
 .PHONY: engineering-check
 engineering-check:
 	@python3 -m unittest discover -s tests -p 'test_engineering_ledger.py' -v
 	@python3 bin/opla-engineering-ledger.py evaluate
-monitoring-up monitoring-down monitoring-configure monitoring-start monitoring-stop:
+monitoring-up monitoring-configure monitoring-start monitoring-stop:
 	@./monitoring/manage.sh "$@"
+monitoring-down:
+	@CONFIRM_GLOBAL="$(CONFIRM_GLOBAL)" ./monitoring/manage.sh "$@"
 versions:
 	@./bin/versions.sh
 
@@ -333,12 +338,13 @@ lab-configure:
 	@test "$(LAB)" = "$(CONFIRM)" || { echo "BLOCKED: confirmation mismatch"; exit 2; }
 	@sudo python3 bin/opla-lab-configure-launcher.py "$(LAB)" "$(CONFIRM)"
 
-# One explicit command configures guest protection, then provisions and starts
-# the Zabbix dashboard and its per-lab collector.
+# One explicit command configures guest protection and, by default, provisions
+# and starts the optional Zabbix dashboard and per-lab collector. Set
+# OPLA_ENABLE_MONITORING=0 to keep monitoring disabled.
 lab-activate:
 	@test -n "$(LAB)" || { echo "BLOCKED: LAB required"; exit 2; }
 	@test "$(LAB)" = "$(CONFIRM)" || { echo "BLOCKED: confirmation mismatch"; exit 2; }
-	@bash bin/opla-lab-activate.sh "$(LAB)" "$(CONFIRM)"
+	@OPLA_ENABLE_MONITORING="$(or $(OPLA_ENABLE_MONITORING),1)" bash bin/opla-lab-activate.sh "$(LAB)" "$(CONFIRM)"
 
 # P13: custom infrastructure manifest, strictly read-only.
 .PHONY: deploy-validate deploy-plan

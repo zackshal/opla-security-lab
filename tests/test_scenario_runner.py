@@ -6,7 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    raise unittest.SkipTest("PyYAML unavailable; scenario YAML tests skipped")
 
 ROOT = Path(__file__).resolve().parents[1]
 

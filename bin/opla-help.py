@@ -48,7 +48,7 @@ SECTIONS = [
         ('monitoring-configure', 'Настроить объекты Zabbix через API'),
         ('monitoring-start', 'Запустить сборщик метрик выбранного стенда'),
         ('monitoring-stop', 'Остановить сборщик выбранного стенда'),
-        ('monitoring-down', 'Остановить Zabbix и сборщики; volume БД сохраняется'),
+        ('monitoring-down CONFIRM_GLOBAL=I_UNDERSTAND_GLOBAL_MONITORING_DOWN', 'Остановить общий Zabbix и все сборщики; volume БД сохраняется'),
     ]),
     ('СНИМКИ И РЕЗЕРВИРОВАНИЕ', [
         ('vm-save VM=client TAG=name', 'Создать QMP-снимок работающей VM'),

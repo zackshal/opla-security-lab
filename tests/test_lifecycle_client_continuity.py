@@ -12,7 +12,10 @@ import tempfile
 import unittest
 from unittest import mock
 
-import test_lifecycle_artifacts as fixtures
+try:
+    from tests import test_lifecycle_artifacts as fixtures
+except (ImportError, unittest.SkipTest):
+    fixtures = None
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("client_coverage_report", ROOT / "bin/opla-incident-report.py")
@@ -243,6 +246,7 @@ class ClientArtifactTests(unittest.TestCase):
         self.assertEqual(self.coverage(interval)["status"], "invalid")
 
 
+@unittest.skipIf(fixtures is None, "PyYAML unavailable; lifecycle integration tests skipped")
 class ClientIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.fixture = fixtures.ArtifactAcceptanceTests(methodName="runTest")

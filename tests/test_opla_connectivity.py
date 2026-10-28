@@ -9,7 +9,10 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    raise unittest.SkipTest("PyYAML unavailable; deployment YAML tests skipped")
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin/opla-deploy.py"

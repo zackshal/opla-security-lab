@@ -9,7 +9,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_lifecycle_acceptance import FakeAdapter, orchestrator
+try:
+    import yaml  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("PyYAML unavailable; lifecycle artifact parser tests skipped")
+
+from tests.test_lifecycle_acceptance import FakeAdapter, orchestrator
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("lab_artifacts", ROOT / "bin/opla-lab-artifacts.py")

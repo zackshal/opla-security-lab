@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from test_lifecycle_acceptance import FakeAdapter, orchestrator
+from tests.test_lifecycle_acceptance import FakeAdapter, orchestrator
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("lab_operations", ROOT / "bin/opla-lab-operations.py")

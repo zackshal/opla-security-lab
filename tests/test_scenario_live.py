@@ -7,6 +7,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+try:
+    import yaml  # noqa: F401
+except ImportError:
+    raise unittest.SkipTest("PyYAML unavailable; scenario YAML tests skipped")
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin/opla-scenario-live.py"
 

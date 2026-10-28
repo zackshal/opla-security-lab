@@ -11,6 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def default_ansible_venv(home):
+    """Return the reproducible user-local Ansible environment location."""
+    return Path(home) / ".local/share/opla-acceptance/ansible-venv"
+
+
 def verify_builtin_topology(root=ROOT):
     """Check the built-in dual-NIC source contract without executing it."""
     root = Path(root)
@@ -80,7 +85,7 @@ def check():
     home = Path.home()
     guest_dir = home / ".local/share/opla-acceptance/debian12-amd64"
     venv = Path(os.environ.get(
-        "OPLA_ANSIBLE_VENV", "/tmp/opla-ansible.RDp8NwWE"
+        "OPLA_ANSIBLE_VENV", str(default_ansible_venv(home))
     ))
 
     checks = []

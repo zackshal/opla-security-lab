@@ -55,10 +55,7 @@ def current():
     chosen = selected()
     if chosen is not None:
         return chosen
-    recent = latest()
-    if recent:
-        return validate(Path(recent).name)[0]
-    raise ValueError('Стенды не найдены: сначала make up')
+    raise ValueError('Лаборатория не выбрана: сначала make lab-select LAB=lab-XXXXXXXX')
 
 
 def unit_active(unit):

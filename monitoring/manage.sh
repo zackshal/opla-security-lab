@@ -29,6 +29,10 @@ if [[ "$ACTION" == monitoring-up ]]; then
     exit
 fi
 if [[ "$ACTION" == monitoring-down ]]; then
+    [[ "${CONFIRM_GLOBAL:-}" == "I_UNDERSTAND_GLOBAL_MONITORING_DOWN" ]] || {
+        echo 'BLOCKED: monitoring-down stops the shared stack and every lab collector; pass CONFIRM_GLOBAL=I_UNDERSTAND_GLOBAL_MONITORING_DOWN' >&2
+        exit 2
+    }
     # Останавливаем сборщики до остановки сервера, БД сохраняется в volume.
     for unit in $(systemctl --user list-units --plain --no-legend 'opla-monitor-lab-*' | awk '{print $1}'); do
         systemctl --user stop "$unit"
@@ -36,7 +40,12 @@ if [[ "$ACTION" == monitoring-down ]]; then
     "${COMPOSE[@]}" down
     exit
 fi
-LAB_DIR="${LAB_DIR:-$(python3 bin/state.py --latest)}"; export LAB_DIR
+LAB_DIR="${LAB_DIR:-}"
+[[ -n "$LAB_DIR" ]] || {
+    echo 'BLOCKED: LAB_DIR обязателен; выберите лабораторию явно' >&2
+    exit 2
+}
+export LAB_DIR
 LAB_ID="$(python3 bin/state.py "$LAB_DIR" LAB_ID)"
 MONITORING_STATE="$HOME/.local/state/opla/monitoring"
 case "$ACTION" in

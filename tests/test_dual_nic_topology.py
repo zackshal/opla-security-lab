@@ -1,6 +1,7 @@
 """Offline contract tests for the built-in dual-NIC academic topology."""
 import importlib.util
 from pathlib import Path
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,10 +30,22 @@ class DualNicTopologyTests(unittest.TestCase):
     def test_ssh_transport_resolves_data_identity_to_management_address(self):
         source = (ROOT / 'xdp/lib.sh').read_text(encoding='utf-8')
         self.assertIn('SSH_IP', source)
+        self.assertIn('LAB_DIR="${LAB_DIR:-}"', source)
+        self.assertNotIn('state.py" --latest', source)
+        self.assertIn('LAB_DIR обязателен', source)
         state = (ROOT / 'bin/state.py').read_text(encoding='utf-8')
         self.assertIn('ATTACKER_MGMT_IP', state)
         self.assertIn('VICTIM_MGMT_IP', state)
         self.assertIn('CLIENT_MGMT_IP', state)
+
+    def test_xdp_helper_requires_explicit_lab_at_runtime(self):
+        result = subprocess.run(
+            ['bash', '-c', 'source "$1/xdp/lib.sh"', 'test', str(ROOT)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('LAB_DIR обязателен', result.stderr)
 
 
 if __name__ == '__main__':

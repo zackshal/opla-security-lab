@@ -2,8 +2,8 @@
 # Один запуск после make up/ready: HTTP-политика, метрики, dashboard, сборщик.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export LAB_DIR="${LAB_DIR:-$(python3 bin/state.py --latest)}"
-[[ -n "$LAB_DIR" ]] || { echo 'Сначала make up и make ready' >&2; exit 1; }
+export LAB_DIR="${LAB_DIR:-}"
+[[ -n "$LAB_DIR" ]] || { echo 'BLOCKED: LAB_DIR обязателен; выберите стенд явно' >&2; exit 2; }
 ./monitoring/manage.sh monitoring-stop
 bash bin/security-http.sh apply
 ./bin/control.sh deploy

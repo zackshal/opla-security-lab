@@ -72,6 +72,15 @@ class UnifiedCLITests(unittest.TestCase):
                 )
             )
 
+    def test_global_monitoring_down_requires_exact_confirmation(self):
+        with self.assertRaisesRegex(ValueError, "confirm-global"):
+            cli.make_command(self.parse("monitoring", "down", "--confirm-global", "wrong"))
+        command = cli.make_command(self.parse(
+            "monitoring", "down",
+            "--confirm-global", "I_UNDERSTAND_GLOBAL_MONITORING_DOWN"))
+        self.assertIn("monitoring-down", command)
+        self.assertIn("CONFIRM_GLOBAL=I_UNDERSTAND_GLOBAL_MONITORING_DOWN", command)
+
     def test_vm_rollback_requires_confirmation(self):
         with self.assertRaisesRegex(ValueError, "rollback"):
             cli.make_command(

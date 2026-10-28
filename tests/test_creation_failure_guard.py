@@ -22,5 +22,12 @@ class CreationFailureGuardTests(unittest.TestCase):
     def test_shell_syntax(self):
         subprocess.run(['bash', '-n', str(ROOT / 'bin' / 'create-lab.sh')], check=True)
 
+    def test_legacy_cleanup_entrypoint_is_disabled(self):
+        cleanup = (ROOT / 'bin' / 'cleanup-lab.sh').read_text()
+        control = (ROOT / 'bin' / 'control.sh').read_text()
+        self.assertIn('legacy cleanup-lab.sh is disabled', cleanup)
+        self.assertIn('direct control.sh down is disabled', control)
+        self.assertNotIn('exec sudo "$PROJECT_DIR/bin/cleanup-lab.sh"', control)
+
 if __name__ == '__main__':
     unittest.main()
