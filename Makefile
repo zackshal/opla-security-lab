@@ -10,6 +10,10 @@ VM ?= victim
 help:
 	@python3 bin/opla-help.py help
 
+.PHONY: services-status
+services-status:
+	@python3 bin/opla-services.py
+
 .PHONY: manual help-full help-xdp help-vm labs lab-select lab-status nodes doctor
 manual help-full help-xdp help-vm:
 	@python3 bin/opla-help.py "$@"

@@ -2,12 +2,16 @@
 """Unified OPLA Security Lab CLI."""
 
 import argparse
+import asyncio
+from datetime import datetime, timezone
+import json
 import math
 import os
 import re
 import signal
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,6 +99,7 @@ COMMANDS = {
         "down": ("monitoring-down", "Остановить мониторинг", []),
     },
     "system": {
+        "services": ("services-status", "Процессы сервисов: health, PID и версия протокола", []),
         "acceptance": ("acceptance-check", "Read-only проверка готовности к приёмке", []),
         "bootstrap": ("bootstrap", "Подготовить хост", []),
         "doctor": ("doctor", "Проверить зависимости", []),
@@ -169,6 +174,9 @@ def build_parser():
 
             if group == "system" and action == "acceptance":
                 command.add_argument("--check", action="store_true")
+            if group == 'report' and action == 'incident':
+                command.add_argument('--via-service', action='store_true', help='Use the local evidence worker')
+                command.add_argument('--lab', help='Required with --via-service; must match evidence interval')
             if group == "monitoring" and action == "publish":
                 command.add_argument("--dry-run", action="store_true")
             if group == "lab" and action == "configure":
@@ -333,6 +341,8 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
     try:
         validate_cli_timeout(timeout)
         if runner is None:
+            if getattr(args, 'via_service', False):
+                return service_incident_report(args)
             if args.group == 'lab' and args.action == 'create':
                 return create_lab_interactive()
             if ((args.group == 'vm')
@@ -347,7 +357,7 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
         return result.returncode
     except KeyboardInterrupt:
         return 130
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         print(f"OPLA: ошибка запуска: {exc}", file=sys.stderr)
         return 2
 
@@ -370,6 +380,25 @@ def create_lab_interactive():
         print('Создание не завершено. Проверьте ошибку выше; при частичном создании '
               'требуется сверка ресурсов перед повторным запуском.', file=sys.stderr)
     return result.returncode
+
+
+def service_incident_report(args):
+    if args.eve or args.scan_events:
+        raise ValueError('--via-service does not support external log overrides')
+    from opla_service_contract import ServiceEnvelope
+    from opla_service_runtime import AsyncServiceClient
+    if not args.lab:
+        raise ValueError('--lab is required with --via-service')
+    runtime = os.environ.get('XDG_RUNTIME_DIR')
+    if not runtime:
+        raise ValueError('XDG_RUNTIME_DIR is required for local services')
+    envelope = ServiceEnvelope('opla-evidence', 'incident_report', uuid.uuid4().hex,
+                               args.lab, datetime.now(timezone.utc).isoformat(),
+                               {'path': str(Path(args.path).absolute())}, {})
+    client = AsyncServiceClient(Path(runtime) / 'opla/opla-evidence.sock', timeout=35)
+    result = asyncio.run(client.dispatch(envelope))
+    print(json.dumps(result['report'], ensure_ascii=False, indent=2))
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+[Unit]
+Description=OPLA user service boundary (%i)
+
+[Service]
+Type=simple
+UMask=0077
+RuntimeDirectory=opla
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+ExecStart=/usr/bin/python3 /opt/opla/bin/opla-service.py --service %i --socket %t/opla/%i.sock --timeout 30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%t/opla
+MemoryMax=128M
+TasksMax=32
+CPUWeight=20
+Restart=no
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target

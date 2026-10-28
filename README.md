@@ -45,6 +45,11 @@
 
 ## Архитектура
 
+[Сервисная архитектура управления](docs/service-management-architecture.md):
+единый CLI, пять сервисных границ, Unix process runtime и критерии миграции.
+Статус процессов после обновления установки: `opla system services` (из checkout:
+`python3 bin/opla-cli.py system services`); это не проверка готовности VM/XDP/IDS.
+
 Каноническая граница компонентов и жизненного цикла описана в
 [краткой архитектуре](docs/architecture.md). Нижняя схема показывает только
 путь трафика и telemetry; она не означает поддержку других ОС, ISA или live
