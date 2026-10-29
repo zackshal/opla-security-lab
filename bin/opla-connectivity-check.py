@@ -6,6 +6,7 @@ import importlib.util
 import ipaddress
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -18,7 +19,37 @@ spec = importlib.util.spec_from_file_location(
 deploy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
 
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+from opla_process import run_bounded
+
 USER_RE = re.compile(r"[a-z_][a-z0-9_-]{0,31}\Z")
+SYSTEM_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
+MAX_KNOWN_HOSTS_BYTES = 16 * 1024 * 1024
+MAX_IDENTITY_BYTES = 1024 * 1024
+MAX_COMMAND_OUTPUT_BYTES = 16 * 1024
+
+
+def trusted_executable(name):
+    """Resolve a root-owned system executable, ignoring the user's PATH."""
+    try:
+        raw = shutil.which(name, path=SYSTEM_PATH)
+        if not raw:
+            return None
+        executable = Path(raw).resolve()
+        if not any(executable.is_relative_to(root) for root in (
+            Path("/usr/bin"), Path("/usr/sbin"), Path("/bin"), Path("/sbin")
+        )):
+            return None
+        cursor = executable
+        while cursor != cursor.parent:
+            info = cursor.stat()
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                return None
+            cursor = cursor.parent
+        return str(executable)
+    except OSError:
+        return None
 
 
 def safe_file(value, label, private=False):
@@ -36,6 +67,9 @@ def safe_file(value, label, private=False):
         raise ValueError(f"{label}: writable by group or others")
     if private and st.st_mode & 0o077:
         raise ValueError(f"{label}: private key permissions too broad")
+    size_limit = MAX_IDENTITY_BYTES if private else MAX_KNOWN_HOSTS_BYTES
+    if st.st_size > size_limit:
+        raise ValueError(f"{label}: file exceeds {size_limit} byte limit")
     return str(path)
 
 
@@ -46,13 +80,17 @@ def host_token(ip, port):
 
 
 def known_host(known_hosts, ip, port):
-    result = subprocess.run(
-        ["ssh-keygen", "-F", host_token(ip, port), "-f", known_hosts],
-        capture_output=True,
-        text=True,
-        timeout=5,
-        check=False,
+    executable = trusted_executable("ssh-keygen")
+    if executable is None:
+        raise ValueError("trusted system ssh-keygen is unavailable")
+    result = run_bounded(
+        [executable, "-F", host_token(ip, port), "-f", known_hosts],
+        timeout=5, max_output_bytes=MAX_COMMAND_OUTPUT_BYTES,
     )
+    if getattr(result, "output_limited", False):
+        if getattr(result, "cleanup_error", None):
+            raise ValueError("ssh-keygen output limit cleanup is uncertain")
+        raise ValueError("ssh-keygen output exceeded the safety limit")
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
@@ -123,8 +161,11 @@ def check_node(node, default, connect=False):
         if not connect:
             return "NOT TESTED", "host keys pinned; SSH not attempted"
 
+        executable = trusted_executable("ssh")
+        if executable is None:
+            return "BLOCKED", "trusted system ssh executable is unavailable"
         command = [
-            "ssh", "-F", "/dev/null",
+            executable, "-F", "/dev/null",
             "-o", "BatchMode=yes",
             "-o", "StrictHostKeyChecking=yes",
             "-o", f"UserKnownHostsFile={known_hosts}",
@@ -146,15 +187,16 @@ def check_node(node, default, connect=False):
 
         command += ["--", f"{node['ssh_user']}@{address}", "true"]
 
-        result = subprocess.run(
+        result = run_bounded(
             command,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
             timeout=20,
-            check=False,
+            max_output_bytes=MAX_COMMAND_OUTPUT_BYTES,
         )
 
+        if getattr(result, "cleanup_error", None):
+            return "BLOCKED", "SSH output limit cleanup is uncertain"
+        if getattr(result, "output_limited", False):
+            return "BLOCKED", "SSH output exceeded the safety limit"
         if result.returncode:
             return "BLOCKED", f"SSH failed (exit {result.returncode})"
         return "PASS", "SSH authentication and remote true succeeded"

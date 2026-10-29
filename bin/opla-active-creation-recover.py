@@ -31,6 +31,19 @@ Blocked = rollback.Blocked
 
 ROLES = ('attacker', 'victim', 'client')
 
+
+def process_starttime(stat_path):
+    """Return Linux proc stat starttime, parsing comm fields with parentheses."""
+    raw = Path(stat_path).read_text(encoding='ascii')
+    closing = raw.rfind(')')
+    if closing < 0:
+        raise Blocked('malformed proc stat identity')
+    fields = raw[closing + 1:].split()
+    # The tail begins at field 3 (state); starttime is field 22 (index 19).
+    if len(fields) <= 19 or not fields[19].isdecimal():
+        raise Blocked('malformed proc stat starttime')
+    return fields[19]
+
 def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
     """Fail closed when another process has any lab file open or wrong PID.
 
@@ -59,6 +72,7 @@ def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
         if data['ActiveState'] == 'active':
             if int(pid) == 0:
                 raise Blocked('active unit without PID: ' + unit)
+            starttime = process_starttime(proc_root / pid / 'stat')
             cmd = (proc_root / pid / 'cmdline').read_bytes().split(b'\x00')
             exe = os.readlink(proc_root / pid / 'exe')
             cgroup = (proc_root / pid / 'cgroup').read_text()
@@ -71,9 +85,11 @@ def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
             if (Path(exe).name != binary or not marker_matches or
                     not any(unit in path for path in paths)):
                 raise Blocked('process identity mismatch: ' + unit)
+            if process_starttime(proc_root / pid / 'stat') != starttime:
+                raise Blocked('process identity changed during inspection: ' + unit)
             if int(pid) in pids:
                 raise Blocked('systemd units share PID: ' + unit)
-            pids[int(pid)] = unit
+            pids[int(pid)] = (unit, starttime)
         elif int(pid) != 0:
             raise Blocked('inactive unit retains PID: ' + unit)
     # Require that every process with this lab in cmdline or open fd is tracked.
@@ -83,6 +99,10 @@ def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
         if not proc.name.isdecimal():
             continue
         try:
+            pid = int(proc.name)
+            starttime = process_starttime(proc / 'stat')
+            if pid in pids and pids[pid][1] != starttime:
+                raise Blocked('systemd PID was reused: ' + proc.name)
             cmd = (proc / 'cmdline').read_bytes()
             fd = proc / 'fd'
             paths = []
@@ -97,7 +117,9 @@ def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
                 except FileNotFoundError:
                     continue
             references = base.encode() in cmd or any(p == base or p.startswith(base + '/') for p in paths)
-            if references and int(proc.name) not in pids:
+            if process_starttime(proc / 'stat') != starttime:
+                raise Blocked('process identity changed during FD inspection: ' + proc.name)
+            if references and pid not in pids:
                 raise Blocked('untracked process references lab: PID ' + proc.name)
         except FileNotFoundError:
             continue
@@ -109,7 +131,8 @@ def process_evidence(root, lab, *, runner=None, proc_root=Path('/proc')):
 
 
 def locked_recover(root, lab, confirm, *, audit=preflight.audit,
-                   evidence=process_evidence, stop=None, offline=None):
+                   evidence=process_evidence, stop=None, offline=None,
+                   verify_policies=None):
     """Integration hooks are injectable for tests, not CLI options."""
     root = prune.safe_root(root)
     if confirm != 'RECOVER-CREATION:' + lab:
@@ -127,12 +150,17 @@ def locked_recover(root, lab, confirm, *, audit=preflight.audit,
         # Recheck before first host mutation, under the same OPLA lock.
         audit(root, lab)
         evidence(root, lab)
+        lifecycle_state = None
+        if stop is None:
+            lifecycle_state = lifecycle.load(str(root / lab))
+            lifecycle.verify_lab_nft_policies(lifecycle_state)
+        elif verify_policies is not None:
+            verify_policies(root, lab)
         prune.write_journal(root, lab, 'planned', {'operation': 'active_creation_recovery', 'lab': lab})
         try:
             if stop is None:
                 # The standard QMP stop never sends SIGKILL and refuses timeout.
-                state = lifecycle.load(str(root / lab))
-                lifecycle.clean_stop(root / lab, state)
+                lifecycle.clean_stop(root / lab, lifecycle_state)
             else:
                 stop(root, lab)
             # Never remove disks until proc/fd and all host resource probes confirm absent.

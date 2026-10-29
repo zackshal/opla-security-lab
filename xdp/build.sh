@@ -12,7 +12,7 @@ WINDOW_NS="${WINDOW_NS:-1000000000}"
     exit 2
 }
 
-scp_vm "$VICTIM_IP" /tmp/xdp-build/ "$PROJECT_DIR/xdp/fingerprint.py"
+scp_vm "$VICTIM_IP" /tmp/xdp-build/ "$PROJECT_DIR/xdp/fingerprint.py" "$PROJECT_DIR/xdp/runtime-guard.py"
 
 ssh_vm "$VICTIM_IP" "cd /tmp/xdp-build && rm -f build-manifest.json && make clean && make THRESHOLD=$THRESHOLD MAX_SOURCES=$MAX_SOURCES WINDOW_NS=$WINDOW_NS"
 

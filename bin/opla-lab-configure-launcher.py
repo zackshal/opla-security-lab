@@ -48,6 +48,7 @@ def verify_trusted_code():
         "opla-lab-configure.sh",
         "opla-create-launcher.py",
         "create-lab.sh",
+        "opla-registry.py",
     ):
         path = HERE / name
         st = path.lstat()
@@ -122,7 +123,7 @@ def configure_timeout_from_env(env=None):
     return validate_configure_timeout(timeout)
 
 
-def run_configure(command, *, cwd, env, preexec_fn, timeout=DEFAULT_CONFIGURE_TIMEOUT,
+def run_configure(command, *, cwd, env, preexec_fn, timeout=DEFAULT_CONFIGURE_TIMEOUT, pass_fds=(),
                   popen_factory=None, killpg=os.killpg, grace=CONFIGURE_TERMINATION_GRACE):
     """Run configure in an isolated process group and reap it on timeout.
 
@@ -140,6 +141,7 @@ def run_configure(command, *, cwd, env, preexec_fn, timeout=DEFAULT_CONFIGURE_TI
         env=env,
         preexec_fn=preexec_fn,
         start_new_session=True,
+        pass_fds=pass_fds,
     )
     try:
         return subprocess.CompletedProcess(command, process.wait(timeout=timeout))
@@ -269,6 +271,19 @@ def persist_configure_reconciliation(lab, lab_id, timeout, cleanup_evidence,
     return path
 
 
+def registry_ready_snapshot(lab_id):
+    """Inspect private receipts as root, before dropping to the SSH user."""
+    spec = importlib.util.spec_from_file_location("opla_configure_registry", HERE / "opla-registry.py")
+    registry = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(registry)
+    records = registry.inspect(ROOT, lab_id)
+    if (len(records) != 1 or records[0].get("lab") != lab_id
+            or records[0].get("status") != "recorded"):
+        status = records[0].get("status", "missing") if len(records) == 1 else "missing_or_ambiguous"
+        raise RuntimeError(f"laboratory registry check failed: {status}; retain lab and inspect receipt/state as root")
+    return records
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     lab_id = validate_arguments(argv)
@@ -295,7 +310,16 @@ def main(argv=None):
             locks.lifecycle_lock(lab / "maintenance.lock")
         )
 
-        # Keep the privileged operation limited to lock ownership.
+        # A root-owned private snapshot stays readable through its inherited FD
+        # after setuid; no receipt permissions or registry ownership are changed.
+        snapshot = stack.enter_context(tempfile.TemporaryFile(mode="w+b"))
+        snapshot.write(json.dumps(registry_ready_snapshot(lab_id)).encode())
+        snapshot.flush()
+        snapshot.seek(0)
+        registry_fd = os.open(f"/proc/self/fd/{snapshot.fileno()}", os.O_RDONLY)
+        stack.callback(os.close, registry_fd)
+
+        # Locks and private registry inspection stay in the privileged parent.
         # The configuration itself executes as the original user.
         def drop_privileges():
             os.initgroups(user.pw_name, user.pw_gid)
@@ -316,9 +340,10 @@ def main(argv=None):
 
         try:
             result = run_configure(
-                ["/bin/bash", str(HERE / "opla-lab-configure.sh"), lab_id, lab_id],
+                ["/bin/bash", str(HERE / "opla-lab-configure.sh"), lab_id, lab_id, str(registry_fd)],
                 cwd=str(HERE.parent), env=env, preexec_fn=drop_privileges,
                 timeout=configure_timeout,
+                pass_fds=(registry_fd,),
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
             persist_configure_reconciliation(

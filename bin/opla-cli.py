@@ -43,7 +43,7 @@ COMMANDS = {
         "infra": ("lab-infra-status", "Состояние инфраструктуры", []),
         "create": ("up", "Создать новый стенд", []),
         "ready": ("ready", "Дождаться cloud-init на узлах", []),
-        "configure": ("lab-configure", "Настроить XDP и IDS в лаборатории", [("--lab", "LAB")]),
+        "configure": ("lab-configure", "Настроить XDP, HTTP telemetry, scan detector и IDS", [("--lab", "LAB")]),
         "delete": ("lab-delete", "Безвозвратно удалить стенд", [("lab", "LAB")]),
     },
     "vm": {
@@ -103,6 +103,9 @@ COMMANDS = {
         "acceptance": ("acceptance-check", "Read-only проверка готовности к приёмке", []),
         "bootstrap": ("bootstrap", "Подготовить хост", []),
         "doctor": ("doctor", "Проверить зависимости", []),
+        "audit": ("runtime-audit", "Матрица runtime-готовности P14–P21 без запуска инфраструктуры", []),
+        "admission-export": ("host-admission-export", "Экспортировать read-only наблюдения физического хоста", [("--output", "OUTPUT"), ("--storage-root", "STORAGE_ROOT")]),
+        "admission-import": ("host-admission-import", "Оценить отчёт без probes; сверить host ID и pin экспортёра", [("--report", "REPORT"), ("--expected-host-id", "EXPECTED_HOST_ID"), ("--expected-collector-sha256", "EXPECTED_COLLECTOR_SHA256"), ("--confirm-host-terminal", "CONFIRM_HOST_TERMINAL"), ("--output", "DECISION")]),
         "check": ("check", "Запустить тесты", []),
         "versions": ("versions", "Версии компонентов", []),
         "resources": ("resources", "Инвентаризация ресурсов", []),
@@ -114,6 +117,7 @@ COMMANDS = {
 
 SAFE_VALUE = re.compile(r"^[A-Za-z0-9_./:@+-]+$")
 LAB_ID = re.compile(r"^lab-[A-Za-z0-9_-]+$")
+HOST_ID = re.compile(r"^[0-9a-f]{32}$")
 
 LEGACY = {
     "labs": "opla lab list",
@@ -163,13 +167,14 @@ def build_parser():
                     elif variable == "ROLE":
                         options["choices"] = ("victim", "attacker", "client")
                         options["required"] = True
-                    elif variable in ("LAB", "CONFIRM", "TAG", "BACKUP_DIR", "REPORT"):
+                    elif variable in ("LAB", "CONFIRM", "TAG", "BACKUP_DIR", "REPORT", "OUTPUT", "EXPECTED_HOST_ID", "EXPECTED_COLLECTOR_SHA256"):
                         options["required"] = True
                     command.add_argument(name, **options)
                 else:
                     options = {}
                     if variable == "SCENARIO":
-                        options = {"nargs": "?", "default": "syn-scan-baseline"}
+                        options = {"nargs": "?", "default": "syn-scan-baseline",
+                                   "metavar": "SCENARIO_ID"}
                     command.add_argument(name, **options)
 
             if group == "system" and action == "acceptance":
@@ -208,6 +213,13 @@ def make_command(args):
     if group == "system" and action == "acceptance" and not args.check:
         raise ValueError("Требуется --check; выполнение приёмки не разрешено")
 
+    if group == "system" and action == "admission-import" and not HOST_ID.fullmatch(args.expected_host_id):
+        raise ValueError("--expected-host-id должен быть независимым 32-символьным lowercase hex machine ID")
+    if (group == "system" and action == "admission-import"
+            and (not isinstance(args.expected_collector_sha256, str)
+                 or not re.fullmatch(r"[0-9a-f]{64}", args.expected_collector_sha256))):
+        raise ValueError("--expected-collector-sha256 должен быть 64-символьным lowercase hex pin")
+
     variables = []
 
     if group == "deploy" and action == "connectivity-check" and args.connect:
@@ -241,7 +253,9 @@ def make_command(args):
     if group == "lab" and action == "delete":
         if args.lab != args.confirm_lab:
             raise ValueError("Подтверждение должно точно совпадать с ID лаборатории")
-        variables.append(f"CONFIRM_DELETE={args.confirm_lab}")
+        # Keep the CLI confirmation user-friendly while passing the exact
+        # destructive token required by the ownership-checking executor.
+        variables.append(f"CONFIRM_DELETE=DELETE-LAB:{args.confirm_lab}")
 
     if group == "vm" and action == "load":
         if not args.rollback:
@@ -308,6 +322,12 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
     if argv and argv[0] == "help":
         argv = argv[1:] + ["--help"] if len(argv) > 1 else ["--help"]
 
+    # ``opla help lab`` is documented, but people naturally also type
+    # ``opla lab help``.  Treat the latter as help rather than an invalid
+    # operation; it must never reach Make or a privileged launcher.
+    if len(argv) == 2 and argv[0] in GROUPS and argv[1] == "help":
+        argv[1] = "--help"
+
     if argv and argv[0] in LEGACY:
         print(
             f"Устаревший вызов. Используйте: {LEGACY[argv[0]]}",
@@ -350,6 +370,10 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
                         'start', 'stop', 'infra', 'configure', 'delete'})):
                 # Interactive SSH/console and sudo must retain the controlling TTY.
                 return subprocess.run(command, check=False).returncode
+            if args.group == 'scenario' and args.action in {'check', 'run'}:
+                # sudo's read-only registry check needs the original terminal;
+                # retain it while keeping the CLI's normal execution bound.
+                return subprocess.run(command, check=False, timeout=timeout).returncode
             return _run_owned(command, timeout=timeout).returncode
         result = runner(command, check=False, timeout=timeout)
         if type(getattr(result, "returncode", None)) is not int:

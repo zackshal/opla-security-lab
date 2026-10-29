@@ -41,6 +41,11 @@ class AcceptanceCheckTests(unittest.TestCase):
         self.assertFalse(result["ready_for_automatic_execution"])
         self.assertEqual(result["mode"], "read_only")
         self.assertEqual(result["builtin_mode"], "local-qemu-dual-nic")
+        self.assertEqual(result["assessment_scope"], "fixture_and_source_only")
+        self.assertEqual(result["physical_host_assessment"], "NOT TESTED")
+        admission = next(item for item in result["checks"]
+                         if item["name"] == "physical_host_admission")
+        self.assertEqual(admission["status"], "NOT TESTED")
         self.assertIn(result["overall_status"], ("BLOCKED", "NOT TESTED"))
 
     def test_inventory_rejects_wrong_destination(self):

@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import importlib.util
+import io
 import ipaddress
 import json
 import os
@@ -26,6 +27,27 @@ eve = load_module("opla_incident_eve", "opla-eve-correlator.py")
 counters = load_module("opla_incident_counters", "opla-event-correlator.py")
 
 MAX_CLIENT_EVIDENCE_BYTES = 1024 * 1024
+MAX_SCAN_EVIDENCE_BYTES = 32 * 1024 * 1024
+MAX_SCAN_EVENT_LINE_BYTES = 1024 * 1024
+MAX_SCAN_EVENT_RECORDS = 100_000
+MAX_MATCHED_SCAN_EVENTS = 10_000
+
+
+class EvidenceLimitError(ValueError):
+    """The bounded evidence contract was exceeded; reject the whole input."""
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite(value):
+    raise ValueError("non-finite JSON value")
 
 
 def client_continuity_report(experiment, interval, *, max_gap_seconds=2):
@@ -87,11 +109,38 @@ def scan_events(path, start, end, source, target):
     """Filter detector JSONL by UTC second and source/target IP pair."""
     path = Path(path)
     try:
-        file_stat = path.lstat()
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
+        )
     except OSError as exc:
         raise ValueError("missing or unsafe scan events file") from exc
-    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
-        raise ValueError("missing or unsafe scan events file")
+    try:
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_nlink != 1:
+            raise ValueError("missing or unsafe scan events file")
+        if file_stat.st_size > MAX_SCAN_EVIDENCE_BYTES:
+            raise ValueError("scan events file exceeds byte limit")
+        data = bytearray()
+        while len(data) <= MAX_SCAN_EVIDENCE_BYTES:
+            block = os.read(
+                descriptor,
+                min(64 * 1024, MAX_SCAN_EVIDENCE_BYTES + 1 - len(data)),
+            )
+            if not block:
+                break
+            data.extend(block)
+        final_stat = os.fstat(descriptor)
+        if len(data) > MAX_SCAN_EVIDENCE_BYTES:
+            raise ValueError("scan events file exceeds byte limit")
+        if ((file_stat.st_dev, file_stat.st_ino, file_stat.st_size, file_stat.st_nlink,
+             file_stat.st_mtime_ns, file_stat.st_ctime_ns)
+                != (final_stat.st_dev, final_stat.st_ino, final_stat.st_size, final_stat.st_nlink,
+                    final_stat.st_mtime_ns, final_stat.st_ctime_ns)
+                or len(data) != final_stat.st_size):
+            raise ValueError("scan events file changed during read")
+    finally:
+        os.close(descriptor)
 
     # The detector records integer Unix seconds, not subsecond timestamps.
     first = int(eve.parse_time(start).timestamp())
@@ -105,15 +154,25 @@ def scan_events(path, start, end, source, target):
     matched = []
     malformed = 0
 
-    with path.open("r", encoding="utf-8") as stream:
-        for number, line in enumerate(stream, 1):
-            if len(line) > 1024 * 1024:
+    with io.BytesIO(data) as stream:
+        for number in range(1, MAX_SCAN_EVENT_RECORDS + 2):
+            raw_line = stream.readline(MAX_SCAN_EVENT_LINE_BYTES + 1)
+            if not raw_line:
+                break
+            if number > MAX_SCAN_EVENT_RECORDS:
+                raise ValueError("scan event record count exceeds limit")
+            if len(raw_line) > MAX_SCAN_EVENT_LINE_BYTES:
                 raise ValueError("oversized scan event line")
-            if not line.strip():
+            if not raw_line.strip():
                 continue
 
             try:
-                event = json.loads(line)
+                line = raw_line.decode("utf-8")
+                event = json.loads(
+                    line,
+                    object_pairs_hook=_unique_json_object,
+                    parse_constant=_reject_nonfinite,
+                )
                 if not isinstance(event, dict):
                     raise ValueError("invalid JSON object")
 
@@ -131,6 +190,8 @@ def scan_events(path, start, end, source, target):
                 ):
                     continue
 
+                if len(matched) >= MAX_MATCHED_SCAN_EVENTS:
+                    raise EvidenceLimitError("matching scan event count exceeds limit")
                 matched.append({
                     "timestamp": datetime.fromtimestamp(
                         ts, timezone.utc
@@ -144,8 +205,10 @@ def scan_events(path, start, end, source, target):
                     "action": event.get("action"),
                     "line_number": number,
                 })
+            except EvidenceLimitError:
+                raise
             except (
-                ValueError, KeyError, TypeError, OverflowError,
+                ValueError, KeyError, TypeError, OverflowError, UnicodeError, RecursionError,
                 OSError,
             ):
                 malformed += 1

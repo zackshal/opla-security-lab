@@ -136,6 +136,14 @@ class DeployManifestTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             deploy.load_manifest(link)
 
+    def test_duplicate_yaml_mapping_key_is_rejected(self):
+        self.path.write_text(
+            "apiVersion: opla/v1\napiVersion: ignored\nkind: Infrastructure\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(yaml.YAMLError):
+            deploy.load_manifest(self.path)
+
     def test_cli_plan_read_only(self):
         self.validate(baseline())
 

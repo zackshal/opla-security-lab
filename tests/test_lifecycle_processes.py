@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("process_recovery", ROOT / "bin/opla-active-creation-recover.py")
@@ -32,6 +33,10 @@ class ProcessEvidenceTests(unittest.TestCase):
     def process(self, pid, binary, marker, unit):
         path = self.proc / str(pid)
         path.mkdir()
+        # /proc/PID/stat field 22 (starttime) follows the state field at
+        # index 19 in the tail after the final ')' around comm.
+        stat_tail = ["S", *(["0"] * 18), str(pid)]
+        (path / "stat").write_text(f"{pid} ({binary}) " + " ".join(stat_tail) + "\n")
         (path / "cmdline").write_bytes(binary.encode() + b"\0" + marker.encode() + b"\0")
         (path / "exe").symlink_to("/usr/bin/" + binary)
         (path / "cgroup").write_text("0::/system.slice/" + unit + "\n")
@@ -46,6 +51,37 @@ class ProcessEvidenceTests(unittest.TestCase):
 
     def test_exact_process_identities_are_observed_without_live_proc(self):
         self.assertEqual(set(self.evidence()), {100, 101, 102, 103})
+
+    def test_pid_reuse_during_systemd_identity_check_blocks(self):
+        samples = ["100", "101"]
+        with patch.object(recovery, "process_starttime", side_effect=samples):
+            with self.assertRaisesRegex(recovery.Blocked, "changed during inspection"):
+                self.evidence()
+
+    def test_pid_reuse_before_proc_scan_blocks(self):
+        samples = []
+        for pid in (100, 101, 102, 103):
+            samples.extend([str(pid), str(pid)])
+        samples.extend(["999", "999"])
+        with patch.object(recovery, "process_starttime", side_effect=samples):
+            with self.assertRaisesRegex(recovery.Blocked, "PID was reused"):
+                self.evidence()
+
+    def test_pid_reuse_during_fd_scan_blocks(self):
+        samples = []
+        for pid in (100, 101, 102, 103):
+            samples.extend([str(pid), str(pid)])
+        samples.extend(["100", "101"])
+        original_iterdir = Path.iterdir
+        def ordered_iterdir(path):
+            entries = original_iterdir(path)
+            if path == self.proc:
+                return iter(sorted(entries, key=lambda entry: int(entry.name)))
+            return entries
+        with patch.object(Path, "iterdir", ordered_iterdir), \
+                patch.object(recovery, "process_starttime", side_effect=samples):
+            with self.assertRaisesRegex(recovery.Blocked, "changed during FD inspection"):
+                self.evidence()
 
     def test_disk_path_prefix_is_not_an_identity(self):
         path = self.proc / "100" / "cmdline"

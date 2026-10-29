@@ -14,15 +14,16 @@ Zabbix/PostgreSQL — дополнительный общий стек набл�
 [Команды](docs/user-guide/commands.md) ·
 [Демонстрации](docs/demonstrations.md) ·
 [Архитектура](docs/service-management-architecture.md) ·
+[Runtime readiness](docs/runtime-readiness.md) ·
 [Вся документация](docs/README.md)
 
 ## Что подтверждено
 
 | Область | Подтверждение и граница |
 |---|---|
-| VM lifecycle | В сессии 28.10.2026 проверены create, stop/start и SSH/cloud-init трёх VM; это не полный XDP/IDS/scenario acceptance |
+| VM lifecycle | Исторический терминальный вывод от 28.10.2026 показывает create, stop/start и SSH/cloud-init трёх VM; он не является source-bound Gate C acceptance текущего дерева |
 | Сервисный runtime | Реальные Unix worker-процессы, peer UID, identity/deadline checks и evidence API проверены процессными тестами |
-| Локальные проверки | На базе `b190d09`: 647 тестов без пропусков; [отчёт процессной приёмки](docs/evidence/service-process-acceptance-20261028.json) привязан к hashes исходников |
+| Локальные проверки | `make check` в текущем worktree: 712 тестов, OK; [static inventory](docs/evidence/runtime-static-audit-20261029-host-admission.json) source-bound, runtime остаётся `NOT TESTED` |
 | Исторические SYN/HTTP-опыты | [Сохранённые результаты](assets/demo/observed-results.json); не повторный запуск текущей версии |
 | Полная миграция к сервисам | В работе: root/guest business API ещё не заменяет все прямые launcher-вызовы |
 | Другие ОС/ISA и clean deployment | Требуют отдельной [платформенной приёмки](docs/platform-compatibility.md) |
@@ -55,11 +56,16 @@ SVG визуализирует сохранённый вывод, а не изо
 ```bash
 python3 -m compileall -q bin tests
 make check
+opla system audit
 ```
 
 Для процессных тестов нужны локальные Unix sockets. Остальные зависимости —
 в [спецификации хоста](docs/test-host-spec.md).
 Скачивание пакетов и образов не входит в эти проверки.
+`opla system audit` строит только static matrix P14–P21: `NOT TESTED` —
+ожидаемый честный статус до dedicated-host runtime evidence.
+Перед любой Gate C проверкой оператор dedicated host отдельно собирает
+read-only [Host Admission](docs/host-admission.md); это не authorizes create.
 
 ### Установка
 
@@ -136,6 +142,16 @@ Data NIC с XDP и management NIC с SSH разделены.
 После обновления установки: `opla system services`.
 Из checkout: `python3 bin/opla-cli.py system services`.
 NOT_STARTED означает отсутствие socket сервиса, а не остановленную VM.
+В текущей версии это также не означает, что все пять планируемых сервисов
+реализованы: встроенная бизнес-операция есть только у `opla-evidence`
+(`incident_report`); остальные границы пока offline-contract-only.
+
+`localhost:8080` не является UI или health-check OPLA: пока monitoring stack
+явно не запущен, на этом порту ничего не должно слушать. Команды всегда
+группируются: `opla xdp all`, а не `opla all`; `opla lab help` и
+`opla help lab` одинаково показывают справку. Для `opla deploy plan` и
+`validate` передают путь к своему существующему YAML-манифесту, например
+`./my-infrastructure.yaml`.
 
 ## Защита eBPF/XDP
 

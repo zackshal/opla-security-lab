@@ -2,22 +2,26 @@
 import asyncio
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import errno
 import importlib.util
 import json
 import os
 from pathlib import Path
 import select
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'bin'))
 from opla_service_contract import ServiceEnvelope
 from opla_service_runtime import AsyncServiceClient, AsyncServiceRouter, ServiceServer, decode
 from opla_service_transport import ServiceTransportError
+import opla_service_operations as service_operations
 
 spec = importlib.util.spec_from_file_location('process_test_orchestrator', ROOT / 'bin/opla-lab-orchestrator.py')
 orchestrator = importlib.util.module_from_spec(spec)
@@ -31,8 +35,24 @@ def request(service='opla-host-backend', operation='health', step=None):
                            {} if step is None else {'step': step}, {})
 
 
+def require_unix_socket_support(test_case):
+    """Mark socket acceptance blocked when this sandbox denies local AF_UNIX."""
+    with tempfile.TemporaryDirectory() as temp:
+        probe_path = Path(temp) / 'capability.sock'
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            probe.bind(str(probe_path))
+        except PermissionError as exc:
+            if exc.errno == errno.EPERM:
+                test_case.skipTest('sandbox denies AF_UNIX bind (EPERM); socket runtime not tested')
+            raise
+        finally:
+            probe.close()
+
+
 class ServiceRuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        require_unix_socket_support(self)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name) / 'host.sock'
@@ -98,14 +118,220 @@ class ServiceRuntimeTests(unittest.IsolatedAsyncioTestCase):
         await other.close()
         self.assertTrue(self.path.is_socket())
 
+class ServiceDecodeTests(unittest.TestCase):
     def test_duplicate_keys_and_nonfinite_values_rejected(self):
         for raw in (b'{"a":1,"a":2}', b'{"a":NaN}'):
             with self.assertRaises(ValueError):
                 decode(raw)
 
 
+class ReporterSupervisorTests(unittest.IsolatedAsyncioTestCase):
+    class Stream:
+        def __init__(self, chunks=(), *, block=False):
+            self.chunks = list(chunks)
+            self.block = block
+            self.cancelled = False
+            self._blocked = asyncio.Event()
+
+        async def read(self, size):
+            if self.chunks:
+                return self.chunks.pop(0)
+            if self.block:
+                try:
+                    await self._blocked.wait()
+                finally:
+                    self.cancelled = True
+            return b''
+
+    class Process:
+        pid = 424242
+
+        def __init__(self, stdout=None, stderr=None, *, wait_blocks=True):
+            self.stdout = stdout or ReporterSupervisorTests.Stream(block=True)
+            self.stderr = stderr or ReporterSupervisorTests.Stream(block=True)
+            self.returncode = None
+            self.wait_blocks = wait_blocks
+            self.wait_count = 0
+            self.kill_count = 0
+            self._done = asyncio.Event()
+
+        async def wait(self):
+            self.wait_count += 1
+            if self.wait_blocks:
+                await self._done.wait()
+            return self.returncode
+
+        def kill(self):
+            self.kill_count += 1
+            self.returncode = -9
+            self._done.set()
+
+    async def spawn_fake(self, process):
+        async def spawn(*argv, **kwargs):
+            self.assertEqual(kwargs['start_new_session'], True)
+            return process
+        return spawn
+
+    async def test_spawn_failure_is_not_retried(self):
+        spawn = AsyncMock(side_effect=OSError('spawn denied'))
+        with self.assertRaisesRegex(OSError, 'spawn denied'):
+            await service_operations.run_reporter(['reporter'], spawn=spawn)
+        spawn.assert_awaited_once()
+
+    async def test_stdout_overflow_kills_child_and_cancels_other_reader(self):
+        stdout = self.Stream([b'12345'])
+        stderr = self.Stream(block=True)
+        process = self.Process(stdout, stderr)
+        spawn = await self.spawn_fake(process)
+        with patch.object(service_operations.os, 'killpg', side_effect=lambda *_: process.kill()):
+            with self.assertRaisesRegex(ValueError, 'byte limit'):
+                await service_operations.run_reporter(
+                    ['reporter'], spawn=spawn, stdout_limit=4, cleanup_timeout=0.1)
+        self.assertEqual(process.returncode, -9)
+        self.assertTrue(stderr.cancelled)
+        self.assertEqual(process.wait_count, 0)  # the fake group kill reaped it directly
+
+    async def test_stderr_overflow_kills_child_and_cancels_other_reader(self):
+        stdout = self.Stream(block=True)
+        stderr = self.Stream([b'12345'])
+        process = self.Process(stdout, stderr)
+        spawn = await self.spawn_fake(process)
+        with patch.object(service_operations.os, 'killpg', side_effect=lambda *_: process.kill()):
+            with self.assertRaisesRegex(ValueError, 'byte limit'):
+                await service_operations.run_reporter(
+                    ['reporter'], spawn=spawn, stderr_limit=4, cleanup_timeout=0.1)
+        self.assertTrue(stdout.cancelled)
+        self.assertEqual(process.returncode, -9)
+
+    async def test_timeout_kills_and_boundedly_reaps_child(self):
+        process = self.Process()
+        spawn = await self.spawn_fake(process)
+        with patch.object(service_operations.os, 'killpg', side_effect=lambda *_: process.kill()) as killpg:
+            with self.assertRaises(TimeoutError):
+                await service_operations.run_reporter(
+                    ['reporter'], spawn=spawn, timeout=0.01, cleanup_timeout=0.1)
+        killpg.assert_called_once_with(process.pid, service_operations.signal.SIGKILL)
+        self.assertEqual(process.returncode, -9)
+        self.assertTrue(process.stdout.cancelled)
+        self.assertTrue(process.stderr.cancelled)
+
+    async def test_real_owned_child_timeout_is_reaped(self):
+        spawned = []
+        async def spawn(*argv, **kwargs):
+            process = await asyncio.create_subprocess_exec(*argv, **kwargs)
+            spawned.append(process)
+            return process
+        with self.assertRaises(TimeoutError):
+            await service_operations.run_reporter(
+                [sys.executable, '-c', 'import time; time.sleep(30)'],
+                spawn=spawn, timeout=0.1, cleanup_timeout=1.0)
+        self.assertEqual(len(spawned), 1)
+        self.assertIsNotNone(spawned[0].returncode)
+
+    async def test_timeout_kills_owned_group_after_reporter_leader_exits(self):
+        if not Path('/proc/self/stat').exists():
+            self.skipTest('Linux /proc process state required for orphan assertion')
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            pid_file = directory / 'child.pid'
+            helper = directory / 'spawn-child.py'
+            helper.write_text(
+                'import pathlib, subprocess, sys\n'
+                'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])\n'
+                'pathlib.Path(sys.argv[1]).write_text(str(child.pid))\n'
+            )
+            spawned = []
+            async def spawn(*argv, **kwargs):
+                process = await asyncio.create_subprocess_exec(*argv, **kwargs)
+                spawned.append(process)
+                return process
+            with self.assertRaises(TimeoutError):
+                await service_operations.run_reporter(
+                    [sys.executable, str(helper), str(pid_file)],
+                    spawn=spawn, timeout=0.15, cleanup_timeout=1.0)
+            child_pid = int(pid_file.read_text())
+            self.assertEqual(len(spawned), 1)
+            self.assertEqual(spawned[0].returncode, 0)  # leader exited before pipe timeout
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                try:
+                    state = Path(f'/proc/{child_pid}/stat').read_text().split()[2]
+                except FileNotFoundError:
+                    break
+                if state == 'Z':
+                    break
+                await asyncio.sleep(0.02)
+            else:
+                self.fail('owned descendant survived process-group cleanup')
+
+    async def test_cancellation_stops_child_before_propagating(self):
+        process = self.Process()
+        spawn = await self.spawn_fake(process)
+        with patch.object(service_operations.os, 'killpg', side_effect=lambda *_: process.kill()) as killpg:
+            task = asyncio.create_task(service_operations.run_reporter(
+                ['reporter'], spawn=spawn, timeout=5, cleanup_timeout=0.1))
+            await asyncio.sleep(0.01)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        killpg.assert_called_once()
+        self.assertEqual(process.returncode, -9)
+
+    async def test_killpg_error_uses_direct_fallback_and_reports_uncertainty(self):
+        process = self.Process()
+        spawn = await self.spawn_fake(process)
+        with patch.object(service_operations.os, 'killpg', side_effect=PermissionError):
+            with self.assertRaisesRegex(RuntimeError, 'killpg failed'):
+                await service_operations.run_reporter(
+                    ['reporter'], spawn=spawn, timeout=0.01, cleanup_timeout=0.1)
+        self.assertEqual(process.kill_count, 1)
+        self.assertEqual(process.returncode, -9)
+
+    async def test_reap_deadline_falls_back_without_hanging(self):
+        process = self.Process(wait_blocks=True)
+        spawn = await self.spawn_fake(process)
+        start = time.monotonic()
+        with patch.object(service_operations.os, 'killpg'):
+            with self.assertRaisesRegex(RuntimeError, 'reap timed out'):
+                await service_operations.run_reporter(
+                    ['reporter'], spawn=spawn, timeout=0.01, cleanup_timeout=0.02)
+        self.assertLess(time.monotonic() - start, 0.2)
+        self.assertEqual(process.kill_count, 1)
+        self.assertEqual(process.returncode, -9)
+        self.assertGreaterEqual(process.wait_count, 2)  # includes a post-fallback-kill reap
+
+    async def test_wait_oserror_still_uses_direct_kill_and_reap(self):
+        class WaitErrorProcess(self.Process):
+            async def wait(self):
+                self.wait_count += 1
+                if self.wait_count <= 2:
+                    raise OSError('wait interrupted')
+                await self._done.wait()
+                return self.returncode
+        process = WaitErrorProcess()
+        spawn = await self.spawn_fake(process)
+        with patch.object(service_operations.os, 'killpg'):
+            with self.assertRaisesRegex(RuntimeError, 'reporter wait failed'):
+                await service_operations.run_reporter(
+                    ['reporter'], spawn=spawn, timeout=0.1, cleanup_timeout=0.1)
+        self.assertEqual(process.kill_count, 1)
+        self.assertEqual(process.returncode, -9)
+
+    async def test_nonzero_reporter_exit_is_rejected_without_retry(self):
+        envelope = ServiceEnvelope('opla-evidence', 'incident_report', 'test-operation', 'lab-ABCD',
+                                    datetime.now(timezone.utc).isoformat(), {'path': '/tmp/evidence'}, {})
+        run = AsyncMock(return_value=(7, b'{}', b'private child error'))
+        with patch.object(service_operations, 'run_reporter', run):
+            with self.assertRaisesRegex(ValueError, 'rejected evidence'):
+                await service_operations.incident_report(envelope)
+        run.assert_awaited_once()
+
+
 @unittest.skipIf(os.geteuid() == 0, 'service executable intentionally refuses root; run unprivileged')
 class ServiceProcessAcceptanceTests(unittest.TestCase):
+    def setUp(self):
+        require_unix_socket_support(self)
+
     @contextmanager
     def workers(self, directory, *, adapters=True):
         processes = []

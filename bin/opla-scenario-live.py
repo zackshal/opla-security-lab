@@ -5,8 +5,10 @@ import argparse
 import importlib.util
 import ipaddress
 import json
+import math
 import os
 import re
+import stat
 import subprocess
 import sys
 import uuid
@@ -16,6 +18,12 @@ ROOT = Path(__file__).resolve().parents[1]
 LAB_ROOT = Path("/var/lib/opla")
 AUTH_FILE = Path("/etc/opla/executor-authorized")
 MIN_RAM_KIB = 5 * 1024 * 1024
+MAX_STAGE_OUTPUT_BYTES = 16 * 1024
+MAX_REGISTRY_OUTPUT_BYTES = 16 * 1024
+SUPPORTED_EXECUTOR_PLATFORMS = {("debian", "12"), ("debian", "13")}
+TRUSTED_REGISTRY_HELPER = Path("/opt/opla/bin/opla-registry.py")
+sys.path.insert(0, str(ROOT / "bin"))
+from opla_process import run_bounded
 
 spec = importlib.util.spec_from_file_location(
     "opla_scenario_live_engine",
@@ -46,47 +54,170 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def call(argv, env=None, timeout=180):
-    return subprocess.run(
+def call(argv, env=None, timeout=180, runner=None):
+    if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+            or timeout <= 0 or not math.isfinite(timeout)):
+        raise ValueError("stage timeout must be finite and positive")
+    if runner is not None:
+        return runner(
+            argv,
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    return run_bounded(
         argv,
         cwd=ROOT,
         env=env,
-        capture_output=True,
-        text=True,
         timeout=timeout,
-        check=False,
+        max_output_bytes=MAX_STAGE_OUTPUT_BYTES,
     )
 
 
-def executor_authorized():
-    require(os.geteuid() == 0, "execution requires root on executor")
+def parse_os_release(raw):
+    values = {}
+    for line in raw.splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key in {"ID", "VERSION_ID"}:
+            if key in values:
+                raise RuntimeError(f"duplicate {key} in /etc/os-release")
+            values[key] = value.strip().strip('"').strip("'")
+    return values.get("ID"), values.get("VERSION_ID")
 
-    os_release = Path("/etc/os-release").read_text()
+
+def read_executor_authorization(path=AUTH_FILE):
+    """Read the administrator's opt-in marker without following links."""
+    path = Path(path)
+    try:
+        parent = path.parent.lstat()
+    except OSError as exc:
+        raise RuntimeError("executor authorization directory is unavailable") from exc
     require(
-        'ID=debian' in os_release
-        and 'VERSION_ID="12"' in os_release,
-        "live adapter currently supports Debian 12 only",
+        stat.S_ISDIR(parent.st_mode) and parent.st_uid == 0
+        and not parent.st_mode & 0o022,
+        "executor authorization directory is unsafe",
     )
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError as exc:
+        raise RuntimeError("executor is not authorized; administrator marker is missing") from exc
+    except OSError as exc:
+        raise RuntimeError("cannot safely read executor authorization marker") from exc
+    try:
+        info = os.fstat(fd)
+        require(
+            stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+            and info.st_uid == 0 and not info.st_mode & 0o022
+            and info.st_mode & 0o044,
+            "executor authorization permissions are unsafe",
+        )
+        raw = os.read(fd, 129)
+    finally:
+        os.close(fd)
+    require(raw == b"OPLA_EXECUTOR_V1\n", "invalid executor authorization marker")
+    return True
 
-    require(not AUTH_FILE.is_symlink(), "unsafe executor marker")
-    require(AUTH_FILE.is_file(), "executor is not authorized")
 
-    stat = AUTH_FILE.stat()
+def validate_executor_requirements(os_release, marker_valid, memory):
+    platform = parse_os_release(os_release)
     require(
-        stat.st_uid == 0 and stat.st_mode & 0o022 == 0,
-        "executor authorization permissions are unsafe",
+        platform in SUPPORTED_EXECUTOR_PLATFORMS,
+        "live adapter requires Debian 12 or Debian 13 amd64",
     )
-    require(
-        AUTH_FILE.read_text().strip() == "OPLA_EXECUTOR_V1",
-        "invalid executor authorization",
-    )
-
-    memory = Path("/proc/meminfo").read_text()
+    require(marker_valid is True, "executor is not authorized")
     match = re.search(r"^MemTotal:\s+(\d+)\s+kB", memory, re.M)
     require(
         match is not None and int(match.group(1)) >= MIN_RAM_KIB,
         "executor requires at least 5 GiB RAM",
     )
+
+
+def executor_authorized():
+    """Require an explicit root-owned opt-in, but run as the lab operator."""
+    validate_executor_requirements(
+        Path("/etc/os-release").read_text(),
+        read_executor_authorization(),
+        Path("/proc/meminfo").read_text(),
+    )
+
+
+def validate_trusted_registry_helper(path=TRUSTED_REGISTRY_HELPER):
+    """Permit only the protected installed registry reader to cross privilege."""
+    path = Path(path)
+    for directory in (path.parent, *path.parent.parents):
+        try:
+            info = directory.lstat()
+        except OSError as exc:
+            raise RuntimeError("trusted registry helper directory is unavailable") from exc
+        require(
+            stat.S_ISDIR(info.st_mode) and info.st_uid == 0
+            and not info.st_mode & 0o022,
+            "trusted registry helper directory is unsafe",
+        )
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        raise RuntimeError("trusted registry helper is missing") from exc
+    require(
+        stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+        and info.st_uid == 0 and not info.st_mode & 0o022
+        and info.st_mode & 0o111,
+        "trusted registry helper is unsafe",
+    )
+    return path
+
+
+def inspect_registry(lab_id, expected_resources, *, runner=subprocess.run,
+                     helper=TRUSTED_REGISTRY_HELPER):
+    helper = validate_trusted_registry_helper(helper)
+    try:
+        result = runner(
+            ["sudo", str(helper), "list", "--lab", lab_id],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError("privileged read-only registry inspection failed") from exc
+    require(result.returncode == 0, "privileged registry inspection failed")
+    output = result.stdout
+    require(
+        isinstance(output, str) and len(output.encode("utf-8")) <= MAX_REGISTRY_OUTPUT_BYTES,
+        "registry inspection output is invalid or too large",
+    )
+    try:
+        records = json.loads(output)
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError("registry inspection returned invalid JSON") from exc
+    require(isinstance(records, list) and len(records) == 1,
+            "registry inspection did not return exactly one lab")
+    record = records[0]
+    require(
+        isinstance(record, dict)
+        and record.get("lab") == lab_id
+        and record.get("file") == f"{lab_id}.json"
+        and record.get("status") == "recorded"
+        and type(record.get("resources")) is int
+        and record["resources"] == expected_resources,
+        "lab registry receipt is missing, stale, or incomplete",
+    )
+    state = record.get("state")
+    required_state = {
+        "LAB_ID", "BRIDGE", "SUBNET", "GW", "ATTACKER_IP", "VICTIM_IP",
+        "CLIENT_IP", "MGMT_BRIDGE", "MGMT_SUBNET", "MGMT_GW",
+        "ATTACKER_MGMT_IP", "VICTIM_MGMT_IP", "CLIENT_MGMT_IP",
+    }
+    require(
+        isinstance(state, dict) and required_state <= state.keys()
+        and state.get("LAB_ID") == lab_id,
+        "registry inspection omitted validated lab network state",
+    )
+    return record
 
 
 def validate_lab(lab_id):
@@ -98,56 +229,21 @@ def validate_lab(lab_id):
     lab = LAB_ROOT / lab_id
     require(not lab.is_symlink() and lab.is_dir(), "lab unavailable")
 
-    receipt = LAB_ROOT / "registry" / f"{lab_id}.json"
-    require(
-        not receipt.is_symlink() and receipt.is_file(),
-        "registry receipt missing",
-    )
-
-    record = json.loads(receipt.read_text())
-    require(
-        record.get("schema") == 1
-        and record.get("lab_id") == lab_id
-        and record.get("lab_dir") == str(lab)
-        and record.get("phase") == "ready",
-        "lab receipt is not ready",
-    )
-
-    registry_spec = importlib.util.spec_from_file_location(
-        "opla_registry_live",
-        ROOT / "bin/opla-registry.py",
-    )
-    registry = importlib.util.module_from_spec(registry_spec)
-    registry_spec.loader.exec_module(registry)
-
-    expected = registry.receipt(LAB_ROOT, lab_id, "ready")
-
-    def resource_set(items):
-        return sorted((x["kind"], x["name"]) for x in items)
-
-    require(
-        resource_set(record["resources"])
-        == resource_set(expected["resources"]),
-        "registry resources differ from expected lab state",
-    )
+    record = inspect_registry(lab_id, 20)
+    state_data = record["state"]
 
     env = os.environ.copy()
     env["LAB_DIR"] = str(lab)
 
-    state = ROOT / "bin/state.py"
-
     addresses = {}
     for role in ("attacker", "victim", "client"):
         key = role.upper() + "_IP"
-        result = call(
-            [sys.executable, str(state), str(lab), key],
-            env=env,
-            timeout=10,
-        )
-        require(result.returncode == 0, f"missing {key}")
-        addresses[role] = str(
-            ipaddress.IPv4Address(result.stdout.strip())
-        )
+        try:
+            addresses[role] = str(ipaddress.IPv4Address(state_data[key]))
+            ipaddress.ip_network(state_data["SUBNET"], strict=True)
+            ipaddress.ip_network(state_data["MGMT_SUBNET"], strict=True)
+        except (KeyError, ipaddress.AddressValueError, ipaddress.NetmaskValueError) as exc:
+            raise RuntimeError(f"registry returned invalid network state for {key}") from exc
 
         unit = f"qemu-{lab_id}-{role}.service"
         active = call(
@@ -244,12 +340,24 @@ ssh_vm "$OPLA_CLIENT_IP" \\
         "stderr": result.stderr[-16000:],
     }
 
+    if getattr(result, "output_limited", False):
+        item["status"] = "failed"
+        item["error"] = f"stage output reached {MAX_STAGE_OUTPUT_BYTES}-byte limit"
+    if getattr(result, "cleanup_error", None):
+        item["cleanup_error"] = result.cleanup_error
+
     if kind == "syn-scan":
         try:
             item["evidence"] = read_scan_evidence(result.stdout)
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
             item["status"] = "failed"
             item["evidence_error"] = str(exc)
+
+    if kind == "http-probe" and result.returncode == 0:
+        match = re.fullmatch(r"HTTP=([0-9]{3})\s*", result.stdout)
+        if match is None or match.group(1) != "200":
+            item["status"] = "failed"
+            item["error"] = "client HTTP probe did not return exactly HTTP 200"
 
     return item
 
@@ -300,6 +408,15 @@ def main():
                     "status": "failed",
                     "error": str(exc),
                 }
+                for stream_name in ("stdout", "stderr"):
+                    captured = getattr(exc, stream_name, None)
+                    if captured:
+                        if isinstance(captured, bytes):
+                            captured = captured.decode("utf-8", "replace")
+                        item[stream_name] = captured[-MAX_STAGE_OUTPUT_BYTES:]
+                cleanup_error = getattr(exc, "cleanup_error", None)
+                if cleanup_error:
+                    item["cleanup_error"] = cleanup_error
 
             results.append(item)
             if item["status"] != "completed":
@@ -329,8 +446,15 @@ def main():
             "telemetry_collected": bool(scan_evidence),
         }
 
-        directory = Path("/var/lib/opla-scenario-reports")
+        directory = ROOT / "reports" / "scenario-live"
         directory.mkdir(mode=0o700, exist_ok=True)
+        directory_info = directory.lstat()
+        require(
+            stat.S_ISDIR(directory_info.st_mode)
+            and directory_info.st_uid == os.geteuid()
+            and not directory_info.st_mode & 0o077,
+            "scenario evidence directory is not private to the operator",
+        )
 
         target = directory / f"{args.lab}-{report['run_id']}.json"
         fd = os.open(

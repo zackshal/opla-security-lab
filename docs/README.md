@@ -14,6 +14,9 @@
 - [Ресурсы и обычный пользователь](resource-and-user-operation.md), [модель доверия](security-model.md).
 - [Платформы](platform-compatibility.md), [multiarch](multiarch-support.md), [host specification](test-host-spec.md).
 - [Evidence index](evidence/README.md), [матрица приёмки](acceptance.md), [протокол](run-protocol.md).
+- [Runtime readiness](runtime-readiness.md): фактический граф P14–P21, статический отчёт и protocol для FD/process evidence.
+- [Host Admission](host-admission.md): как собрать физические read-only evidence вне sandbox и воспроизводимо импортировать оценку без запуска системных команд.
+- [ADR по каталогам хранения](adr-opla-storage-layout.md): целевое разделение состояния, VM-дисков и артефактов без автоматической миграции существующих лабораторий.
 - [Метрики](metrics-catalog.md), [XDP](user-guide/xdp.md), [Zabbix](zabbix-guide.md).
 
 ## Разработка и поставка

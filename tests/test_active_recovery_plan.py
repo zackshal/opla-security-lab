@@ -1,6 +1,7 @@
 import importlib.util
 import math
 import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -30,15 +31,49 @@ class ActiveRecoveryPlanTests(unittest.TestCase):
         self.assertNotIn('creation-active-recovery-execute:',mk)
 
     def test_default_probe_runner_is_bounded(self):
-        calls = []
+        with patch.object(mod.process_runtime, "run_bounded",
+                          return_value=subprocess.CompletedProcess([], 0, "", "")) as dispatch:
+            result = mod.run(["systemctl", "show"], timeout=4)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(dispatch.call_args.args[0], ["systemctl", "show"])
+        self.assertEqual(dispatch.call_args.kwargs["timeout"], 4)
+        self.assertEqual(dispatch.call_args.kwargs["max_output_bytes"], mod.MAX_PROBE_OUTPUT_BYTES)
 
+    def test_injected_probe_runner_keeps_test_contract(self):
+        calls = []
         def runner(*args, **kwargs):
             calls.append((args, kwargs))
             return subprocess.CompletedProcess(args, 0, "", "")
+        mod.run(["systemctl", "show"], runner=runner, timeout=4)
+        self.assertEqual(calls[0][1], {
+            "capture_output": True, "text": True, "check": False, "timeout": 4,
+        })
 
-        result = mod.run(["systemctl", "show"], runner=runner, timeout=4)
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(calls[0][1]["timeout"], 4)
+    def test_require_blocks_on_probe_output_overflow(self):
+        result = subprocess.CompletedProcess([], 1, "", "")
+        result.output_limited = True
+        with self.assertRaisesRegex(mod.Blocked, "output exceeded"):
+            mod.require(["ip", "link"], lambda *_: result)
+
+    def test_require_blocks_on_uncertain_probe_cleanup(self):
+        result = subprocess.CompletedProcess([], 1, "", "")
+        result.cleanup_error = "process group remains"
+        with self.assertRaisesRegex(mod.Blocked, "cleanup is uncertain"):
+            mod.require(["systemctl", "show"], lambda *_: result)
+
+    def test_actual_bounded_probe_stops_after_output_limit(self):
+        result = mod.run([
+            sys.executable, "-c",
+            f"import sys; sys.stdout.write('x' * {mod.MAX_PROBE_OUTPUT_BYTES + 1})",
+        ], timeout=5)
+        self.assertTrue(result.output_limited)
+        self.assertLessEqual(len(result.stdout.encode()), mod.MAX_PROBE_OUTPUT_BYTES)
+        with self.assertRaisesRegex(mod.Blocked, "output exceeded"):
+            mod.require(["fixture-output"], lambda *_: result)
+
+    def test_actual_bounded_probe_timeout_is_rejected(self):
+        with self.assertRaises(subprocess.TimeoutExpired):
+            mod.run([sys.executable, "-c", "import time; time.sleep(10)"], timeout=0.05)
 
     def test_invalid_probe_timeout_rejected_before_dispatch(self):
         for timeout in (True, 0, -1, math.nan, math.inf, "10"):

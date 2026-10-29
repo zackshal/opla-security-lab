@@ -5,8 +5,10 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import sys
+import stat
 from qmp import QMP
 from state import load
 
@@ -19,13 +21,33 @@ def tag(value):
     return value
 
 def require_stopped_collector(lab):
-    path = ROOT / 'monitoring/runtime' / lab.name / 'collector.lock'
-    if path.exists():
-        with path.open('a') as stream:
-            try:
-                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise RuntimeError('Stop collector before rollback: make monitoring-stop')
+    # QEMU lifecycle runs as root, while the collector is a user service.
+    # Resolve the lab owner's persistent state from its protected SSH file.
+    key_file = lab / 'known_hosts'
+    info = key_file.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        raise RuntimeError('Cannot identify lab owner for collector lock check')
+    try:
+        owner_home = Path(pwd.getpwuid(info.st_uid).pw_dir)
+    except KeyError as exc:
+        raise RuntimeError('Unknown owner for lab SSH host-key file') from exc
+    path = owner_home / '.local/state/opla/monitoring/runtime' / lab.name / 'collector.lock'
+    try:
+        fd=os.open(path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise RuntimeError('Unsafe monitoring collector lock; inspect before rollback') from exc
+    try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise RuntimeError('Unsafe monitoring collector lock; inspect before rollback')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Stop collector before rollback: make monitoring-stop')
+    finally:
+        os.close(fd)
 
 def main():
     p = argparse.ArgumentParser(description='QMP snapshots for newly launched OPLA VMs')

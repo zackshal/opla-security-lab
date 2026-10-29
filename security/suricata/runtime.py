@@ -2,16 +2,17 @@
 import re
 import subprocess
 import sys
+from nft_policy import OWNER_COMMENT, delete_owned_table, replace_table
 
 def main():
     mode, interface = sys.argv[1:]
     if mode not in ['ids', 'ips'] or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,15}', interface):
         raise ValueError('Invalid runtime arguments')
-    exists = subprocess.run(['nft', 'list', 'table', 'inet', 'opla_ips'],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
-    rules = 'delete table inet opla_ips\n' if exists else ''
-    if mode == 'ips':
-        rules += '''table inet opla_ips {
+    if mode == 'ids':
+        delete_owned_table()
+        return
+    rules = '''table inet opla_ips {
+ comment "''' + OWNER_COMMENT + '''"
  chain input { type filter hook input priority 10; policy accept;
   iifname "__IF__" tcp dport 80 counter queue num 42
  }
@@ -20,9 +21,7 @@ def main():
  }
 }
 '''.replace('__IF__', interface)
-    if rules:
-        subprocess.run(['nft', '--check', '-f', '-'], input=rules, text=True, check=True)
-        subprocess.run(['nft', '-f', '-'], input=rules, text=True, check=True)
+    replace_table(rules)
 
 if __name__ == '__main__':
     main()

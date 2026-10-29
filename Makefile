@@ -14,7 +14,7 @@ help:
 services-status:
 	@python3 bin/opla-services.py
 
-.PHONY: manual help-full help-xdp help-vm labs lab-select lab-status nodes doctor
+.PHONY: manual help-full help-xdp help-vm labs lab-select lab-status nodes doctor runtime-audit host-admission-export host-admission-import
 manual help-full help-xdp help-vm:
 	@python3 bin/opla-help.py "$@"
 labs:
@@ -25,6 +25,13 @@ lab-status nodes:
 	@python3 bin/lab-cli.py nodes
 doctor:
 	@python3 bin/lab-cli.py doctor
+runtime-audit: LAB_DIR :=
+runtime-audit:
+	@python3 bin/opla-runtime-audit.py --static
+host-admission-export:
+	@python3 bin/opla-host-admission.py export $(if $(STORAGE_ROOT),--storage-root "$(STORAGE_ROOT)",) --output "$(OUTPUT)"
+host-admission-import:
+	@python3 bin/opla-host-admission.py import "$(REPORT)" --expected-host-id "$(EXPECTED_HOST_ID)" --expected-collector-sha256 "$(EXPECTED_COLLECTOR_SHA256)" $(if $(CONFIRM_HOST_TERMINAL),--confirm-host-terminal "$(CONFIRM_HOST_TERMINAL)",) $(if $(DECISION),--output "$(DECISION)",)
 
 # Safe lifecycle of existing labs: no qcow2 deletion.
 .PHONY: lab-start lab-stop lab-stack-down lab-infra-status

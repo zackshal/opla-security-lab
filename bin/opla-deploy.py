@@ -15,6 +15,36 @@ except ImportError:
         "Install project dependencies in an isolated environment."
     )
 
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects ambiguous duplicate mapping keys."""
+
+
+def _construct_unique_mapping(loader, node, deep=False):
+    loader.flatten_mapping(node)
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping", node.start_mark,
+                "unhashable mapping key", key_node.start_mark,
+            ) from None
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping", node.start_mark,
+                f"duplicate key {key!r}", key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping
+)
+
 COMPONENTS = {
     "xdp",
     "suricata",
@@ -130,7 +160,7 @@ def load_manifest(filename):
     require(path.stat().st_size <= 256 * 1024,
             "manifest exceeds 256 KiB")
 
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
     require(isinstance(data, dict), "manifest must be a mapping")
     check_fields(data, TOP_FIELDS, "infrastructure")
     require(data.get("apiVersion") == "opla/v1",

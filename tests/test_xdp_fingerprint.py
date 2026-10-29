@@ -92,15 +92,37 @@ class FingerprintTests(unittest.TestCase):
     def test_verified_build_accepts_matching_object(self):
         data = {
             "schema_version": 1,
+            "source_sha256": fp.sha256(self.source),
             "object_sha256": fp.sha256(self.obj),
         }
         fp.write_manifest(data)
 
         self.assertEqual(fp.verified_build(), data)
 
+    def test_verified_build_rejects_changed_source(self):
+        fp.write_manifest({
+            "schema_version": 1,
+            "source_sha256": fp.sha256(self.source),
+            "object_sha256": fp.sha256(self.obj),
+        })
+        self.source.write_bytes(b"changed-source")
+
+        with self.assertRaisesRegex(ValueError, "source differs"):
+            fp.verified_build()
+
+    def test_verified_build_rejects_missing_source_fingerprint(self):
+        fp.write_manifest({
+            "schema_version": 1,
+            "object_sha256": fp.sha256(self.obj),
+        })
+
+        with self.assertRaisesRegex(ValueError, "source fingerprint"):
+            fp.verified_build()
+
     def test_verified_build_rejects_modified_object(self):
         fp.write_manifest({
             "schema_version": 1,
+            "source_sha256": fp.sha256(self.source),
             "object_sha256": fp.sha256(self.obj),
         })
         self.obj.write_bytes(b"modified-object")
@@ -119,6 +141,32 @@ class FingerprintTests(unittest.TestCase):
         self.assertEqual(json.loads(self.manifest.read_text()), build_data)
         self.assertEqual(json.loads(receipt.read_text()), load_data)
         self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
+
+    def test_program_map_ids_must_match_exact_pinned_map_inventory(self):
+        maps = {name: {"id": index, "type": "hash"}
+                for index, name in enumerate(fp.MAP_NAMES, 1)}
+        identity = {"program_id": 42, "program_tag": "tag",
+                    "program_map_ids": [1, 2, 3]}
+        fp.validate_program_maps(identity, maps)
+        identity["program_map_ids"] = [1, 2, 99]
+        with self.assertRaisesRegex(ValueError, "pinned map IDs"):
+            fp.validate_program_maps(identity, maps)
+
+    def test_partial_or_extra_pinned_map_inventory_is_rejected(self):
+        maps = {name: {"id": index, "type": "hash"}
+                for index, name in enumerate(fp.MAP_NAMES, 1)}
+        del maps["xdp_policy"]
+        with self.assertRaisesRegex(ValueError, "incomplete"):
+            fp.validate_program_maps({"program_map_ids": [1, 2]}, maps)
+
+    def test_pinned_program_requires_unambiguous_map_ids(self):
+        for program in ({"id": 42, "tag": "tag"},
+                        {"id": 42, "tag": "tag", "map_ids": [1, 1]},
+                        {"id": 42, "tag": "tag", "map_ids": [1, True]}):
+            with self.subTest(program=program), \
+                 patch.object(fp, "run_json", return_value=program), \
+                 self.assertRaisesRegex(ValueError, "program map identity"):
+                fp.pinned_program()
 
 
 if __name__ == "__main__":

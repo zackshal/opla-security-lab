@@ -26,21 +26,29 @@ rollback = load('v594_rollback', 'opla-creation-rollback.py')
 prune = rollback.prune
 registry = rollback.registry
 Blocked = rollback.Blocked
+process_runtime = load('v594_process', 'opla_process.py')
 
 
 DEFAULT_PROBE_TIMEOUT = 10.0
+MAX_PROBE_OUTPUT_BYTES = 128 * 1024
 
 
 def run(args, *, timeout=DEFAULT_PROBE_TIMEOUT, runner=None):
     if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
             or not math.isfinite(timeout) or timeout <= 0):
         raise ValueError("recovery probe timeout must be positive")
-    dispatch = subprocess.run if runner is None else runner
-    return dispatch(args, capture_output=True, text=True, check=False, timeout=timeout)
+    if runner is None:
+        return process_runtime.run_bounded(
+            args, timeout=timeout, max_output_bytes=MAX_PROBE_OUTPUT_BYTES)
+    return runner(args, capture_output=True, text=True, check=False, timeout=timeout)
 
 
 def require(args, runner):
     p = runner(args)
+    if getattr(p, 'cleanup_error', None):
+        raise Blocked('probe cleanup is uncertain: ' + ' '.join(args))
+    if getattr(p, 'output_limited', False):
+        raise Blocked('probe output exceeded safety limit: ' + ' '.join(args))
     if p.returncode:
         raise Blocked('probe failed: ' + ' '.join(args) + ': ' + p.stderr.strip())
     return p.stdout
@@ -133,6 +141,10 @@ def audit(root, lab, runner=run):
             raise Blocked('TAP master differs: '+tap)
     report['checks'].append('bridge and TAP identities inspected')
     probe=runner(['nft','list','table','inet',table])
+    if getattr(probe, 'cleanup_error', None):
+        raise Blocked('nft probe cleanup is uncertain')
+    if getattr(probe, 'output_limited', False):
+        raise Blocked('nft probe output exceeded safety limit')
     if probe.returncode == 0:
         # Reuse strict *exact policy* check from lifecycle implementation.
         required={

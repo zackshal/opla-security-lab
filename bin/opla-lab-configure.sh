@@ -34,28 +34,36 @@ fi
 
 export LAB_DIR
 
-# Only a successfully created, registry-ready lab can be configured.
-registry_json="$(python3 bin/opla-registry.py list --lab "$LAB_ID")" || {
-    echo "BLOCKED: registry inspection failed" >&2
-    exit 2
-}
-
-printf '%s\n' "$registry_json" | python3 -c '
+# The root launcher checked the private registry under both lifecycle locks.
+# Read only its inherited private snapshot; the SSH user cannot read registry.
+python3 -c '
 import json
+import os
+import stat
 import sys
 
 lab = sys.argv[1]
-records = json.load(sys.stdin)
+try:
+    fd = int(sys.argv[2])
+    info = os.fstat(fd)
+    if (fd < 3 or not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+            or info.st_mode & 0o077 or info.st_size > 65536):
+        raise ValueError("unsafe snapshot")
+    with os.fdopen(os.dup(fd)) as stream:
+        records = json.load(stream)
+except (OSError, ValueError):
+    raise SystemExit("BLOCKED: use the trusted configure launcher; private registry snapshot missing or unsafe")
 
 if (
-    len(records) != 1
+    not isinstance(records, list) or len(records) != 1
+    or not isinstance(records[0], dict)
     or records[0].get("lab") != lab
     or records[0].get("status") != "recorded"
 ):
     raise SystemExit("BLOCKED: laboratory is not registry-ready")
 
 print("PASS: laboratory registry ready")
-' "$LAB_ID" || exit 2
+' "$LAB_ID" "${3:-}" || exit 2
 
 for role in attacker victim client; do
     unit="qemu-${LAB_ID}-${role}.service"
@@ -85,12 +93,33 @@ run_step() {
 
 echo "OPLA laboratory configuration"
 echo "Laboratory: $LAB_ID"
+victim_ip="$(python3 bin/state.py "$LAB_DIR" VICTIM_IP)"
 
 run_step "Cloud-init readiness" \
     make --no-print-directory ready "LAB_DIR=$LAB_DIR"
 
+# Fail before deploying or changing guest services when the immutable victim
+# role image lacks the IDS dependencies. Installing packages at configure time
+# would make guest state depend on network/package repository availability.
+if ! ssh_vm "$victim_ip" \
+    'command -v suricata >/dev/null && python3 -c "import yaml" && command -v nginx >/dev/null'; then
+    echo "BLOCKED: victim lacks Suricata, PyYAML or nginx; rebuild the victim role image and create a new lab. No guest configuration has been applied." >&2
+    exit 2
+fi
+echo "PASS: victim image dependencies (Suricata, PyYAML, nginx)"
+
 run_step "XDP deployment, build and load" \
     make --no-print-directory xdp-all "LAB_DIR=$LAB_DIR"
+
+run_step "HTTP rate policy and JSON access telemetry" \
+    env LAB_DIR="$LAB_DIR" bash bin/security-http.sh apply
+
+run_step "Passive distinct-port scan detector" \
+    env LAB_DIR="$LAB_DIR" bash bin/scan-detector.sh start
+
+run_step "HTTP JSON telemetry probe" \
+    ssh_vm "$victim_ip" \
+    'curl --fail --silent --show-error --max-time 5 -o /dev/null http://127.0.0.1/'
 
 run_step "Suricata IDS initialization" \
     make --no-print-directory ids "LAB_DIR=$LAB_DIR"
@@ -101,13 +130,16 @@ run_step "Suricata status" \
 # ids-status prints diagnostics but does not guarantee a nonzero
 # exit code when the service is inactive.
 source "$ROOT/xdp/lib.sh"
-victim_ip="$(python3 bin/state.py "$LAB_DIR" VICTIM_IP)"
 
 run_step "Suricata service active" \
     ssh_vm "$victim_ip" 'sudo systemctl is-active --quiet opla-suricata.service'
 
-run_step "XDP/IDS telemetry" \
-    make --no-print-directory xdp-stats "LAB_DIR=$LAB_DIR"
+verify_telemetry() {
+    make --no-print-directory xdp-stats "LAB_DIR=$LAB_DIR" \
+        | python3 bin/opla-configure-telemetry.py
+}
+
+run_step "Verify XDP, HTTP, scan and IDS telemetry" verify_telemetry
 
 echo
 echo "PASS: OPLA laboratory components configured"

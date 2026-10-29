@@ -73,6 +73,18 @@ class RegistryReceiptTests(unittest.TestCase):
             records = reg.inspect(d)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['resources'], 20)
+            self.assertEqual(records[0]['state']['LAB_ID'], 'lab-Ab12')
+            self.assertEqual(records[0]['state']['MGMT_BRIDGE'], 'br-op8')
+
+    def test_inspection_rejects_receipt_resource_mismatch(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.make_lab(d)
+            path = reg.persist(d, 'lab-Ab12', 'ready')
+            receipt = json.loads(path.read_text())
+            receipt['resources'].pop()
+            path.write_text(json.dumps(receipt))
+            path.chmod(0o600)
+            self.assertEqual(reg.inspect(d)[0]['status'], 'stale_or_invalid')
 
     def test_ready_rejects_single_nic_state(self):
         with tempfile.TemporaryDirectory() as d:

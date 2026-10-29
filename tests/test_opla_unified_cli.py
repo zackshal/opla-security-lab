@@ -31,12 +31,26 @@ class UnifiedCLITests(unittest.TestCase):
                     self.assertEqual(cli.main([group, "--help"]), 0)
                 self.assertIn("usage: opla", output.getvalue())
 
+    def test_group_help_alias_never_dispatches_a_command(self):
+        with patch.object(cli.subprocess, "run") as run:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(cli.main(["lab", "help"]), 0)
+            self.assertIn("usage: opla lab", output.getvalue())
+            run.assert_not_called()
+
     def test_scenario_simulate_mapping(self):
         command = cli.make_command(
             self.parse("scenario", "simulate", "syn-scan-baseline")
         )
         self.assertIn("scenario-simulate", command)
         self.assertIn("SCENARIO=syn-scan-baseline", command)
+
+    def test_scenario_help_identifies_argument_as_id(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(cli.main(["scenario", "validate", "--help"]), 0)
+        self.assertIn("SCENARIO_ID", output.getvalue())
 
     def test_lab_selection_mapping(self):
         command = cli.make_command(
@@ -122,7 +136,7 @@ class UnifiedCLITests(unittest.TestCase):
         self.assertIn("opla lab list", output.getvalue())
 
 
-    def test_lab_delete_passes_exact_confirmation(self):
+    def test_lab_delete_maps_matching_id_to_executor_confirmation(self):
         args = self.parse(
             "lab", "delete", "lab-ABC123",
             "--confirm-lab", "lab-ABC123",
@@ -130,7 +144,7 @@ class UnifiedCLITests(unittest.TestCase):
         command = cli.make_command(args)
         self.assertIn("lab-delete", command)
         self.assertIn("LAB=lab-ABC123", command)
-        self.assertIn("CONFIRM_DELETE=lab-ABC123", command)
+        self.assertIn("CONFIRM_DELETE=DELETE-LAB:lab-ABC123", command)
 
     def test_live_run_preserves_executor_confirmation(self):
         args = self.parse(
@@ -143,6 +157,21 @@ class UnifiedCLITests(unittest.TestCase):
         self.assertIn("LAB=lab-ABC123", command)
         self.assertIn("CONFIRM=lab-ABC123", command)
 
+    def test_live_scenario_actions_preserve_controlling_tty(self):
+        for action, extra in (
+            ("check", []),
+            ("run", ["--confirm", "lab-ABC123"]),
+        ):
+            with self.subTest(action=action), patch.object(cli.subprocess, "run") as run:
+                run.return_value.returncode = 0
+                self.assertEqual(cli.main([
+                    "scenario", action, "syn-scan-baseline",
+                    "--lab", "lab-ABC123", *extra,
+                ]), 0)
+                run.assert_called_once()
+                self.assertNotIn("start_new_session", run.call_args.kwargs)
+                self.assertNotIn("capture_output", run.call_args.kwargs)
+
     def test_vm_rollback_sets_rollback_variable(self):
         args = self.parse(
             "vm", "load", "--vm", "client",
@@ -153,6 +182,43 @@ class UnifiedCLITests(unittest.TestCase):
     def test_bootstrap_requires_host_confirmation(self):
         with self.assertRaisesRegex(ValueError, "confirm-host-changes"):
             cli.make_command(self.parse("system", "bootstrap"))
+
+    def test_host_admission_export_and_import_map_to_non_privileged_targets(self):
+        export = cli.make_command(self.parse(
+            "system", "admission-export", "--output", "reports/host.json",
+            "--storage-root", "/srv/opla-data",
+        ))
+        imported = cli.make_command(self.parse(
+            "system", "admission-import", "--report", "reports/host.json",
+            "--expected-host-id", "a" * 32,
+            "--expected-collector-sha256", "b" * 64,
+            "--output", "reports/decision.json",
+        ))
+        self.assertIn("host-admission-export", export)
+        self.assertIn("OUTPUT=reports/host.json", export)
+        self.assertIn("STORAGE_ROOT=/srv/opla-data", export)
+        self.assertIn("host-admission-import", imported)
+        self.assertIn("EXPECTED_HOST_ID=" + "a" * 32, imported)
+        self.assertIn("EXPECTED_COLLECTOR_SHA256=" + "b" * 64, imported)
+        self.assertIn("DECISION=reports/decision.json", imported)
+        self.assertNotIn("sudo", export)
+        self.assertNotIn("sudo", imported)
+
+    def test_host_admission_import_rejects_invalid_expected_identity_before_make(self):
+        with self.assertRaisesRegex(ValueError, "expected-host-id"):
+            cli.make_command(self.parse(
+                "system", "admission-import", "--report", "reports/host.json",
+                "--expected-host-id", "A" * 32,
+                "--expected-collector-sha256", "b" * 64,
+            ))
+
+    def test_host_admission_import_requires_well_formed_collector_pin(self):
+        with self.assertRaisesRegex(ValueError, "expected-collector-sha256"):
+            cli.make_command(self.parse(
+                "system", "admission-import", "--report", "reports/host.json",
+                "--expected-host-id", "a" * 32,
+                "--expected-collector-sha256", "short",
+            ))
 
     def test_all_targets_exist_in_makefile(self):
         import subprocess

@@ -22,7 +22,11 @@ class LaboratoryConfigurationTests(unittest.TestCase):
 
         steps = (
             'make --no-print-directory ready',
+            'command -v suricata',
             'make --no-print-directory xdp-all',
+            'bin/security-http.sh apply',
+            'bin/scan-detector.sh start',
+            'curl --fail --silent --show-error --max-time 5',
             'make --no-print-directory ids ',
             'make --no-print-directory ids-status',
             'make --no-print-directory xdp-stats',
@@ -30,6 +34,21 @@ class LaboratoryConfigurationTests(unittest.TestCase):
 
         positions = [source.index(step) for step in steps]
         self.assertEqual(positions, sorted(positions))
+
+    def test_missing_victim_dependencies_block_before_guest_changes(self):
+        source = (ROOT / "bin/opla-lab-configure.sh").read_text()
+        preflight = source.index('command -v suricata')
+        first_change = source.index('make --no-print-directory xdp-all')
+        self.assertLess(preflight, first_change)
+        self.assertIn('rebuild the victim role image and create a new lab', source)
+
+    def test_configuration_probes_http_before_final_telemetry_refresh(self):
+        source = (ROOT / "bin/opla-lab-configure.sh").read_text()
+        http_probe = source.index('HTTP JSON telemetry probe')
+        ids_active = source.index('Suricata service active')
+        refresh = source.index('Verify XDP, HTTP, scan and IDS telemetry')
+        self.assertLess(http_probe, ids_active)
+        self.assertLess(ids_active, refresh)
 
     def test_no_automatic_vm_deletion(self):
         source = (

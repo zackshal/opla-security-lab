@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import tempfile
 import unittest
@@ -45,11 +46,52 @@ class EVECorrelatorTests(unittest.TestCase):
         )
 
     def test_matching_alert(self):
-        self.path.write_text(json.dumps(self.base) + "\n")
+        raw = (json.dumps(self.base) + "\n").encode()
+        self.path.write_bytes(raw)
         result = self.analyze()
         self.assertEqual(result["matching_alerts"], 1)
         self.assertEqual(result["alerts"][0]["signature_id"], 100001)
         self.assertEqual(result["causal_attribution"], "unverified")
+        self.assertEqual(result["input_bytes"], len(raw))
+        self.assertEqual(result["input_sha256"], hashlib.sha256(raw).hexdigest())
+
+    def test_optional_action_is_not_required_by_alert_record(self):
+        event = dict(self.base, alert={key: value for key, value in self.base["alert"].items()
+                                       if key != "action"})
+        self.path.write_text(json.dumps(event) + "\n")
+        self.assertEqual(self.analyze()["matching_alerts"], 1)
+
+    def test_boolean_signature_id_is_malformed(self):
+        event = dict(self.base, alert=dict(self.base["alert"], signature_id=True))
+        self.path.write_text(json.dumps(event) + "\n")
+        result = self.analyze()
+        self.assertEqual(result["matching_alerts"], 0)
+        self.assertEqual(result["malformed_records"], 1)
+
+    def test_duplicate_json_key_is_malformed(self):
+        event = json.dumps(self.base)
+        self.path.write_text(event[:-1] + ', "event_type": "stats"}\n')
+        result = self.analyze()
+        self.assertEqual(result["matching_alerts"], 0)
+        self.assertEqual(result["malformed_records"], 1)
+
+    def test_oversized_line_is_rejected_before_unbounded_read(self):
+        self.path.write_bytes(b"x" * 80)
+        with __import__("unittest").mock.patch.object(eve, "MAX_EVE_LINE_BYTES", 32):
+            with self.assertRaisesRegex(ValueError, "oversized EVE line"):
+                self.analyze()
+
+    def test_hardlink_input_is_rejected(self):
+        self.path.write_text(json.dumps(self.base))
+        self.path.with_name("alias.json").hardlink_to(self.path)
+        with self.assertRaisesRegex(ValueError, "single-link"):
+            self.analyze()
+
+    def test_file_size_limit_is_enforced(self):
+        self.path.write_text(json.dumps(self.base))
+        with __import__("unittest").mock.patch.object(eve, "MAX_EVE_FILE_BYTES", 8):
+            with self.assertRaisesRegex(ValueError, "single-link"):
+                self.analyze()
 
     def test_unrelated_source_excluded(self):
         row = dict(self.base, src_ip="100.64.0.4")

@@ -6,6 +6,14 @@
 
 Источники: pinned BPF maps, sysfs, nginx JSON log/probe, Suricata EVE и пассивный scan detector. Host bridge получает данные по SSH и отправляет в Zabbix trapper. Пароль API нужен provisioning, а не collector.
 
+Collector адресует victim по его management IP (`state.py` разрешает data
+identity в management identity), использует отдельный per-lab `known_hosts` с
+`StrictHostKeyChecking=yes` и ограничивает SSH 10 секундами/128 KiB вывода.
+Первичное заполнение `known_hosts` сейчас происходит через `accept-new` в SSH
+helper стенда: это TOFU-bootstrap, а не независимая проверка fingerprint. Для
+настоящей верификации при первом подключении требуется отдельный источник
+ожидаемого host key.
+
 `catalog.py` содержит 34 исходных значения и 15 скоростей: всего 49 items. `setup.py` управляет 23 triggers, 5 graphs и dashboard из 5 страниц. Повторная настройка обновляет управляемые объекты; свою панель клонируйте отдельно. Политика Zabbix из `policy.json` не меняет предотвращение в XDP или nginx.
 
 ```bash
@@ -15,6 +23,22 @@ make monitoring-start
 ```
 
 Диагностика и фоновый collector разделяют блокировку. Смотрите свежесть Latest data и дельты counters; скорости требуют свежих отсчётов. `xdp.loaded=1` — boolean одной подключённой программы. Счётчики capture/sysfs не являются полным учётом native XDP DROP.
+
+Изменения состояния отправляются через ограниченный outbox
+`~/.local/state/opla/monitoring/runtime/<LAB_ID>/pending-events.json`. Он переживает рестарт
+collector и очищается после полного успешного Zabbix ACK. Provisioning receipt,
+журнал и outbox хранятся вне каталога программы, поэтому работают с защищённой
+установкой в `/opt/opla`. Секрет Compose хранится в
+`~/.config/opla/monitoring.env` с режимом `0600`. Если БД уже существует, но
+файл секрета отсутствует, `monitoring up` останавливается и требует перенести
+старый `.env`; новый пароль для прежнего volume не генерируется.
+
+Доставка имеет
+семантику at-least-once: сбой между ACK и очисткой может повторить событие.
+Очередь ограничена 1000 событий и 1 MiB; при переполнении старые события не
+выбрасываются, collector пишет ошибку и требует устранить backlog. Журнал и
+outbox — локальные данные пользователя; сохраняйте их вместе с evidence и не
+считайте одиночный лог доказательством живой доставки.
 
 SQL в `sql/` читает БД. Runtime, `.env` и локальные секреты не публикуются. Web/receiver слушают localhost 8080/10051; PostgreSQL port наружу не опубликован. Не удаляйте Docker volume ради исправления графика.
 

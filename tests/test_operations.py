@@ -99,10 +99,11 @@ class QMPTests(unittest.TestCase):
         import fcntl
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);lab=root/'lab-test'
-            folder=root/'monitoring/runtime'/lab.name;folder.mkdir(parents=True)
+            lab.mkdir(); (lab/'known_hosts').write_text('fixture')
+            folder=root/'.local/state/opla/monitoring/runtime'/lab.name;folder.mkdir(parents=True)
             with (folder/'collector.lock').open('a') as lock:
                 fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-                with patch.object(vm,'ROOT',root):
+                with patch.object(vm.pwd,'getpwuid',return_value=type('PW',(),{'pw_dir':str(root)})()):
                     with self.assertRaises(RuntimeError):vm.require_stopped_collector(lab)
     def test_backup_rejects_any_running_vm(self):
         with patch.object(disk,'run',return_value='123'):
@@ -226,6 +227,46 @@ class MailTests(unittest.TestCase):
         self.assertEqual(len(calls['action.update']['recovery_operations']),1)
 
 class SuricataTransactionTests(unittest.TestCase):
+    def test_managed_unit_requires_root_owner_and_nonwritable_mode(self):
+        manager = module('suricata_unit_metadata', 'security/suricata/manage.py')
+        import stat
+        for uid, mode in ((1000, 0o644), (0, 0o666), (0, 0o644)):
+            with self.subTest(uid=uid, mode=oct(mode)):
+                info = type('Stat', (), {
+                    'st_mode': stat.S_IFREG | mode,
+                    'st_nlink': 1,
+                    'st_uid': uid,
+                })()
+                if uid == 0 and mode == 0o644:
+                    manager.validate_unit_metadata(info)
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'root-owned and protected'):
+                        manager.validate_unit_metadata(info)
+
+    def test_unit_parent_chain_rejects_group_or_world_writable_directory(self):
+        manager = module('suricata_unit_parent_chain', 'security/suricata/manage.py')
+        import stat
+        path = Path('/safe/etc/systemd/system/opla-suricata.service')
+        unsafe = path.parent.parent
+        def fake_lstat(candidate):
+            mode = 0o777 if candidate == unsafe else 0o755
+            return type('Stat', (), {
+                'st_mode': stat.S_IFDIR | mode,
+                'st_uid': 0,
+            })()
+        with patch.object(Path, 'lstat', fake_lstat):
+            with self.assertRaisesRegex(RuntimeError, 'unit directory is not root-owned'):
+                manager.validate_unit_parent_chain(path)
+
+    def test_missing_unit_still_requires_trusted_parent_chain(self):
+        manager = module('suricata_missing_unit_parent', 'security/suricata/manage.py')
+        with patch.object(manager, 'UNIT', Path('/untrusted/systemd/opla-suricata.service')), \
+                patch.object(manager, 'validate_unit_parent_chain',
+                             side_effect=RuntimeError('untrusted parent')) as validate:
+            with self.assertRaisesRegex(RuntimeError, 'untrusted parent'):
+                manager.owned_unit_bytes()
+        validate.assert_called_once()
+
     def test_invalid_candidate_does_not_replace_active_rules(self):
         manager=module('suricata_transaction','security/suricata/manage.py')
         import subprocess
@@ -234,7 +275,9 @@ class SuricataTransactionTests(unittest.TestCase):
             old=config/'opla.rules';old.write_text('old rules')
             with patch.object(manager,'ROOT',config),patch.object(manager,'LOG',log), \
                  patch.object(manager,'UNIT',root/'unit'), \
+                 patch.object(manager,'MANAGER_LOCK_PATH',root/'manager.lock'), \
                  patch.object(manager,'config',return_value={}), \
+                 patch.object(manager.subprocess,'run',return_value=subprocess.CompletedProcess([],1,'','')), \
                  patch.object(manager,'run',side_effect=subprocess.CalledProcessError(1,'suricata -T')):
                 with self.assertRaises(subprocess.CalledProcessError):manager.apply('ids','100.64.0.0/29')
             self.assertEqual(old.read_text(),'old rules')

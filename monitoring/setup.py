@@ -6,21 +6,65 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
+import urllib.error
 import urllib.request
 R=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(R/'bin'))
 sys.path.insert(0,str(R/'monitoring'))
 from state import load
+from bridge import prepare_runtime
+MAX_API_RESPONSE = 1024 * 1024
+
+class APIUnavailable(RuntimeError):
+    pass
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
 
 class API:
-    def __init__(self,url): self.url=url;self.auth=None
-    def call(self,method,params):
+    def __init__(self,url):
+        self.url=url
+        self.auth=None
+        # This API is local; proxy environment must not divert credentials.
+        self.opener=urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+
+    def call(self,method,params, *, timeout=15):
         body={'jsonrpc':'2.0','id':1,'method':method,'params':params}
         if self.auth: body['auth']=self.auth
         req=urllib.request.Request(self.url,json.dumps(body).encode(),{'Content-Type':'application/json-rpc'})
-        with urllib.request.urlopen(req,timeout=15) as response: data=json.load(response)
-        if 'error' in data:raise RuntimeError(str(data['error']))
+        try:
+            with self.opener.open(req,timeout=timeout) as response:
+                raw=response.read(MAX_API_RESPONSE + 1)
+            if len(raw) > MAX_API_RESPONSE:
+                raise ValueError('Ответ Zabbix API превышает 1 MiB')
+            data=json.loads(raw)
+        except urllib.error.HTTPError as exc:
+            if exc.code in (502, 503, 504):
+                raise APIUnavailable(f'Zabbix API временно недоступен: HTTP {exc.code}') from exc
+            raise RuntimeError(f'Zabbix API: HTTP {exc.code}') from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise APIUnavailable('Нет соединения с локальным Zabbix API') from exc
+        if not isinstance(data, dict) or 'result' not in data and 'error' not in data:
+            raise RuntimeError('Некорректный ответ Zabbix API')
+        if 'error' in data:
+            raise RuntimeError(f'Zabbix API отклонил метод {method}')
         return data['result']
+
+    def wait_ready(self, *, timeout=60, clock=time.monotonic, sleep=time.sleep):
+        """Retry only the read-only version probe, never API mutations."""
+        deadline=clock()+timeout
+        while True:
+            remaining=deadline-clock()
+            if remaining <= 0:
+                raise APIUnavailable('Zabbix API не готов за 60 секунд; проверьте логи web/server/db и повторите configure после исправления')
+            try:
+                return self.call('apiinfo.version', {}, timeout=min(5, remaining))
+            except APIUnavailable:
+                sleep(min(2, max(0, deadline-clock())))
 
 def field(name,value,kind=0):return {'type':kind,'name':name,'value':str(value)}
 
@@ -195,19 +239,36 @@ def provision(api, name):
     return {'host': name, 'hostid': hid, 'items': ids, 'rates': rates, 'dashboard': params, 'policy': policy, 'trigger_count': len(descriptions)}
 
 
-if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--lab',required=True);args=parser.parse_args()
+def main(argv=None):
+    parser=argparse.ArgumentParser();parser.add_argument('--lab',required=True);args=parser.parse_args(argv)
     d=load(args.lab)
     api=API('http://127.0.0.1:8080/api_jsonrpc.php')
-    version=api.call('apiinfo.version',{})
+    print('Ожидание локального Zabbix API (до 60 секунд)...', flush=True)
+    version=api.wait_ready()
+    if not isinstance(version, str):
+        raise RuntimeError('Zabbix API вернул некорректную версию')
     if not version.startswith('7.0.'):sys.exit('Ожидается Zabbix 7.0.x, получен '+version)
     username=input('Zabbix user [Admin]: ').strip() or 'Admin'
     password=getpass.getpass('Zabbix password: ')
+    # Refuse unwritable/unsafe local state before any authenticated API writes.
+    out=prepare_runtime(d['LAB_ID'])
     api.auth=api.call('user.login',{'username':username,'password':password})
     try:
         result=provision(api,'opla-'+d['LAB_ID'])
-        out=R/'monitoring/runtime'/d['LAB_ID'];out.mkdir(parents=True,exist_ok=True)
         (out/'provisioned.json').write_text(json.dumps(result,indent=2))
         print(f'Настроены {len(result["items"])+len(result["rates"])} элементов, {result["trigger_count"]} триггеров и dashboard из {len(result["dashboard"]["pages"])} страниц.')
         print('Сбор данных: make monitoring-start')
-    finally:api.call('user.logout',[])
+    finally:
+        try:
+            api.call('user.logout',[])
+        except (RuntimeError, ValueError):
+            print('WARN: Zabbix logout не подтверждён', file=sys.stderr)
+    return 0
+
+
+if __name__=='__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f'Не удалось настроить мониторинг: {exc}', file=sys.stderr)
+        sys.exit(2)

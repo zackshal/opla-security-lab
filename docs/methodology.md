@@ -208,7 +208,7 @@ make monitoring-stop
 python3 monitoring/diagnose.py --lab "$LAB_DIR"
 make monitoring-start
 lab_id="$(python3 bin/state.py "$LAB_DIR" LAB_ID)"
-docker compose --env-file monitoring/.env -f monitoring/compose.yaml exec -T db \
+docker compose --env-file "$HOME/.config/opla/monitoring.env" -f monitoring/compose.yaml exec -T db \
   psql -U zabbix -d zabbix -v "host_name=opla-$lab_id" \
   < monitoring/sql/security-overview.sql
 ```

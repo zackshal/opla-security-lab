@@ -6,6 +6,9 @@ import stat
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+from contextlib import nullcontext
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +25,46 @@ def load_module():
 
 
 class ConfigureLauncherTests(unittest.TestCase):
+
+    def test_registry_is_checked_before_dropped_user_dispatch(self):
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'lab-Ab12').mkdir()
+            user = SimpleNamespace(pw_name='test', pw_dir=temp, pw_uid=os.getuid(), pw_gid=os.getgid())
+            records = [{'lab': 'lab-Ab12', 'status': 'recorded'}]
+            def dispatch(command, **kwargs):
+                import fcntl
+                fd = int(command[-1])
+                self.assertEqual(kwargs['pass_fds'], (fd,))
+                self.assertEqual(fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE, os.O_RDONLY)
+                self.assertEqual(os.fstat(fd).st_mode & 0o777, 0o600)
+                self.assertEqual(json.loads(os.read(fd, 65536)), records)
+                return subprocess.CompletedProcess(command, 0)
+            with patch.object(module, 'ROOT', root), \
+                 patch.object(module, 'invoking_user', return_value=user), \
+                 patch.object(module, 'verify_trusted_code'), \
+                 patch.object(module, 'load_locks', return_value=SimpleNamespace(lifecycle_lock=lambda path: nullcontext())), \
+                 patch.object(module, 'registry_ready_snapshot', return_value=records), \
+                 patch.object(module, 'run_configure', side_effect=dispatch) as runner:
+                self.assertEqual(module.main(['lab-Ab12', 'lab-Ab12']), 0)
+                runner.assert_called_once()
+            with patch.object(module, 'ROOT', root):
+                with self.assertRaisesRegex(RuntimeError, 'registry check failed'):
+                    module.registry_ready_snapshot('lab-Ab12')
+
+    def test_inherited_registry_descriptor_reaches_child(self):
+        import sys
+        module = load_module()
+        with tempfile.TemporaryFile() as snapshot:
+            snapshot.write(b'validated registry snapshot')
+            snapshot.seek(0)
+            command = [sys.executable, '-c',
+                       'import os,sys; sys.exit(0 if os.read(int(sys.argv[1]), 64) == b"validated registry snapshot" else 2)',
+                       str(snapshot.fileno())]
+            result = module.run_configure(command, cwd='/tmp', env={}, preexec_fn=lambda: None,
+                                          pass_fds=(snapshot.fileno(),), timeout=5)
+            self.assertEqual(result.returncode, 0)
 
     def test_configure_timeout_env_is_validated_and_bounded(self):
         module = load_module()

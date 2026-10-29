@@ -75,6 +75,52 @@ class ActiveRecoveryFaultTests(unittest.TestCase):
                           lambda *_: events.append('offline'))
         self.assertEqual(events, ['audit', 'evidence', 'audit'])
 
+    def test_foreign_management_nft_rule_blocks_before_stop(self):
+        events = []
+        def verify_policies(*_):
+            events.append('policies')
+            raise mod.Blocked('management nft policy mismatch')
+        with self.assertRaisesRegex(mod.Blocked, 'management nft'):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                with patch.object(mod.prune, 'safe_root', side_effect=lambda value: Path(value)), \
+                     patch.object(mod.rollback, 'lock_is_safe', return_value=True), \
+                     patch.object(mod.prune, 'write_journal'):
+                    mod.locked_recover(
+                        root, LAB, CONFIRM,
+                        audit=lambda *_: events.append('audit'),
+                        evidence=lambda *_: events.append('evidence'),
+                        stop=lambda *_: events.append('stop'),
+                        offline=lambda *_: events.append('offline'),
+                        verify_policies=verify_policies,
+                    )
+        self.assertEqual(events, ['audit', 'evidence', 'audit', 'evidence', 'policies'])
+
+    def test_default_stop_checks_both_nft_policies_before_clean_stop(self):
+        events = []
+        state = {'LAB_ID': LAB, 'BRIDGE': 'br-op1', 'MGMT_BRIDGE': 'br-op2'}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with patch.object(mod.prune, 'safe_root', side_effect=lambda value: Path(value)), \
+                 patch.object(mod.rollback, 'lock_is_safe', return_value=True), \
+                 patch.object(mod.prune, 'write_journal'), \
+                 patch.object(mod.lifecycle, 'load', return_value=state), \
+                 patch.object(mod.lifecycle, 'verify_lab_nft_policies',
+                              side_effect=lambda value: events.append(('policies', value))), \
+                 patch.object(mod.lifecycle, 'clean_stop',
+                              side_effect=lambda labdir, value: events.append(('stop', value))):
+                result = mod.locked_recover(
+                    root, LAB, CONFIRM,
+                    audit=lambda *_: events.append('audit'),
+                    evidence=lambda *_: events.append('evidence'),
+                    offline=lambda *_: {'fixture': True},
+                )
+        self.assertEqual(events, [
+            'audit', 'evidence', 'audit', 'evidence',
+            ('policies', state), ('stop', state), 'evidence',
+        ])
+        self.assertEqual(result['status'], 'completed')
+
     def test_retry_after_partial_stop_rechecks_before_cleanup(self):
         events = []
         attempts = [0]

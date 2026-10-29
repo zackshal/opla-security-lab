@@ -155,10 +155,26 @@ def inspect(root, labid=None):
             lab = path.stem
             if obj.get("schema") != 1 or obj.get("lab_id") != lab or obj.get("lab_dir") != str(root / lab):
                 raise ValueError("identity mismatch")
-            state_of(root, lab, require_management=(obj.get("phase") == "ready"))
-            status = "recorded" if obj.get("phase") == "ready" else "incomplete"
+            phase = obj.get("phase")
+            state = state_of(root, lab, require_management=(phase == "ready"))
+            expected = receipt(root, lab, phase)
+            if obj.get("resources") != expected["resources"]:
+                raise ValueError("receipt resources differ from state.env")
+            status = "recorded" if phase == "ready" else "incomplete"
+            # Only expose the validated, non-secret lab topology. Keep credentials,
+            # evidence contents, and receipt internals inside the protected store.
+            public_state = {
+                key: state[key]
+                for key in (
+                    "LAB_ID", "BRIDGE", "SUBNET", "GW", "ATTACKER_IP",
+                    "VICTIM_IP", "CLIENT_IP", "MGMT_BRIDGE", "MGMT_SUBNET",
+                    "MGMT_GW", "ATTACKER_MGMT_IP", "VICTIM_MGMT_IP",
+                    "CLIENT_MGMT_IP",
+                )
+                if key in state
+            }
             results.append({"file": path.name, "lab": lab, "status": status,
-                            "resources": len(obj.get("resources", []))})
+                            "resources": len(obj["resources"]), "state": public_state})
         except (OSError, ValueError, UnicodeError, TypeError):
             results.append({"file": path.name, "status": "stale_or_invalid"})
     return results

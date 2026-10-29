@@ -104,11 +104,11 @@ def interface(name):
     return call('ip', 'link', 'show', 'dev', name, check=False).returncode == 0
 
 
-def verify_nft_before_network_cleanup(table, bridge, *, management=False):
-    """Fail closed on unexpected NFT rules before mutating DHCP/TAP/bridge.
+def verify_nft_policy(table, bridge, *, management=False):
+    """Accept only the exact OPLA policy; distinguish absence from probe failure.
 
     Missing table is allowed; unexpected permissions/output/extra rules are not.
-    This is a defense in depth for direct lab-stop calls, not ownership proof.
+    This verifies contents, not resource ownership.
     """
     probe = call('nft', 'list', 'table', 'inet', table, check=False)
     if probe.returncode:
@@ -152,6 +152,21 @@ def verify_nft_before_network_cleanup(table, bridge, *, management=False):
     return True
 
 
+def verify_lab_nft_policies(state, *, require_present=False):
+    """Validate both policies; optionally require both tables to exist."""
+    labid = state['LAB_ID']
+    table = 'opla_' + labid.replace('-', '_')
+    mgmt_table = 'opla_mgmt_' + labid.replace('-', '_')
+    data_present = verify_nft_policy(table, state['BRIDGE'])
+    management_present = verify_nft_policy(
+        mgmt_table, state['MGMT_BRIDGE'], management=True)
+    if require_present and not data_present:
+        raise RuntimeError(f'required nftables table {table} is missing before VM resume')
+    if require_present and not management_present:
+        raise RuntimeError(f'required nftables table {mgmt_table} is missing before VM resume')
+    return data_present, management_present
+
+
 def remove_network(lab, state):
     """Remove only resources owned by this lab; retain all on-disk state."""
     if 'MGMT_BRIDGE' not in state:
@@ -160,8 +175,8 @@ def remove_network(lab, state):
     table = 'opla_' + labid.replace('-', '_')
     mgmt_table = 'opla_mgmt_' + labid.replace('-', '_')
     dhcp = f'dhcp-{labid}.service'
-    nft_present = verify_nft_before_network_cleanup(table, bridge)
-    mgmt_nft_present = verify_nft_before_network_cleanup(mgmt_table, mgmt_bridge, management=True)
+    nft_present = verify_nft_policy(table, bridge)
+    mgmt_nft_present = verify_nft_policy(mgmt_table, mgmt_bridge, management=True)
     if active(dhcp):
         call('systemctl', 'stop', dhcp)
     # A stale DHCP unit is harmless. Avoid touching another lab's services.
@@ -196,17 +211,20 @@ def remove_network(lab, state):
         call('ip', 'link', 'delete', 'dev', current_bridge)
     if nft_present:
         # Recheck immediately before deletion; reject policy changes during cleanup.
-        if not verify_nft_before_network_cleanup(table, bridge):
+        if not verify_nft_policy(table, bridge):
             raise RuntimeError('nft table disappeared during cleanup; manual review required')
         call('nft', 'delete', 'table', 'inet', table)
     if mgmt_nft_present:
-        if not verify_nft_before_network_cleanup(mgmt_table, mgmt_bridge, management=True):
+        if not verify_nft_policy(mgmt_table, mgmt_bridge, management=True):
             raise RuntimeError('management nft table disappeared during cleanup; manual review required')
         call('nft', 'delete', 'table', 'inet', mgmt_table)
     print('Сеть стенда остановлена: DHCP, TAP, bridge, nft; диски и state.env сохранены.')
 
 
 def clean_stop(lab, state):
+    # Detect data or management policy drift immediately before any VM power
+    # request; remove_network repeats these checks before touching host links.
+    verify_lab_nft_policies(state)
     labid = state['LAB_ID']
     running = [vm for vm in VMS if active(f'qemu-{labid}-{vm}.service')]
     if running:
@@ -215,6 +233,9 @@ def clean_stop(lab, state):
             if not sock.is_socket():
                 raise RuntimeError(f'Нет QMP-сокета {sock}; принудительную остановку не выполняем')
         for vm in running:
+            # Recheck after socket inspection and before each guest power
+            # request, so drift during a partial stop blocks later requests.
+            verify_lab_nft_policies(state)
             try:
                 with QMP(lab / f'{vm}-qmp.sock', timeout=6) as qmp:
                     qmp.call('system_powerdown')
@@ -239,6 +260,7 @@ def preflight(lab, state):
     running = [vm for vm in VMS if active(f'qemu-{labid}-{vm}.service')]
     if running:
         raise RuntimeError('Обнаружены уже запущенные VM: ' + ', '.join(running) + '. Повторный запуск отменён.')
+    verify_lab_nft_policies(state)
     for vm in VMS:
         for filename in ('disk.qcow2', 'seed.iso'):
             if not (lab / vm / filename).is_file():
@@ -274,12 +296,14 @@ def preflight(lab, state):
 
 def prepare_network(lab, state):
     bridge, gateway, labid = state['BRIDGE'], state['GW'], state['LAB_ID']
+    # Recheck both policies together before creating bridges, TAPs or services.
+    verify_lab_nft_policies(state)
     if not interface(bridge):
         call('ip', 'link', 'add', bridge, 'type', 'bridge')
         call('ip', 'addr', 'add', gateway + '/29', 'dev', bridge)
     call('ip', 'link', 'set', bridge, 'up')
     table = 'opla_' + labid.replace('-', '_')
-    if call('nft', 'list', 'table', 'inet', table, check=False).returncode != 0:
+    if not verify_nft_policy(table, bridge):
         rules = f'''add table inet {table}
 add chain inet {table} forward {{ type filter hook forward priority -20; policy accept; }}
 add rule inet {table} forward iifname "{bridge}" oifname != "{bridge}" drop
@@ -296,7 +320,7 @@ add rule inet {table} input iifname "{bridge}" drop
         call('ip', 'link', 'add', mgmt_bridge, 'type', 'bridge')
         call('ip', 'addr', 'add', state['MGMT_GW'] + '/29', 'dev', mgmt_bridge)
     call('ip', 'link', 'set', mgmt_bridge, 'up')
-    if call('nft', 'list', 'table', 'inet', mgmt_table, check=False).returncode != 0:
+    if not verify_nft_policy(mgmt_table, mgmt_bridge, management=True):
         rules = f'''add table inet {mgmt_table}
 add chain inet {mgmt_table} forward {{ type filter hook forward priority -19; policy accept; }}
 add rule inet {mgmt_table} forward iifname "{mgmt_bridge}" oifname != "{mgmt_bridge}" drop
@@ -332,6 +356,16 @@ add rule inet {mgmt_table} input iifname "{mgmt_bridge}" drop
         raise RuntimeError('Маршрут хоста до victim не использует ' + bridge +
                            ': ' + (route.stdout or route.stderr).strip() +
                            '. Проверьте ip route и конфликтующие сети.')
+
+
+def start_lab(lab, state):
+    """Preflight and prepare networking, then revalidate firewall before QEMU."""
+    preflight(lab, state)
+    prepare_network(lab, state)
+    verify_lab_nft_policies(state, require_present=True)
+    # resume() only starts existing disk images; the final policy check above
+    # prevents launching VMs after detected firewall drift during preparation.
+    resume(lab, state)
 
 
 def _load_lifecycle_locks():
@@ -374,10 +408,8 @@ def main():
         elif args.action == 'stop':
             clean_stop(lab, state)
         else:
-            preflight(lab, state)
-            prepare_network(lab, state)
+            start_lab(lab, state)
             # resume() reuses existing QCOW2 images; it never creates new disks.
-            resume(lab, state)
             print('Выполните make ready, затем проверьте XDP/IDS и запустите мониторинг.')
 
 

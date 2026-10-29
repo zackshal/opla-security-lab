@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -98,6 +99,46 @@ class IncidentReportTests(unittest.TestCase):
         (self.experiment / "interval.json").unlink()
         with self.assertRaises(ValueError):
             module.build_report(self.experiment)
+
+    def test_scan_file_byte_limit_is_enforced(self):
+        self.scan.write_bytes(b"{}\n" * 10)
+        with patch.object(module, "MAX_SCAN_EVIDENCE_BYTES", 8):
+            with self.assertRaisesRegex(ValueError, "byte limit"):
+                module.scan_events(
+                    self.scan, "2026-10-27T13:00:00Z", "2026-10-27T13:00:10Z",
+                    "100.64.0.2", "100.64.0.3",
+                )
+
+    def test_scan_record_count_is_enforced(self):
+        self.scan.write_text("{}\n{}\n{}\n")
+        with patch.object(module, "MAX_SCAN_EVENT_RECORDS", 2):
+            with self.assertRaisesRegex(ValueError, "record count"):
+                module.scan_events(
+                    self.scan, "2026-10-27T13:00:00Z", "2026-10-27T13:00:10Z",
+                    "100.64.0.2", "100.64.0.3",
+                )
+
+    def test_matching_scan_event_count_is_enforced(self):
+        from datetime import datetime, timezone
+        self.event["timestamp"] = int(
+            datetime(2026, 10, 27, 13, 0, 5, tzinfo=timezone.utc).timestamp()
+        )
+        self.scan.write_text((json.dumps(self.event) + "\n") * 2)
+        with patch.object(module, "MAX_MATCHED_SCAN_EVENTS", 1):
+            with self.assertRaisesRegex(ValueError, "matching scan event count"):
+                module.scan_events(
+                    self.scan, "2026-10-27T13:00:00Z", "2026-10-27T13:00:10Z",
+                    "100.64.0.2", "100.64.0.3",
+                )
+
+    def test_scan_symlink_is_rejected(self):
+        alias = self.root / "alias.jsonl"
+        alias.symlink_to(self.scan)
+        with self.assertRaisesRegex(ValueError, "missing or unsafe"):
+            module.scan_events(
+                alias, "2026-10-27T13:00:00Z", "2026-10-27T13:00:10Z",
+                "100.64.0.2", "100.64.0.3",
+            )
 
 
 if __name__ == "__main__":

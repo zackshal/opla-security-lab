@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only OPLA acceptance preflight. No SSH, QEMU or provisioning."""
+"""Read-only fixture preflight. No SSH, QEMU, provisioning or host admission."""
 
 import argparse
 import json
@@ -122,6 +122,16 @@ def check():
         "Source contract only; runtime bridge/NIC separation is NOT TESTED",
     )
 
+    # This checker validates source plus the historical Debian-12 Ansible
+    # fixture.  It cannot observe the physical host that might later run the
+    # local-QEMU lab.  Keeping that distinction in the structured output
+    # prevents a green fixture setup from being mistaken for Gate C admission.
+    record(
+        "physical_host_admission",
+        "NOT TESTED",
+        "Outside this fixture preflight; import a fresh dedicated-host observation with opla system admission-import",
+    )
+
     inventory = guest_dir / "inventory.yml"
     inventory_ok, inventory_detail = verify_inventory(inventory, home)
     record(
@@ -172,6 +182,8 @@ def check():
         "execution_performed": False,
         "fixture_mode": "ansible-debian12",
         "builtin_mode": "local-qemu-dual-nic",
+        "assessment_scope": "fixture_and_source_only",
+        "physical_host_assessment": "NOT TESTED",
         "preflight_configuration_valid": blocked == 0,
         "ready_for_automatic_execution": False,
         "overall_status": "BLOCKED" if blocked else "NOT TESTED",
