@@ -25,12 +25,16 @@ def main():
         worker = Path(__file__).resolve().with_name('alert_delivery.py')
         subprocess.run([sys.executable, str(worker), 'status'], check=True)
         unit.parent.mkdir(parents=True, exist_ok=True)
+        config_home = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+        selection = Path(os.environ.get(
+            'OPLA_LAB_SELECTION', str(config_home / 'opla/selected-lab'))).expanduser().absolute()
         unit.write_text(f'''[Unit]
-Description=OPLA Warning+ alerts to Gmail and Proton through Tor
+Description=OPLA Zabbix email notifications through Tor
 After=default.target
 
 [Service]
 Type=simple
+Environment=OPLA_LAB_SELECTION={quote(selection)}
 ExecStart={quote(sys.executable)} {quote(worker)} run
 Restart=on-failure
 RestartSec=15
@@ -44,7 +48,8 @@ WantedBy=default.target
         os.chmod(unit, 0o600)
     subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
     if args.action == 'install':
-        subprocess.run(['systemctl', '--user', 'enable', '--now', 'opla-alerts.service'], check=True)
+        subprocess.run(['systemctl', '--user', 'enable', 'opla-alerts.service'], check=True)
+        subprocess.run(['systemctl', '--user', 'restart', 'opla-alerts.service'], check=True)
         print('Started opla-alerts.service. Inspect queue status and journal; delivery is not yet confirmed.')
 
 

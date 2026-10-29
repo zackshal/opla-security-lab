@@ -34,6 +34,8 @@ class ArtifactAcceptanceTests(unittest.TestCase):
             (self.image_dir / (name + ".sha256")).write_text(
                 hashlib.sha256(data).hexdigest() + "  " + name + "\n")
             (self.image_dir / (name + ".role")).write_text(role)
+            (self.image_dir / (name + ".packages")).write_text(
+                "\n".join(sorted(artifacts.images.ROLE_PACKAGES[role])) + "\n")
         self.write("interval.json", {"schema_version": 1,
                    "start": "2026-10-27T13:00:00Z", "end": "2026-10-27T13:00:10Z",
                    "source_ip": "100.64.0.2", "target_ip": "100.64.0.3"})
@@ -61,6 +63,13 @@ class ArtifactAcceptanceTests(unittest.TestCase):
 
     def runner(self, argv, **kwargs):
         self.commands.append({"argv": argv, "timeout": kwargs["timeout"]})
+        if argv[0] == "virt-cat":
+            name = Path(argv[2]).name
+            role = next(role for role, entry in artifacts.images.ROLE_IMAGES.items()
+                        if entry[0] == name)
+            manifest = "".join(package + "\tfixture-version\n"
+                               for package in sorted(artifacts.images.ROLE_PACKAGES[role]))
+            return subprocess.CompletedProcess(argv, 0, manifest)
         name = Path(argv[-1]).name
         sizes = {filename: size for filename, size in artifacts.images.ROLE_IMAGES.values()}
         size = sizes[name]
@@ -84,6 +93,7 @@ class ArtifactAcceptanceTests(unittest.TestCase):
         self.assertEqual(evidence["incident_report"]["attack_attribution"], "unverified")
         self.assertEqual(len(evidence["artifact_sha256"]), 9)
         self.assertTrue(all(command["argv"][:3] == ["qemu-img", "info", "--output=json"]
+                            or command["argv"][:2] == ["virt-cat", "-a"]
                             for command in self.commands))
 
     def test_image_checksum_mismatch_prevents_dispatch(self):

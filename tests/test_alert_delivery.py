@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('alert_delivery', Path(__file__).resolve().parents[1] / 'monitoring/alert_delivery.py')
 mail = importlib.util.module_from_spec(spec)
@@ -55,6 +56,81 @@ class AlertsTests(unittest.TestCase):
     def tearDown(self):
         self.q.db.close()
         self.directory.cleanup()
+
+    def test_config_accepts_user_supplied_recipient_list(self):
+        self.c['recipients'] = ['ops@example.net', 'sec@example.org']
+        self.assertIs(mail.validate(self.c), self.c)
+        self.c['recipients'] = ['Ops@example.net', 'ops@example.NET']
+        with self.assertRaisesRegex(ValueError, 'unique'):
+            mail.validate(self.c)
+
+    def test_recipient_update_preserves_credentials_and_private_mode(self):
+        filename = Path(self.directory.name) / 'alerts.json'
+        filename.write_text(json.dumps(self.c))
+        filename.chmod(0o600)
+        with patch('builtins.input', return_value='team@example.net, ops@example.org'):
+            mail.update_recipients(filename)
+        saved = json.loads(filename.read_text())
+        self.assertEqual(saved['recipients'], ['team@example.net', 'ops@example.org'])
+        self.assertEqual(saved['api_token'], self.c['api_token'])
+        self.assertEqual(saved['smtp_password'], self.c['smtp_password'])
+        self.assertEqual(saved['host'], self.c['host'])
+        self.assertEqual(filename.stat().st_mode & 0o777, 0o600)
+
+    def test_api_token_update_validates_access_and_preserves_other_settings(self):
+        filename = Path(self.directory.name) / 'alerts.json'
+        filename.write_text(json.dumps(self.c))
+        filename.chmod(0o600)
+
+        class FakeAPI:
+            def __init__(self, config):
+                self.config = config
+                self.calls = []
+
+            def call(self, method, params):
+                self.calls.append((method, params))
+                return '7.0.1' if method == 'apiinfo.version' else []
+
+            def host_id(self):
+                return '42'
+
+            def events(self, params):
+                self.calls.append(('event.get', params))
+                return []
+
+        with patch('getpass.getpass', return_value='c' * 64), \
+                patch.object(mail, 'resolve_target', return_value={'lab_id': 'lab-Abcd',
+                                                                    'host': 'opla-lab-Abcd',
+                                                                    'state': Path(self.directory.name)}), \
+                patch.object(mail, 'API', FakeAPI):
+            mail.update_api_token(filename)
+        saved = json.loads(filename.read_text())
+        self.assertEqual(saved['api_token'], 'c' * 64)
+        self.assertEqual(saved['host'], self.c['host'])
+        self.assertEqual(saved['recipients'], self.c['recipients'])
+        self.assertEqual(saved['smtp_password'], self.c['smtp_password'])
+
+    def test_selected_lab_resolves_host_and_isolated_queue(self):
+        root = Path(self.directory.name)
+        with patch.object(mail, 'selected_lab_id', return_value='lab-Abcd1234'):
+            target = mail.resolve_target(self.c, root)
+        self.assertEqual(target['host'], 'opla-lab-Abcd1234')
+        self.assertEqual(target['state'], root / 'labs' / 'lab-Abcd1234')
+
+    def test_matching_legacy_queue_is_reused_for_selected_lab(self):
+        root = Path(self.directory.name)
+        (root / 'queue.sqlite3').touch()
+        self.c['host'] = 'opla-lab-Abcd1234'
+        with patch.object(mail, 'selected_lab_id', return_value='lab-Abcd1234'):
+            target = mail.resolve_target(self.c, root)
+        self.assertEqual(target['state'], root)
+
+    def test_mismatched_legacy_queue_is_not_reused_for_selected_lab(self):
+        root = Path(self.directory.name)
+        (root / 'queue.sqlite3').touch()
+        with patch.object(mail, 'selected_lab_id', return_value='lab-Abcd1234'):
+            target = mail.resolve_target(self.c, root)
+        self.assertEqual(target['state'], root / 'labs' / 'lab-Abcd1234')
 
     def test_problem_and_recovery_to_each_recipient_once(self):
         api = FakeAPI([event(recovered='102')], recovered={'102': dict(eventid='102', clock='1792847203')})

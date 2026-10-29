@@ -110,27 +110,27 @@ STYLES = {
         keepWithNext=True, textColor=colors.black,
     ),
     'cell': ParagraphStyle(
-        'cell', fontName='Serif', fontSize=9.5, leading=12.5,
+        'cell', fontName='Serif', fontSize=12, leading=18,
         spaceAfter=0, splitLongWords=True, textColor=colors.black,
     ),
     'cellhead': ParagraphStyle(
-        'cellhead', fontName='SerifBold', fontSize=9.5, leading=12.5,
+        'cellhead', fontName='SerifBold', fontSize=12, leading=18,
         alignment=TA_CENTER, spaceAfter=0, splitLongWords=True,
         textColor=colors.black,
     ),
     'code': ParagraphStyle(
-        'code', fontName='Mono', fontSize=7.5, leading=10.5,
+        'code', fontName='Mono', fontSize=12, leading=18,
         spaceBefore=5, spaceAfter=8,
         backColor=colors.HexColor('#f2f4f7'), borderPadding=6,
         textColor=colors.black,
     ),
     'caption': ParagraphStyle(
-        'caption', fontName='Serif', fontSize=10, leading=14,
+        'caption', fontName='Serif', fontSize=12, leading=18,
         alignment=TA_CENTER, spaceBefore=4, spaceAfter=10,
         textColor=colors.black,
     ),
     'tablecaption': ParagraphStyle(
-        'tablecaption', fontName='Serif', fontSize=10, leading=14,
+        'tablecaption', fontName='Serif', fontSize=12, leading=18,
         alignment=TA_LEFT, leftIndent=0, firstLineIndent=0,
         spaceBefore=2, spaceAfter=6, keepWithNext=True,
         textColor=colors.black,
@@ -144,11 +144,11 @@ STYLES = {
         alignment=TA_CENTER, spaceAfter=12, textColor=colors.black,
     ),
     'toc1': ParagraphStyle(
-        'toc1', fontName='Serif', fontSize=10, leading=13,
+        'toc1', fontName='Serif', fontSize=12, leading=18,
         spaceBefore=3, textColor=colors.black,
     ),
     'toc2': ParagraphStyle(
-        'toc2', fontName='Serif', fontSize=9.5, leading=12,
+        'toc2', fontName='Serif', fontSize=12, leading=18,
         spaceBefore=1, leftIndent=12, textColor=colors.black,
     ),
 }
@@ -162,16 +162,9 @@ def inline(text):
 
     def code_markup(match):
         value = match.group(1)
-        value = re.sub(r'([/._-])', r'\1&#8203;', value)
         return f'<font name="Mono">{value}</font>'
 
     text = re.sub(r'`([^`]+)`', code_markup, text)
-    # Не разрывать имена файлов/ключи произвольно посередине: разрешить перенос
-    # после естественных разделителей, например в monitoring/bridge.py.
-    text = re.sub(
-        r'([A-Za-z0-9])([/._-])(?=[A-Za-z0-9])',
-        r'\1\2&#8203;', text
-    )
     return text
 
 
@@ -216,7 +209,7 @@ class Document(BaseDocTemplate):
             canvas.setFillColor(colors.black)
             canvas.drawString(
                 self.leftMargin, PAGE_HEIGHT - 1.2 * cm,
-                'OPLA / редакция 24.10.2026'
+                'OPLA / редакция 30.10.2026'
             )
             canvas.drawRightString(
                 PAGE_WIDTH - self.rightMargin, PAGE_HEIGHT - 1.2 * cm,
@@ -335,7 +328,7 @@ def add_code_block(flow, lines):
             wrapped_lines.append('')
             continue
         pieces = textwrap.wrap(
-            source_line, width=98, subsequent_indent='    ',
+            source_line, width=60, subsequent_indent='    ',
             replace_whitespace=False, drop_whitespace=False,
             break_long_words=True, break_on_hyphens=False,
         ) or ['']
@@ -459,7 +452,7 @@ SPECS = {
         'Методические указания и фонд оценочных средств',
         [
             'docs/methodology.md', 'docs/fos.md',
-            'docs/software.md', 'docs/sources.md'
+            'docs/software.md', 'docs/report-template.md', 'docs/sources.md'
         ],
     ),
     'engineering': (
@@ -528,7 +521,7 @@ def main():
             Paragraph('Москва, 2026', STYLES['covermeta']),
             Spacer(1, cm),
             Paragraph(
-                'Редакция 25.10.2026. Локально апробированное ядро; '
+                'Редакция 30.10.2026. Учебный комплект; '
                 'отдельные интеграционные проверки и чистая установка не подтверждены.',
                 STYLES['covermeta']
             ),

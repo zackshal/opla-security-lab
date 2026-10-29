@@ -52,6 +52,7 @@ class MonitoringEnvMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe file identity"):
             ENV.migrate(self.root / "alias.env", self.destination, owner_uid=os.getuid(),
                         owner_gid=os.getgid(), home=self.home)
+        (self.root / "alias.env").unlink()
         self.source.write_text("DB_PASSWORD=one\nDB_PASSWORD=two\n")
         with self.assertRaisesRegex(ValueError, "exactly one"):
             ENV.migrate(self.source, self.destination, owner_uid=os.getuid(),

@@ -2,7 +2,7 @@
 
 В подсистеме мониторинга я разделил сбор телеметрии, настройку объектов Zabbix и доставку уведомлений. Состояние источника данных и состояние защитного механизма рассматриваются отдельно.
 
-Полный порядок запуска: [README](../README.md#метрики-и-панели-zabbix).
+Полный порядок запуска: [README](../README.md#установка-и-запуск).
 
 Источники: pinned BPF maps, sysfs, nginx JSON log/probe, Suricata EVE и пассивный scan detector. Host bridge получает данные по SSH и отправляет в Zabbix trapper. Пароль API нужен provisioning, а не collector.
 
@@ -46,4 +46,23 @@ outbox — локальные данные пользователя; сохра�
 
 SQL в `sql/` читает БД. Runtime, `.env` и локальные секреты не публикуются. Web/receiver слушают localhost 8080/10051; PostgreSQL port наружу не опубликован. Не удаляйте Docker volume ради исправления графика.
 
-Уведомления Gmail + Proton: `alert_delivery.py` и `alerts_service.py`; конфигурация в `~/.config/opla/alerts.json`, очередь в `~/.local/state/opla-alerts/`. Gmail/Tor — общий SMTP-транспорт двух получателей. `configure-mail.py` — альтернативный provisioning штатного Zabbix media type; не включайте оба пути одновременно без намеренного дублирования.
+Почтовые уведомления: `alert_delivery.py` и `alerts_service.py`. Однократная
+настройка `alert_delivery.py configure` принимает Gmail sender, Zabbix API token,
+Gmail app password и список от 1 до 20 адресов-получателей через запятую.
+Получатели могут быть на любом почтовом сервисе; Gmail используется как SMTP
+отправитель, доставка идёт через локальный Tor SOCKS5. Секреты хранятся в
+`~/.config/opla/alerts.json` с режимом `0600`.
+Изменить список позже можно командой `alert_delivery.py recipients`; она
+сохраняет остальные secrets и требует перезапустить пользовательскую службу
+через `alerts_service.py install`, чтобы применить новый список. Заменить
+Zabbix API token можно командой `alert_delivery.py api-token`: она проверит
+доступ к выбранному lab host, problems и events до сохранения; затем службу
+нужно перезапустить через `alerts_service.py install`.
+
+Сборщик следует за пользовательским выбором `opla lab select lab-...` и
+автоматически адресует host `opla-<LAB_ID>` в локальном Zabbix. При смене
+выбранного стенда он переключает цель без перезапуска и использует отдельную
+очередь/cursor в `~/.local/state/opla-alerts/labs/<LAB_ID>/`. Очереди прежних
+стендов сохраняются; события не переносятся между lab. `configure-mail.py` —
+альтернативный provisioning штатного Zabbix media type; не включайте оба пути
+одновременно без намеренного дублирования.

@@ -30,6 +30,16 @@ class ImageVerifierTests(unittest.TestCase):
         self.images_patch.start()
         self.addCleanup(self.images_patch.stop)
 
+    def test_two_digit_generations_are_selected_in_numeric_order(self):
+        for generation in (1, 2, 9, 10, 19, 20):
+            name = f"debian-12-xdp-g{generation}.qcow2"
+            (self.images / name).write_bytes(b"synthetic fixture")
+            (self.images / (name + ".packages")).write_text(
+                "\n".join(verifier.ROLE_PACKAGES["victim"]))
+        self.assertEqual([generation for generation, _ in
+                          verifier.role_candidates("victim", self.images)],
+                         [20, 19, 10, 9, 2])
+
     def test_checksum_mismatch_is_blocked(self):
         (self.images / (self.name + ".sha256")).write_text(
             "0" * 64 + f"  {self.name}\n"

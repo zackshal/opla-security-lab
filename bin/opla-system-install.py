@@ -15,7 +15,7 @@ import stat
 import tempfile
 
 EXCLUDED = {'.git', '.venv', '.venv-docs', '__pycache__', '.codex', '.agents', '.aws', 'root'}
-EXCLUDED_FILES = {'.env'}
+EXCLUDED_FILES = {'.env', 'teacher-key.md'}
 
 
 def copy_sparse(incoming, outgoing):

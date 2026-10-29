@@ -19,14 +19,8 @@ class ImageSelectionTests(unittest.TestCase):
             'LAB_DIR="$(mktemp -d /var/lib/opla/lab-XXXXXXXX)"'
         )[0]
 
-        for name in (
-            "debian-12-xdp.qcow2",
-            "debian-12-attacker.qcow2",
-            "debian-12-client.qcow2",
-        ):
-            self.assertIn(name, early)
-
-        self.assertIn("missing required image", early)
+        self.assertIn('python3 "$SCRIPT_DIR/opla-image-verify.py" || exit 2', early)
+        self.assertNotIn("qemu-img create", early)
 
     def test_no_victim_fallback(self):
         self.assertNotIn(
@@ -35,17 +29,8 @@ class ImageSelectionTests(unittest.TestCase):
         )
 
     def test_explicit_role_mapping(self):
-        for role, image in (
-            ("victim", "debian-12-xdp.qcow2"),
-            ("attacker", "debian-12-attacker.qcow2"),
-            ("client", "debian-12-client.qcow2"),
-        ):
-            self.assertIn(
-                f'{role})',
-                self.source,
-            )
-            self.assertIn(image, self.source)
-
+        self.assertIn("victim|attacker|client)", self.source)
+        self.assertIn('opla-image-verify.py" --select "$name"', self.source)
         self.assertIn("unsupported VM role", self.source)
 
 

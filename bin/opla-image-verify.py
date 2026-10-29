@@ -41,10 +41,10 @@ def role_candidates(role, images=None):
     base = images / f"{stem}.qcow2"
     if base.exists():
         candidates.append((1, base.name))
-    pattern = re.compile(re.escape(stem) + r"-g([2-9][0-9]*)\.qcow2\Z")
+    pattern = re.compile(re.escape(stem) + r"-g([1-9][0-9]*)\.qcow2\Z")
     for path in images.glob(f"{stem}-g*.qcow2"):
         match = pattern.fullmatch(path.name)
-        if match:
+        if match and int(match.group(1)) >= 2:
             candidates.append((int(match.group(1)), path.name))
     usable = []
     for generation, filename in candidates:

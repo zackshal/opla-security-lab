@@ -24,18 +24,22 @@ class SystemInstallTests(unittest.TestCase):
         self.base = Path(self.temp.name)
         self.source = self.base / 'source'
         (self.source / 'bin').mkdir(parents=True)
-        for name in ('Makefile', 'bin/opla-cli.py', 'bin/opla-create-launcher.py'):
+        for name in ('Makefile', 'bin/opla-cli.py', 'bin/opla-create-launcher.py',
+                     'bin/opla_monitoring_env.py'):
             (self.source / name).write_text('# fixture\n')
 
     def test_snapshot_preserves_bytes_without_host_execution(self):
         (self.source / 'monitoring').mkdir()
         (self.source / 'monitoring/.env').write_text('DB_PASSWORD=must-not-enter-snapshot\n')
+        (self.source / 'docs').mkdir()
+        (self.source / 'docs/teacher-key.md').write_text('private teacher answers\n')
         digest, _ = INSTALL.inventory(self.source)
         target = self.base / 'installed'
         INSTALL.install(self.source, target, digest)
         self.assertEqual(INSTALL.inventory(target)[0], digest)
         self.assertEqual((target / 'bin/opla-cli.py').stat().st_mode & 0o777, 0o644)
         self.assertFalse((target / 'monitoring/.env').exists())
+        self.assertFalse((target / 'docs/teacher-key.md').exists())
 
     def test_env_changes_do_not_change_snapshot_inventory(self):
         monitoring = self.source / 'monitoring'
