@@ -28,11 +28,24 @@ class SystemInstallTests(unittest.TestCase):
             (self.source / name).write_text('# fixture\n')
 
     def test_snapshot_preserves_bytes_without_host_execution(self):
+        (self.source / 'monitoring').mkdir()
+        (self.source / 'monitoring/.env').write_text('DB_PASSWORD=must-not-enter-snapshot\n')
         digest, _ = INSTALL.inventory(self.source)
         target = self.base / 'installed'
         INSTALL.install(self.source, target, digest)
         self.assertEqual(INSTALL.inventory(target)[0], digest)
         self.assertEqual((target / 'bin/opla-cli.py').stat().st_mode & 0o777, 0o644)
+        self.assertFalse((target / 'monitoring/.env').exists())
+
+    def test_env_changes_do_not_change_snapshot_inventory(self):
+        monitoring = self.source / 'monitoring'
+        monitoring.mkdir()
+        secret = monitoring / '.env'
+        secret.write_text('DB_PASSWORD=first\n')
+        first, _ = INSTALL.inventory(self.source)
+        secret.write_text('DB_PASSWORD=second\n')
+        second, _ = INSTALL.inventory(self.source)
+        self.assertEqual(first, second)
 
     def test_changed_source_blocks_before_destination(self):
         digest, _ = INSTALL.inventory(self.source)

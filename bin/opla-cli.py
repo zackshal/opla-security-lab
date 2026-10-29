@@ -44,6 +44,7 @@ COMMANDS = {
         "create": ("up", "Создать новый стенд", []),
         "ready": ("ready", "Дождаться cloud-init на узлах", []),
         "configure": ("lab-configure", "Настроить XDP, HTTP telemetry, scan detector и IDS", [("--lab", "LAB")]),
+        "activate": ("lab-activate", "Настроить защиту, Zabbix dashboard и сбор телеметрии", [("lab", "LAB")]),
         "delete": ("lab-delete", "Безвозвратно удалить стенд", [("lab", "LAB")]),
     },
     "vm": {
@@ -112,6 +113,8 @@ COMMANDS = {
         "prune": ("prune", "План очистки без удаления", []),
         "manual": ("manual", "Руководство пользователя", []),
         "image": ("image", "Подготовить образ роли", [("--role", "ROLE")]),
+        "images": ("images", "Подготовить образы attacker, victim и client", []),
+        "image-resume": ("image-resume", "Продолжить проверенную неполную генерацию role image", [("--role", "ROLE")]),
     },
 }
 
@@ -246,6 +249,11 @@ def make_command(args):
             raise ValueError("Laboratory confirmation mismatch")
         variables.append(f"CONFIRM={args.confirm_lab}")
 
+    if group == "lab" and action == "activate":
+        if not LAB_ID.fullmatch(args.lab):
+            raise ValueError("Expected lab-XXXXXXXX")
+        variables.append(f"CONFIRM={args.lab}")
+
     if group == "lab" and action in ("select", "delete"):
         if not LAB_ID.fullmatch(args.lab):
             raise ValueError("Ожидается ID лаборатории вида lab-XXXXXXXX")
@@ -367,7 +375,7 @@ def main(argv=None, *, timeout=DEFAULT_CLI_TIMEOUT, runner=None):
                 return create_lab_interactive()
             if ((args.group == 'vm')
                     or (args.group == 'lab' and args.action in {
-                        'start', 'stop', 'infra', 'configure', 'delete'})):
+                        'start', 'stop', 'infra', 'configure', 'activate', 'delete'})):
                 # Interactive SSH/console and sudo must retain the controlling TTY.
                 return subprocess.run(command, check=False).returncode
             if args.group == 'scenario' and args.action in {'check', 'run'}:

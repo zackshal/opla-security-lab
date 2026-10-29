@@ -20,13 +20,6 @@ for cmd in qemu-system-x86_64 qemu-img cloud-localds dnsmasq ip nft flock python
     command -v "$cmd" >/dev/null || { echo "Не найден $cmd" >&2; exit 1; }
 done
 [[ -c /dev/kvm ]] || { echo 'Нужен доступный KVM (/dev/kvm)' >&2; exit 1; }
-# All role images must exist before creating any lab resources.
-for image in     debian-12-xdp.qcow2     debian-12-attacker.qcow2     debian-12-client.qcow2; do
-    [[ -f "$PROJECT_DIR/images/$image" ]] || {
-        echo "BLOCKED: missing required image: $image" >&2
-        exit 2
-    }
-done
 # Verify all role images before creating host resources.
 python3 "$SCRIPT_DIR/opla-image-verify.py" || exit 2
 CALLER="${SUDO_USER:-root}"
@@ -152,9 +145,9 @@ create_vm() {
     local dir="$LAB_DIR/$name"
     local image
     case "$name" in
-        victim)   image="$PROJECT_DIR/images/debian-12-xdp.qcow2" ;;
-        attacker) image="$PROJECT_DIR/images/debian-12-attacker.qcow2" ;;
-        client)   image="$PROJECT_DIR/images/debian-12-client.qcow2" ;;
+        victim|attacker|client)
+            image="$(python3 "$SCRIPT_DIR/opla-image-verify.py" --select "$name")"
+            ;;
         *)
             echo "BLOCKED: unsupported VM role: $name" >&2
             return 2

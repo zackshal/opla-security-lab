@@ -129,6 +129,17 @@ fake_dpkg_query() {
             4 * 1024**3,
         )
 
+    def test_attacker_image_profile_includes_documented_lab_tools(self):
+        path = ROOT / "bin/opla-image-verify.py"
+        spec = importlib.util.spec_from_file_location(
+            "opla_image_attacker_contract", path
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        self.assertTrue({"hping3", "nmap", "arp-scan", "yersinia", "tcpdump"}
+                        <= module.ROLE_PACKAGES["attacker"])
+
 
 if __name__ == "__main__":
     unittest.main()

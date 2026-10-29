@@ -37,10 +37,15 @@ class LaboratoryConfigurationTests(unittest.TestCase):
 
     def test_missing_victim_dependencies_block_before_guest_changes(self):
         source = (ROOT / "bin/opla-lab-configure.sh").read_text()
+        helper = source.index('source "$ROOT/xdp/lib.sh"')
+        probe = source.index('if ssh_vm "$victim_ip"')
         preflight = source.index('command -v suricata')
         first_change = source.index('make --no-print-directory xdp-all')
+        self.assertLess(helper, probe)
         self.assertLess(preflight, first_change)
+        self.assertIn('test -x /usr/sbin/nginx', source)
         self.assertIn('rebuild the victim role image and create a new lab', source)
+        self.assertIn('cannot verify victim dependencies over management SSH', source)
 
     def test_configuration_probes_http_before_final_telemetry_refresh(self):
         source = (ROOT / "bin/opla-lab-configure.sh").read_text()

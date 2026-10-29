@@ -9,9 +9,14 @@ if [[ "$ACTION" == monitoring-up ]]; then
     mkdir -p -m 700 "$ENV_DIR"
     [[ ! -L "$ENV_FILE" ]] || { echo 'BLOCKED: monitoring env file is a symlink' >&2; exit 2; }
     if [[ ! -e "$ENV_FILE" ]]; then
+        python3 bin/opla_monitoring_env.py \
+            --source "$PWD/monitoring/.env" --destination "$ENV_FILE" \
+            --owner-uid "$(id -u)" --owner-gid "$(id -g)" --home "$HOME"
+    fi
+    if [[ ! -e "$ENV_FILE" ]]; then
         if docker volume inspect opla-monitoring_db-data >/dev/null 2>&1; then
-            echo "BLOCKED: existing Zabbix database has no user config at $ENV_FILE." >&2
-            echo 'Copy the existing monitoring/.env to that path with mode 0600; do not generate a new DB password for an existing volume.' >&2
+            echo "BLOCKED: existing Zabbix database has no user config or legacy monitoring/.env at $ENV_FILE." >&2
+            echo 'Restore the original DB_PASSWORD from a protected backup; a new password cannot unlock the existing database.' >&2
             exit 2
         fi
         (umask 077; python3 -c 'import secrets; print("DB_PASSWORD="+secrets.token_hex(32))' > "$ENV_FILE")

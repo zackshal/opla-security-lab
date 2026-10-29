@@ -95,15 +95,26 @@ echo "OPLA laboratory configuration"
 echo "Laboratory: $LAB_ID"
 victim_ip="$(python3 bin/state.py "$LAB_DIR" VICTIM_IP)"
 
+# The read-only dependency probe also needs the lab-specific SSH options and
+# address resolution. Load the helper before the first ssh_vm/scp_vm call.
+source "$ROOT/xdp/lib.sh"
+
 run_step "Cloud-init readiness" \
     make --no-print-directory ready "LAB_DIR=$LAB_DIR"
 
 # Fail before deploying or changing guest services when the immutable victim
 # role image lacks the IDS dependencies. Installing packages at configure time
 # would make guest state depend on network/package repository availability.
-if ! ssh_vm "$victim_ip" \
-    'command -v suricata >/dev/null && python3 -c "import yaml" && command -v nginx >/dev/null'; then
-    echo "BLOCKED: victim lacks Suricata, PyYAML or nginx; rebuild the victim role image and create a new lab. No guest configuration has been applied." >&2
+if ssh_vm "$victim_ip" \
+    'command -v suricata >/dev/null && python3 -c "import yaml" && { command -v nginx >/dev/null || test -x /usr/sbin/nginx; }'; then
+    :
+else
+    probe_status=$?
+    if [[ "$probe_status" -eq 255 ]]; then
+        echo "BLOCKED: cannot verify victim dependencies over management SSH (ssh exit 255). No guest configuration has been applied." >&2
+    else
+        echo "BLOCKED: victim lacks Suricata, PyYAML or nginx (dependency probe exit $probe_status); rebuild the victim role image and create a new lab. No guest configuration has been applied." >&2
+    fi
     exit 2
 fi
 echo "PASS: victim image dependencies (Suricata, PyYAML, nginx)"
@@ -129,7 +140,6 @@ run_step "Suricata status" \
 
 # ids-status prints diagnostics but does not guarantee a nonzero
 # exit code when the service is inactive.
-source "$ROOT/xdp/lib.sh"
 
 run_step "Suricata service active" \
     ssh_vm "$victim_ip" 'sudo systemctl is-active --quiet opla-suricata.service'

@@ -6,7 +6,7 @@ export MAX_SOURCES
 export THRESHOLD
 THRESHOLD ?= 100
 VM ?= victim
-.PHONY: help bootstrap image up down ready ssh console xdp-deploy xdp-build xdp-load xdp-unload xdp-all xdp-test xdp-dashboard xdp-stats check monitoring-up monitoring-down monitoring-configure monitoring-start monitoring-stop versions
+.PHONY: help bootstrap image images image-resume up down ready ssh console xdp-deploy xdp-build xdp-load xdp-unload xdp-all xdp-test xdp-dashboard xdp-stats check monitoring-up monitoring-down monitoring-configure monitoring-start monitoring-stop versions
 help:
 	@python3 bin/opla-help.py help
 
@@ -64,6 +64,13 @@ bootstrap:
 	@./bootstrap.sh
 image:
 	@./bin/prepare-image.sh "$(or $(ROLE),victim)"
+images:
+	@./bin/prepare-image.sh attacker
+	@./bin/prepare-image.sh victim
+	@./bin/prepare-image.sh client
+image-resume:
+	@test -n "$(ROLE)" || { echo "BLOCKED: ROLE required"; exit 2; }
+	@./bin/prepare-image.sh "$(ROLE)" resume
 up:
 	@if [ "$$(id -u)" -eq 0 ]; then \
 		python3 bin/opla-create-launcher.py; \
@@ -320,11 +327,18 @@ ci-offline:
 	@$(MAKE) acceptance-offline
 	@$(MAKE) check
 
-.PHONY: lab-configure
+.PHONY: lab-configure lab-activate
 lab-configure:
 	@test -n "$(LAB)" || { echo "BLOCKED: LAB required"; exit 2; }
 	@test "$(LAB)" = "$(CONFIRM)" || { echo "BLOCKED: confirmation mismatch"; exit 2; }
 	@sudo python3 bin/opla-lab-configure-launcher.py "$(LAB)" "$(CONFIRM)"
+
+# One explicit command configures guest protection, then provisions and starts
+# the Zabbix dashboard and its per-lab collector.
+lab-activate:
+	@test -n "$(LAB)" || { echo "BLOCKED: LAB required"; exit 2; }
+	@test "$(LAB)" = "$(CONFIRM)" || { echo "BLOCKED: confirmation mismatch"; exit 2; }
+	@bash bin/opla-lab-activate.sh "$(LAB)" "$(CONFIRM)"
 
 # P13: custom infrastructure manifest, strictly read-only.
 .PHONY: deploy-validate deploy-plan
