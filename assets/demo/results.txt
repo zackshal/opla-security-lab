@@ -1,7 +1,7 @@
-OPLA / historical observations / 2026-10-24
-Source: user terminal transcript; not independently rerun.
+OPLA / архивные наблюдения / 24.10.2026
+Источник: терминальный вывод пользователя; независимо не повторялся.
 
-SYN counters: syn +2003, pass +300, drop +1703
-Separate HTTP burst: 200 requests; HTTP 200=11; HTTP 429=189
-These observations do not establish complete prevention, continuous client uptime,
-Suricata readiness, or clean deployment of the current release.
+Прирост SYN counters: syn +2003, pass +300, drop +1703
+Отдельный HTTP burst: 200 запросов; HTTP 200=11; HTTP 429=189
+Наблюдения не подтверждают полное предотвращение, непрерывную доступность client,
+готовность Suricata или чистое развёртывание текущей версии.

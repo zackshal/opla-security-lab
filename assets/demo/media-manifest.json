@@ -1,15 +1,15 @@
 {
-  "renderer_sha256": "90f5fe7876a50acc36d562de3c3538a4d9543a478a6a83c8215a2a693607e283",
+  "renderer_sha256": "0f10d0094487f273df522cd87a0332e30b06c3a2e9ce6e728c18e28eef110dc0",
   "source": "observed-results.json",
   "source_sha256": "1bd17e762f7a52434aeea4fb9f464ac0b6106b282f5f9a1acdbf96456a184b62",
   "provenance": "User terminal output, not independently rerun; video is an editorial replay.",
   "animation_timing": "editorial; not execution time",
   "live_execution_performed": false,
   "artifacts": {
-    "banner.svg": "c20052f5b4905d8a193a0495793fec7f6107183c0fc23cfed3ababd9a2efc009",
-    "results.png": "2abe7344212af9d809e9b3d777d0032fc213fb40e86ed6dfd1919c9066ab4245",
-    "results.txt": "8ab6a21fee96fe5a08b81bbfb0d4baf7b49d55ceeb57dac75539f3cf526e075b",
-    "overview.gif": "1061c78226e44b7eed9aa3c00c45d9c1dd08fa602a1c8e74b025ef05aa1b2283",
-    "overview-poster.png": "136c7f0a3936e37357a99edb0fa230102d9fa7dba500abcb79fa7f164c079c2f"
+    "banner.svg": "2ca1260e1f2a2d5ce04c0d0586436463edbec8c5cca55638f87a4d2ab7248eb2",
+    "results.png": "916c8afbc670ab7b85a114cb211551efce21916b156e41050f1d0a9012987cab",
+    "results.txt": "301081e550a41c1100c0c41a78cab0a9f4d1e39d1ae1e3f17ba67e95bfdd8d35",
+    "overview.gif": "3a0a35f1a10f403b5ae4df0588b8a891ad774ce368bef13a4455957fe5d8e4bd",
+    "overview-poster.png": "f705923b43b06ba58d4b86e7779506dcc298de0770313450cc4e9f7966d801b0"
   }
 }

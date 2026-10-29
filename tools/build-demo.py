@@ -8,9 +8,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 FONTS = Path('/usr/share/fonts/truetype/dejavu')
-BG, PANEL, LINE = '#0b1020', '#141d31', '#2a3651'
-WHITE, MUTED = '#ecf2ff', '#a4b3ca'
-CYAN, GREEN, AMBER, RED = '#66def0', '#78e3b1', '#ffd18a', '#ff8b9a'
+BG, PANEL, LINE = '#f3f6fb', '#ffffff', '#d7e0ed'
+WHITE, MUTED = '#172b49', '#526580'
+CYAN, GREEN, AMBER, RED = '#245de8', '#067647', '#a54c00', '#b42318'
 W, H = 1080, 660
 
 
@@ -30,12 +30,12 @@ def box(draw, bounds, fill=PANEL, outline=LINE, radius=15):
 def canvas(index, title, subtitle):
     img = Image.new('RGB', (W, H), BG)
     d = ImageDraw.Draw(img)
-    text(d, (38, 25), 'OPLA / SECURITY LAB', 15, CYAN, bold=True)
-    text(d, (828, 25), 'OBSERVE / EXPLAIN', 15, MUTED)
+    text(d, (38, 25), 'OPLA / ЛАБОРАТОРИЯ БЕЗОПАСНОСТИ', 15, CYAN, bold=True)
+    text(d, (855, 25), 'ПАКЕТ → РЕШЕНИЕ', 15, MUTED)
     text(d, (38, 65), title, 33, bold=True)
     text(d, (38, 112), subtitle, 17, MUTED)
     d.line((38, 595, 1042, 595), fill=LINE)
-    text(d, (38, 615), 'REPLAY  /  saved user observations, 24 Oct 2026  /  not a live capture', 15, MUTED)
+    text(d, (38, 615), 'АРХИВНЫЙ ОПЫТ / вывод оператора, 24.10.2026 / визуализация записи', 15, MUTED)
     for i in range(4):
         d.rounded_rectangle((918+i*32, 620, 938+i*32, 625), radius=2,
                             fill=CYAN if index == i else LINE)
@@ -49,99 +49,97 @@ def metric(d, x, label, value, color):
 
 
 def terminal(d, lines, visible, y=313):
-    box(d, (38, y, 1042, 572), fill='#0e1627')
+    box(d, (38, y, 1042, 572), fill='#12213b')
     for x, c in ((58, RED), (77, AMBER), (96, GREEN)):
         d.ellipse((x, y+17, x+8, y+25), fill=c)
-    text(d, (125, y+13), 'recorded output / selected lines', 14, MUTED)
+    text(d, (125, y+13), 'сохранённый вывод / выбранные строки', 14, '#b9c9e1')
     for i, line in enumerate(lines[:visible]):
         text(d, (60, y+55+i*32), line, 19,
-             CYAN if line.startswith('$') else WHITE, mono=True)
+             '#83dbf6' if line.startswith('$') else '#edf3ff', mono=True)
 
 
 def draw_scene(scene, step, data):
     syn, http = data['syn_scenario'], data['http_burst']
     if scene == 0:
-        img = canvas(0, 'One lab. Three perspectives.', 'Architecture diagram / conceptual view of the current built-in topology')
+        img = canvas(0, 'Три роли. Две сети. Один опыт.', 'Схема текущей архитектуры / роли и границы наблюдения')
         d = ImageDraw.Draw(img)
-        for x, title, note in ((38, 'ATTACKER', 'bounded test traffic'),
+        for x, title, note in ((38, 'ATTACKER', 'Конечная тестовая нагрузка'),
                                 (382, 'VICTIM', 'XDP / nginx / Suricata'),
-                                (726, 'CLIENT', 'independent HTTP')):
+                                (726, 'CLIENT', 'Независимая HTTP-проверка')):
             box(d, (x, 174, x+316, 292))
             text(d, (x+22, 198), title, 23, CYAN, bold=True)
             text(d, (x+22, 239), note, 17, MUTED)
         for x in (196, 540, 884):
             d.line((x, 292, x, 338), fill=CYAN, width=3)
         box(d, (38, 338, 1042, 393), outline=CYAN)
-        text(d, (258, 353), 'ISOLATED DATA NETWORK  /  generated /29', 19, CYAN, mono=True)
+        text(d, (305, 353), 'DATA NETWORK / изолированная /29', 19, CYAN, mono=True)
         box(d, (38, 425, 612, 558))
-        text(d, (60, 448), 'Separate management network', 22, bold=True)
-        text(d, (60, 488), 'SSH collector -> Zabbix -> report', 20, GREEN, mono=True)
+        text(d, (60, 448), 'Отдельная сеть управления', 22, bold=True)
+        text(d, (60, 488), 'SSH → collector → Zabbix → отчёт', 20, GREEN, mono=True)
         box(d, (636, 425, 1042, 558))
-        text(d, (660, 448), 'What the evidence answers', 20, bold=True)
-        text(d, (660, 488), 'Detected? Dropped? Available?', 18, MUTED)
+        text(d, (660, 448), 'Вопросы эксперимента', 20, bold=True)
+        text(d, (660, 488), 'Обнаружено? Отброшено? Доступно?', 18, MUTED)
     elif scene == 1:
-        img = canvas(1, 'SYN traffic: follow the counters.', 'Historical experiment / counters include background SYN / no throughput benchmark')
+        img = canvas(1, 'От пакета — к решению XDP', 'Архивный SYN-опыт / фоновые SYN учитываются / производительность не измерялась')
         d = ImageDraw.Draw(img)
-        metric(d, 38, 'OBSERVED SYN DELTA', syn['syn_after']-syn['syn_before'], CYAN)
-        metric(d, 385, 'PASSED SYN DELTA', syn['pass_after']-syn['pass_before'], GREEN)
-        metric(d, 732, 'DROPPED SYN DELTA', syn['drop_after']-syn['drop_before'], AMBER)
+        metric(d, 38, 'ПРИРОСТ SYN', syn['syn_after']-syn['syn_before'], CYAN)
+        metric(d, 385, 'ПРОПУЩЕНО SYN', syn['pass_after']-syn['pass_before'], GREEN)
+        metric(d, 732, 'ОТБРОШЕНО SYN', syn['drop_after']-syn['drop_before'], AMBER)
         terminal(d, ['$ bash bin/traffic-scenario.sh syn',
                      f"syn:   {syn['syn_before']:4} -> {syn['syn_after']:4}   delta={syn['syn_after']-syn['syn_before']}",
                      f"pass:  {syn['pass_before']:4} -> {syn['pass_after']:4}   delta={syn['pass_after']-syn['pass_before']}",
                      f"drop:  {syn['drop_before']:4} -> {syn['drop_after']:4}   delta={syn['drop_after']-syn['drop_before']}",
                      f"generator exit: {syn['generator_exit_code']} / XDP mode: {data['xdp']['mode']}"], step)
     elif scene == 2:
-        img = canvas(2, 'HTTP requests: a different layer.', 'Separate historical HTTP burst / nginx rate limiting / not a SYN result')
+        img = canvas(2, 'HTTP: наблюдение на уровне приложения', 'Отдельный архивный HTTP burst / ограничение запросов nginx')
         d = ImageDraw.Draw(img)
-        metric(d, 38, 'REQUESTS IN THE BURST', http['requests'], CYAN)
-        metric(d, 385, 'HTTP 200 RESPONSES', http['http_200'], GREEN)
-        metric(d, 732, 'HTTP 429 RESPONSES', http['http_429'], AMBER)
+        metric(d, 38, 'HTTP-ЗАПРОСОВ', http['requests'], CYAN)
+        metric(d, 385, 'ОТВЕТОВ HTTP 200', http['http_200'], GREEN)
+        metric(d, 732, 'ОТВЕТОВ HTTP 429', http['http_429'], AMBER)
         terminal(d, ['$ bash bin/security-http-test.sh',
                      f"HTTP 200: {http['http_200']} / HTTP 429: {http['http_429']}",
                      f"http_limited: {http['limited_before']} -> {http['limited_after']}",
                      f"5xx delta: {http['errors_5xx_delta']} / parse errors delta: {http['parse_errors_delta']}",
-                     'Client availability needs its own measurements.'], step)
+                     'Доступность client измеряется отдельно.'], step)
     else:
-        img = canvas(3, 'Show the result. Keep the limits.', 'Observed evidence and missing evidence belong in the same report')
+        img = canvas(3, 'Что подтверждено этим опытом', 'Наблюдения и пробелы в доказательствах фиксируются в одном отчёте')
         d = ImageDraw.Draw(img)
-        rows = [('OBSERVED', 'Native XDP attachment and rising drop counters', GREEN),
-                ('OBSERVED', 'HTTP 429 and rising nginx limited counter', GREEN),
-                ('NOT SHOWN', 'Independent client coverage throughout each burst', AMBER),
-                ('NOT SHOWN', 'Suricata evidence in this historical recording', AMBER),
-                ('NEXT GATE', 'A clean full run of the current release', CYAN)]
+        rows = [('ЗАПИСАНО', 'Native XDP подключена; счётчик drop растёт', GREEN),
+                ('ЗАПИСАНО', 'Есть HTTP 429 и прирост nginx limited', GREEN),
+                ('НЕ ПОДТВЕРЖДЕНО', 'Непрерывная доступность client во время нагрузки', AMBER),
+                ('НЕ ПОДТВЕРЖДЕНО', 'События Suricata в этой архивной записи', AMBER),
+                ('СЛЕДУЮЩИЙ ШАГ', 'Чистый полный прогон текущей версии', CYAN)]
         for i, (label, desc, color) in enumerate(rows[:step]):
             y = 167+i*75
             box(d, (38, y, 1042, y+61))
             text(d, (56, y+19), label, 15, color, mono=True, bold=True)
-            text(d, (220, y+18), desc, 19)
+            text(d, (244, y+18), desc, 19)
     return img
 
 
 def banner(out):
     # Native SVG: static, self-contained and rendered by GitLab/GitHub without scripts.
-    svg = '''<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="340" viewBox="0 0 1280 340" role="img" aria-labelledby="title desc">
-<title id="title">OPLA Security Lab</title><desc id="desc">An isolated Linux security lab: observe traffic, explain defenses, preserve evidence.</desc>
-<defs><linearGradient id="g"><stop stop-color="#0b1020"/><stop offset="1" stop-color="#192942"/></linearGradient></defs>
-<rect width="1280" height="340" rx="22" fill="url(#g)"/>
-<g fill="none" stroke="#304764" stroke-width="1"><path d="M780 0V340M860 0V340M940 0V340M1020 0V340M1100 0V340M1180 0V340M740 60H1280M740 140H1280M740 220H1280M740 300H1280"/></g>
-<text x="52" y="65" font-family="sans-serif" font-size="17" letter-spacing="4" fill="#66def0">OBSERVE / DEFEND / EXPLAIN</text>
-<text x="48" y="148" font-family="sans-serif" font-weight="700" font-size="72" fill="#ecf2ff">OPLA</text>
-<text x="52" y="197" font-family="sans-serif" font-size="28" fill="#ecf2ff">Security Lab</text>
-<text x="52" y="246" font-family="sans-serif" font-size="19" fill="#a4b3ca">Linux · eBPF/XDP · Suricata · Zabbix</text>
-<text x="52" y="294" font-family="sans-serif" font-size="16" fill="#78e3b1">3 VM roles   /   2 isolated networks   /   evidence you can inspect</text>
-<g stroke="#66def0" stroke-width="3" fill="none"><path d="M814 119H914V221H1014V119H1114"/><path d="M814 221H914" stroke="#78e3b1"/></g>
-<g fill="#141d31" stroke="#66def0" stroke-width="2"><rect x="780" y="82" width="76" height="76" rx="16"/><rect x="878" y="184" width="76" height="76" rx="16"/><rect x="976" y="82" width="76" height="76" rx="16"/><rect x="1074" y="184" width="76" height="76" rx="16"/></g>
-<g font-family="monospace" font-size="21" fill="#ecf2ff" text-anchor="middle"><text x="818" y="128">SYN</text><text x="916" y="230">XDP</text><text x="1014" y="128">IDS</text><text x="1112" y="230">OBS</text></g></svg>'''
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-labelledby="title desc">
+<title id="title">OPLA — лаборатория безопасности Linux</title><desc id="desc">Три виртуальные машины, две изолированные сети, наблюдаемые результаты экспериментов.</desc>
+<rect width="1280" height="300" rx="18" fill="#f3f6fb"/>
+<rect x="32" y="32" width="6" height="236" rx="3" fill="#245de8"/>
+<text x="64" y="67" font-family="sans-serif" font-size="15" letter-spacing="2" fill="#526580">LINUX SECURITY LAB / УЧЕБНЫЙ ПРОЕКТ</text>
+<text x="60" y="143" font-family="sans-serif" font-size="70" font-weight="700" fill="#172b49">OPLA</text>
+<text x="64" y="190" font-family="sans-serif" font-size="26" fill="#172b49">Наблюдать. Защищать. Объяснять.</text>
+<text x="64" y="239" font-family="sans-serif" font-size="19" fill="#526580">eBPF/XDP · Suricata · nginx · Zabbix</text>
+<g fill="#ffffff" stroke="#d7e0ed"><rect x="806" y="44" width="164" height="88" rx="12"/><rect x="998" y="44" width="234" height="88" rx="12"/><rect x="806" y="160" width="426" height="96" rx="12"/></g>
+<g font-family="sans-serif" fill="#172b49"><text x="828" y="82" font-weight="700" font-size="29">3 VM</text><text x="828" y="111" font-size="15">три роли</text><text x="1020" y="82" font-weight="700" font-size="29">2 сети</text><text x="1020" y="111" font-size="15">data + management</text><text x="828" y="198" font-size="18" font-weight="700">Пакет → решение → доказательство</text><text x="828" y="230" font-size="16" fill="#526580">Конечная нагрузка и проверяемый отчёт</text></g>
+</svg>'''
     (out / 'banner.svg').write_text(svg+'\n')
 
 
 def results_card(out, data):
-    img = canvas(1, 'Two experiments. Inspectable results.', 'Historical user transcript / 24 Oct 2026 / independent client coverage not supplied')
+    img = canvas(1, 'Сначала данные. Затем выводы.', 'Вывод оператора от 24.10.2026 / непрерывный client probe не приложен')
     d = ImageDraw.Draw(img)
     syn, h = data['syn_scenario'], data['http_burst']
     values = [syn['pass_after']-syn['pass_before'], syn['drop_after']-syn['drop_before']]
-    groups = [(172, 'SYN counter deltas', values, ['PASS', 'DROP'], [GREEN, AMBER]),
-              (358, 'HTTP responses / separate burst', [h['http_200'], h['http_429']], ['200', '429'], [GREEN, AMBER])]
+    groups = [(172, 'SYN: прирост накопительных счётчиков', values, ['PASS', 'DROP'], [GREEN, AMBER]),
+              (358, 'HTTP: ответы в отдельном burst-опыте', [h['http_200'], h['http_429']], ['200', '429'], [GREEN, AMBER])]
     for y, heading, vals, labels, colors in groups:
         text(d, (38, y), heading, 23, bold=True)
         total = sum(vals)
@@ -151,7 +149,7 @@ def results_card(out, data):
             d.rounded_rectangle((130, yy, 880, yy+27), radius=5, fill=PANEL)
             d.rounded_rectangle((130, yy, 130+max(8,750*value/total), yy+27), radius=5, fill=color)
             text(d, (911, yy-1), f'{value:,}', 21, color, mono=True)
-    text(d, (38, 553), 'Counters demonstrate processing; they do not prove complete prevention or service uptime.', 16, MUTED)
+    text(d, (38, 553), 'Счётчики подтверждают обработку; непрерывная доступность требует отдельной проверки.', 16, MUTED)
     img.save(out/'results.png', optimize=True)
 
 
@@ -174,13 +172,13 @@ def main():
     frames[9].save(out/'overview-poster.png',optimize=True)
     syn=data['syn_scenario'];h=data['http_burst']
     (out/'results.txt').write_text(
-        'OPLA / historical observations / 2026-10-24\n'
-        'Source: user terminal transcript; not independently rerun.\n\n'
-        f"SYN counters: syn +{syn['syn_after']-syn['syn_before']}, "
+        'OPLA / архивные наблюдения / 24.10.2026\n'
+        'Источник: терминальный вывод пользователя; независимо не повторялся.\n\n'
+        f"Прирост SYN counters: syn +{syn['syn_after']-syn['syn_before']}, "
         f"pass +{syn['pass_after']-syn['pass_before']}, drop +{syn['drop_after']-syn['drop_before']}\n"
-        f"Separate HTTP burst: {h['requests']} requests; HTTP 200={h['http_200']}; HTTP 429={h['http_429']}\n"
-        'These observations do not establish complete prevention, continuous client uptime,\n'
-        'Suricata readiness, or clean deployment of the current release.\n')
+        f"Отдельный HTTP burst: {h['requests']} запросов; HTTP 200={h['http_200']}; HTTP 429={h['http_429']}\n"
+        'Наблюдения не подтверждают полное предотвращение, непрерывную доступность client,\n'
+        'готовность Suricata или чистое развёртывание текущей версии.\n')
     names=['banner.svg','results.png','results.txt','overview.gif','overview-poster.png']
     manifest={'renderer_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               'source':'observed-results.json','source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),

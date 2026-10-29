@@ -1,59 +1,81 @@
-<div align="center">
+![OPLA — лаборатория безопасности Linux](assets/demo/banner.svg)
 
-![OPLA — Linux Security Lab](assets/demo/banner.svg)
+# OPLA Security Lab
 
-**Учебная лаборатория, в которой сетевой трафик становится проверяемым экспериментом.**
+**Практическая работа по обнаружению, предупреждению и ликвидации последствий компьютерных атак.**
 
-[Начать](#быстрый-старт) · [Документация](docs/README.md) · [Методичка](docs/methodology.md) · [Результаты](#что-показывает-опыт) · [Помощь](#помощь-и-участие)
+OPLA — изолированный Linux-стенд для изучения eBPF/XDP, Suricata, nginx и Zabbix.
+Три виртуальные машины позволяют создать конечную нагрузку, наблюдать решения
+защиты и проверить HTTP с независимого клиента. Результат работы — отчёт с
+командами, исходными данными и обоснованными выводами.
+
+[Быстрый старт](#быстрый-старт) · [Методичка](docs/methodology.md) ·
+[Документация](docs/README.md) · [Соответствие ТЗ](docs/requirements-traceability.md) ·
+[Вопросы и ответы](#частые-вопросы)
 
 [![GitLab pipeline](https://gitlab.com/k3rnel_co0n/opla-security-lab/badges/main/pipeline.svg)](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines)
-[![Linux](https://img.shields.io/badge/platform-Linux-66def0?style=flat-square)](docs/test-host-spec.md)
-[![Topology](https://img.shields.io/badge/topology-3_VM_%2F_2_networks-78e3b1?style=flat-square)](docs/task-dual-nic-topology.md)
-[![License](https://img.shields.io/badge/license-MIT_%2B_GPL-ffd18a?style=flat-square)](LICENSING.md)
+[![Лицензии компонентов](https://img.shields.io/badge/license-MIT_%2B_GPL-245de8?style=flat-square)](LICENSING.md)
 
-</div>
+## Демонстрация
 
-OPLA объединяет **eBPF/XDP, Suricata, nginx и Zabbix** в изолированном стенде
-из трёх Debian VM. `attacker` создаёт конечную тестовую нагрузку, `victim`
-обрабатывает её, `client` независимо проверяет HTTP. Вы получаете команды,
-счётчики, события и материалы для отчёта по дисциплине ОПЛКА.
+![Архитектура лаборатории и сохранённые результаты опытов](assets/demo/overview.gif)
 
-![Архитектура и результаты OPLA — анимированный replay](assets/demo/overview.gif)
+*Схема показывает текущую архитектуру. Числовые сцены — визуализация сохранённого
+вывода оператора от 24.10.2026; темп анимации не отражает время исполнения.*
+[Статичный кадр](assets/demo/overview-poster.png) · [Данные и происхождение](assets/demo/README.md) ·
+[Текстовый результат](assets/demo/results.txt).
 
-*Архитектура показана схематично; числовые сцены воспроизводят сохранённый вывод
-оператора от 24.10.2026. Это редакционная анимация, её длительность не равна
-времени выполнения команд.* [Статичная версия](assets/demo/overview-poster.png) ·
-[Исходные наблюдения](assets/demo/observed-results.json) · [Происхождение media](assets/demo/README.md).
+<details>
+<summary><strong>Содержание README</strong></summary>
 
-> Для запуска нужен выделенный или явно допущенный Linux-хост. Create меняет
-> host networking, delete безвозвратно удаляет диски выбранных VM. Тестовый
-> трафик направляется только в data network своей лаборатории.
+- [Возможности и устройство](#как-устроен-опыт)
+- [Требования и запуск](#быстрый-старт)
+- [Результаты экспериментов](#что-показывает-опыт)
+- [Команды управления](#ежедневные-команды)
+- [Уведомления и API token](#почтовые-уведомления)
+- [Учебные материалы](#учебный-комплект)
+- [Проверки и статус](#проверки-и-статус)
+- [Частые вопросы](#частые-вопросы)
+- [Источники и участие](#технологии-и-первичные-источники)
 
-## Что можно исследовать
+</details>
 
-| Механизм | Что делает | Что наблюдать |
-|---|---|---|
-| **XDP / eBPF** | Ограничивает IPv4 TCP SYN; поддерживает scan policy | Program/map identity, pass/drop, порог и границы окна |
-| **Suricata** | Обнаруживает события; отдельный IPS-режим | EVE alert, sid, адреса и временной интервал |
-| **nginx** | Обслуживает HTTP и ограничивает запросы | HTTP 200/429, задержку и JSON access log |
-| **Zabbix** | Хранит метрики и создаёт события | 49 items, 23 triggers, dashboard из 5 страниц — текущая конфигурация |
-| **Независимый client** | Проверяет HTTP со своей VM | Доступность до, во время и после опыта |
-| **Evidence pipeline** | Связывает результаты опыта | Counters, fingerprints, IDS records и ограничения отчёта |
+## Как устроен опыт
 
-[Схема двух сетей](docs/figures/topology.svg) · [Путь пакета](docs/figures/packet-path.svg) ·
-[Каталог метрик](docs/metrics-catalog.md) · [Модель доверия](docs/security-model.md).
+1. **Создать нагрузку.** Attacker отправляет конечный поток в изолированную data network.
+2. **Наблюдать решение.** XDP предоставляет counters, Suricata — EVE alerts, nginx — HTTP-ответы.
+3. **Проверить результат.** Client измеряет доступность, Zabbix показывает метрики, отчёт связывает evidence.
+
+![Три роли и отдельные data/management сети](docs/figures/topology.svg)
+
+XDP ограничивает IPv4 TCP SYN и поддерживает scan policy. Suricata обнаруживает
+события; блокировка требует отдельно проверенного IPS-режима. nginx ограничивает
+HTTP-запросы. Текущий каталог Zabbix содержит **49 items, 23 triggers и 5 страниц**.
+[Каталог метрик](docs/metrics-catalog.md) · [Путь пакета](docs/figures/packet-path.svg) ·
+[Модель доверия](docs/security-model.md).
 
 ## Быстрый старт
 
 Нужны Linux x86_64, systemd, KVM, QEMU/libguestfs, cloud-init tooling, nftables,
 Python/PyYAML, Make, OpenSSH, Docker Engine и Compose. Create проверяет минимум
-**5 GiB MemAvailable**; для полного опыта планируйте запас RAM и диска под БД,
-образы и отчёты. [Полные требования](docs/test-host-spec.md) и
+**5 GiB MemAvailable**. Для полного опыта ориентир — 12 GiB RAM и 30 GiB
+свободного диска; это запас для планирования, а не измеренный минимум. [Полные требования](docs/test-host-spec.md) и
 [подготовка host-зависимостей](docs/deployment.md#1-подготовка-локального-qemu-хоста).
 
 ### Установка и запуск
 
-Из проверенной копии репозитория **на допущенном тестовом хосте**:
+Команды выполняются **на выделенном или явно допущенном тестовом хосте**.
+Create меняет host networking; delete безвозвратно удаляет выбранные VM-диски.
+Трафик разрешён только в data network своей лаборатории.
+
+Сначала получите исходники и перейдите в каталог проекта:
+
+```bash
+git clone https://gitlab.com/k3rnel_co0n/opla-security-lab.git
+cd opla-security-lab
+```
+
+Затем проверьте исходники и выполните шаги ниже:
 
 **1. Подготовьте образы трёх ролей.**
 
@@ -62,7 +84,7 @@ make bootstrap
 make images
 ```
 
-Victim image содержит Suricata, PyYAML, nginx и BPF toolchain; attacker —
+Образ victim содержит Suricata, PyYAML, nginx и BPF toolchain; attacker —
 hping3, nmap, arp-scan, yersinia и tcpdump. Готовые проверенные образы
 переиспользуются. Для прерванной сборки — [восстановление images](docs/user-guide/commands.md).
 
@@ -129,7 +151,8 @@ opla scenario run syn-scan-baseline --lab lab-XXXXXXXX --confirm lab-XXXXXXXX
 гарантией предотвращения атаки или доказательством непрерывной доступности.
 
 Suricata evidence и полный dashboard в этой исторической записи не показаны.
-Текущая конфигурация стенда описана отдельно от записанного опыта.
+Сравнивайте данные только внутри одного опыта: результат SYN и HTTP burst
+не объединяется в одну временную серию.
 [Текстовая версия результатов](assets/demo/results.txt) ·
 [Offline CLI/evidence-worker demo](assets/demo/services/README.md) ·
 [Все демонстрации](docs/demonstrations.md).
@@ -215,7 +238,7 @@ python3 tools/check-documentation.py
 
 Offline-проверки не заменяют KVM, verifier на реальном ядре и live-доставку в
 Zabbix. Чистая полная апробация и лицензионная сверка точных сборок остаются
-отдельными условиями приёмки. [Проверки и source hashes](docs/evidence/chat-integration-20261030.json) ·
+отдельными условиями приёмки. [Сохранённый offline-отчёт и hashes](docs/evidence/chat-integration-20261030.json) ·
 [Runtime readiness](docs/runtime-readiness.md) · [Протокол приёмки](docs/acceptance.md).
 
 ## Технологии и первичные источники
@@ -232,11 +255,42 @@ Zabbix. Чистая полная апробация и лицензионная
 [Полный список средств](docs/software.md) · [Источники теории](docs/sources.md) ·
 [Версии и воспроизводимость](docs/versions.md).
 
+## Частые вопросы
+
+**Почему `recipients` или `api-token` не распознаётся?**
+
+Установленный `/opt` snapshot старше checkout. Обновите код по
+[инструкции установки](docs/local-system-install.md#обновление-установленного-cli).
+Git pull обновляет исходники; пользовательский CLI вызывает свою установленную копию.
+
+**Почему `lab activate` требует trusted installation?**
+
+Привилегированные операции принимают root-owned код и проверяют locks/receipts.
+Установите проверенный snapshot. Смена ownership рабочего checkout и отключение
+проверок не являются процедурой установки.
+
+**Что делать с оставшимся `.qcow2.part`?**
+
+Проверьте candidate и отсутствие его использования, затем примените
+`opla system image-resume --role victim` для нужной роли.
+[Подробности восстановления](docs/user-guide/commands.md). Образы работающих VM не перезаписываются.
+
+**Почему график показывает старые числа?**
+
+Проверьте выбранный lab/host и время последнего sample. Нулевая нагрузка и
+отсутствие свежих данных — разные состояния. См. [диагностику мониторинга](monitoring/README.md).
+
+**Выполнено ли ТЗ полностью?**
+
+Учебные материалы подготовлены, offline-проверки выполняются. Для итоговой
+приёмки нужны чистый live-прогон, точные manifests версий/лицензий и согласование
+преподавателя. [Последовательная проверка шести критериев ТЗ](docs/requirements-traceability.md#5-последовательная-проверка-критериев-приёмки).
+
 ## Помощь и участие
 
 Начните с [диагностики](docs/operations.md) и [справочника CLI](docs/user-guide/commands.md).
 В [GitLab issue](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/issues) приложите
-commit, шаги воспроизведения и обезличенный вывод; секреты и private keys не публикуются.
+commit, шаги воспроизведения и обезличенный вывод. Секреты и private keys не публикуются.
 
 [CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md) ·
 [Лицензия проекта](LICENSE) · [Лицензии компонентов](LICENSING.md) ·

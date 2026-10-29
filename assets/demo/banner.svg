@@ -1,13 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="340" viewBox="0 0 1280 340" role="img" aria-labelledby="title desc">
-<title id="title">OPLA Security Lab</title><desc id="desc">An isolated Linux security lab: observe traffic, explain defenses, preserve evidence.</desc>
-<defs><linearGradient id="g"><stop stop-color="#0b1020"/><stop offset="1" stop-color="#192942"/></linearGradient></defs>
-<rect width="1280" height="340" rx="22" fill="url(#g)"/>
-<g fill="none" stroke="#304764" stroke-width="1"><path d="M780 0V340M860 0V340M940 0V340M1020 0V340M1100 0V340M1180 0V340M740 60H1280M740 140H1280M740 220H1280M740 300H1280"/></g>
-<text x="52" y="65" font-family="sans-serif" font-size="17" letter-spacing="4" fill="#66def0">OBSERVE / DEFEND / EXPLAIN</text>
-<text x="48" y="148" font-family="sans-serif" font-weight="700" font-size="72" fill="#ecf2ff">OPLA</text>
-<text x="52" y="197" font-family="sans-serif" font-size="28" fill="#ecf2ff">Security Lab</text>
-<text x="52" y="246" font-family="sans-serif" font-size="19" fill="#a4b3ca">Linux · eBPF/XDP · Suricata · Zabbix</text>
-<text x="52" y="294" font-family="sans-serif" font-size="16" fill="#78e3b1">3 VM roles   /   2 isolated networks   /   evidence you can inspect</text>
-<g stroke="#66def0" stroke-width="3" fill="none"><path d="M814 119H914V221H1014V119H1114"/><path d="M814 221H914" stroke="#78e3b1"/></g>
-<g fill="#141d31" stroke="#66def0" stroke-width="2"><rect x="780" y="82" width="76" height="76" rx="16"/><rect x="878" y="184" width="76" height="76" rx="16"/><rect x="976" y="82" width="76" height="76" rx="16"/><rect x="1074" y="184" width="76" height="76" rx="16"/></g>
-<g font-family="monospace" font-size="21" fill="#ecf2ff" text-anchor="middle"><text x="818" y="128">SYN</text><text x="916" y="230">XDP</text><text x="1014" y="128">IDS</text><text x="1112" y="230">OBS</text></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-labelledby="title desc">
+<title id="title">OPLA — лаборатория безопасности Linux</title><desc id="desc">Три виртуальные машины, две изолированные сети, наблюдаемые результаты экспериментов.</desc>
+<rect width="1280" height="300" rx="18" fill="#f3f6fb"/>
+<rect x="32" y="32" width="6" height="236" rx="3" fill="#245de8"/>
+<text x="64" y="67" font-family="sans-serif" font-size="15" letter-spacing="2" fill="#526580">LINUX SECURITY LAB / УЧЕБНЫЙ ПРОЕКТ</text>
+<text x="60" y="143" font-family="sans-serif" font-size="70" font-weight="700" fill="#172b49">OPLA</text>
+<text x="64" y="190" font-family="sans-serif" font-size="26" fill="#172b49">Наблюдать. Защищать. Объяснять.</text>
+<text x="64" y="239" font-family="sans-serif" font-size="19" fill="#526580">eBPF/XDP · Suricata · nginx · Zabbix</text>
+<g fill="#ffffff" stroke="#d7e0ed"><rect x="806" y="44" width="164" height="88" rx="12"/><rect x="998" y="44" width="234" height="88" rx="12"/><rect x="806" y="160" width="426" height="96" rx="12"/></g>
+<g font-family="sans-serif" fill="#172b49"><text x="828" y="82" font-weight="700" font-size="29">3 VM</text><text x="828" y="111" font-size="15">три роли</text><text x="1020" y="82" font-weight="700" font-size="29">2 сети</text><text x="1020" y="111" font-size="15">data + management</text><text x="828" y="198" font-size="18" font-weight="700">Пакет → решение → доказательство</text><text x="828" y="230" font-size="16" fill="#526580">Конечная нагрузка и проверяемый отчёт</text></g>
+</svg>
