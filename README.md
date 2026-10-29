@@ -1,415 +1,243 @@
-# OPLA Security Lab
+<div align="center">
+
+![OPLA — Linux Security Lab](assets/demo/banner.svg)
+
+**Учебная лаборатория, в которой сетевой трафик становится проверяемым экспериментом.**
+
+[Начать](#быстрый-старт) · [Документация](docs/README.md) · [Методичка](docs/methodology.md) · [Результаты](#что-показывает-опыт) · [Помощь](#помощь-и-участие)
 
 [![GitLab pipeline](https://gitlab.com/k3rnel_co0n/opla-security-lab/badges/main/pipeline.svg)](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines)
-[![License](https://img.shields.io/badge/license-see%20LICENSE-blue.svg)](LICENSE)
+[![Linux](https://img.shields.io/badge/platform-Linux-66def0?style=flat-square)](docs/test-host-spec.md)
+[![Topology](https://img.shields.io/badge/topology-3_VM_%2F_2_networks-78e3b1?style=flat-square)](docs/task-dual-nic-topology.md)
+[![License](https://img.shields.io/badge/license-MIT_%2B_GPL-ffd18a?style=flat-square)](LICENSING.md)
 
-Изолированная Linux-лаборатория для учебных экспериментов с сетевым трафиком,
-eBPF/XDP, Suricata и Zabbix. Встроенный стенд состоит из трёх Debian VM:
-`attacker` генерирует разрешённый тестовый трафик, `victim` применяет XDP и
-Suricata, `client` независимо проверяет доступность HTTP. Zabbix собирает
-метрики защиты и приложения и показывает их на dashboard.
+</div>
 
-> Запускайте лабораторию только на выделенном или явно допущенном Linux-хосте.
-> Создание и удаление лабораторий меняет host-сеть и безвозвратно удаляет VM
-> диски. Репозиторий не является универсальной защитой от атак и не предназначен
-> для воздействия на чужие сети.
+OPLA объединяет **eBPF/XDP, Suricata, nginx и Zabbix** в изолированном стенде
+из трёх Debian VM. `attacker` создаёт конечную тестовую нагрузку, `victim`
+обрабатывает её, `client` независимо проверяет HTTP. Вы получаете команды,
+счётчики, события и материалы для отчёта по дисциплине ОПЛКА.
 
-## Демонстрация
+![Архитектура и результаты OPLA — анимированный replay](assets/demo/overview.gif)
 
-![Исторический replay терминального опыта OPLA](assets/demo/terminal-replay.gif)
+*Архитектура показана схематично; числовые сцены воспроизводят сохранённый вывод
+оператора от 24.10.2026. Это редакционная анимация, её длительность не равна
+времени выполнения команд.* [Статичная версия](assets/demo/overview-poster.png) ·
+[Исходные наблюдения](assets/demo/observed-results.json) · [Происхождение media](assets/demo/README.md).
 
-Это анимация ранее сохранённого вывода, а не live-запуск текущей версии и не
-доказательство готовности Zabbix. [Записанная CLI-демонстрация](assets/demo/services/README.md)
-синтетическая и безопасно воспроизводится без VM.
+> Для запуска нужен выделенный или явно допущенный Linux-хост. Create меняет
+> host networking, delete безвозвратно удаляет диски выбранных VM. Тестовый
+> трафик направляется только в data network своей лаборатории.
 
-[Схема топологии](docs/figures/topology.svg) ·
-[Схема пути пакета](docs/figures/packet-path.svg) ·
-[Видео replay](assets/demo/terminal-replay.mp4) ·
-[Исходные результаты](assets/demo/observed-results.json)
+## Что можно исследовать
 
-## Учебная работа и требования ТЗ
+| Механизм | Что делает | Что наблюдать |
+|---|---|---|
+| **XDP / eBPF** | Ограничивает IPv4 TCP SYN; поддерживает scan policy | Program/map identity, pass/drop, порог и границы окна |
+| **Suricata** | Обнаруживает события; отдельный IPS-режим | EVE alert, sid, адреса и временной интервал |
+| **nginx** | Обслуживает HTTP и ограничивает запросы | HTTP 200/429, задержку и JSON access log |
+| **Zabbix** | Хранит метрики и создаёт события | 49 items, 23 triggers, dashboard из 5 страниц — текущая конфигурация |
+| **Независимый client** | Проверяет HTTP со своей VM | Доступность до, во время и после опыта |
+| **Evidence pipeline** | Связывает результаты опыта | Counters, fingerprints, IDS records и ограничения отчёта |
 
-[Методические указания](docs/methodology.md) содержат цель, теорию, две схемы,
-пошаговые команды с ожидаемыми результатами, Suricata/XDP/Zabbix, восстановление
-и приложения. [ФОС](docs/fos.md) содержит 5 практических заданий, 12 вопросов
-самопроверки и тест из 15 вопросов; ключ преподавателя собирается отдельно.
-[Шаблон отчёта](docs/report-template.md), [версии и лицензии](docs/software.md),
-[матрица соответствия ТЗ](docs/requirements-traceability.md) задают комплект
-для сдачи. Основной текст печатного PDF — 12 pt, интервал 1,5.
-
-```bash
-make docs
-make docs-teacher DOCS_PRIVATE_DIR=/tmp/opla-teacher
-```
-
-Сборка требует локально установленных зависимостей из tools/requirements-docs.txt;
-`make docs-deps` устанавливает их отдельно с сетевым доступом. Public PDF не
-включает ключ. Чистая live-апробация и точный manifest лицензий остаются отдельными
-критериями приёмки; успешные offline-тесты их не заменяют.
+[Схема двух сетей](docs/figures/topology.svg) · [Путь пакета](docs/figures/packet-path.svg) ·
+[Каталог метрик](docs/metrics-catalog.md) · [Модель доверия](docs/security-model.md).
 
 ## Быстрый старт
 
-### Требования
-
-Нужен отдельный Linux-хост x86_64 с systemd, доступным KVM, QEMU, libguestfs,
-`cloud-localds`, `dnsmasq`, `iproute2`, nftables, Python/PyYAML, OpenSSH и Make.
-Для Zabbix дополнительно нужны Docker Compose и доступ к локальному Docker
-socket. Подготовка образов скачивает Debian packages и требует доступа к Debian
-repositories из libguestfs appliance. Полный список и ограничения — в
-[спецификации хоста](docs/test-host-spec.md).
-
-Профиль выделяет гостям 3.5 GiB RAM и требует минимум 5 GiB доступной памяти
-на хосте. Требуется место под role images, VM overlays, логи и backups; точный
-объём зависит от состояния образов и опыта. Для сценариев нужна SSH-пара
-пользователя. Текущая встроенная топология — локальный QEMU; для удалённой
-инфраструктуры используйте [пользовательский deployment manifest](docs/deployment.md).
+Нужны Linux x86_64, systemd, KVM, QEMU/libguestfs, cloud-init tooling, nftables,
+Python/PyYAML, Make, OpenSSH, Docker Engine и Compose. Create проверяет минимум
+**5 GiB MemAvailable**; для полного опыта планируйте запас RAM и диска под БД,
+образы и отчёты. [Полные требования](docs/test-host-spec.md) и
+[подготовка host-зависимостей](docs/deployment.md#1-подготовка-локального-qemu-хоста).
 
 ### Установка и запуск
 
-Следующие команды выполняются **на выделенном допущенном хосте**, из проверенной
-копии репозитория. Установка зависимостей хоста — отдельный шаг из
-[руководства по установке](docs/local-system-install.md); команды ниже не
-устанавливают системные пакеты автоматически.
+Из проверенной копии репозитория **на допущенном тестовом хосте**:
 
-1. Скачайте базовый Debian cloud image и соберите проверенные образы ролей:
-
-   ```bash
-   make bootstrap
-   make images
-   ```
-
-   Это может занять несколько минут и загрузить несколько гигабайт. Если image
-   build прервался, проверьте оставшийся `.part` перед повтором; для проверенного
-   кандидата есть `opla system image-resume --role ROLE`.
-
-2. Проверьте исходники, посчитайте локальный digest и установите их в новый
-   root-owned каталог. `DIGEST` замените ровно на значение, полученное после
-   собственного review. Уже существующую установку этот шаг не перезаписывает:
-
-   ```bash
-   python3 bin/opla-system-install.py --source "$PWD"
-   sudo python3 bin/opla-system-install.py --source "$PWD" --install \
-     --destination /opt/opla --expected-sha256 DIGEST
-   python3 /opt/opla/bin/opla-cli-install.py install
-   sudo install -d -o root -g root -m 0755 /var/lib/opla
-   ```
-
-   Snapshot переносит доступный `monitoring/.env` в пользовательский
-   `~/.config/opla/monitoring.env` с режимом `0600` и не включает секрет в
-   root-owned код. Для существующей БД пароль не генерируется заново.
-
-3. Проверьте хост, создайте лабораторию и дождитесь cloud-init/SSH:
-
-   ```bash
-   opla lab create --confirm-host-changes
-   opla lab list
-   ```
-
-   Скопируйте ID, напечатанный командой create, и выполните (вместо
-   `lab-XXXXXXXX` подставьте свой ID):
-
-   ```bash
-   opla lab select lab-XXXXXXXX
-   opla lab ready
-   opla lab status
-   ```
-
-4. Включите гостевую защиту и интеграцию с Zabbix:
-
-   ```bash
-   opla lab activate lab-XXXXXXXX
-   opla xdp stats
-   opla ids status
-   ```
-
-   Активация настраивает XDP, HTTP/scan telemetry и Suricata на victim,
-   поднимает Zabbix/PostgreSQL, обновляет dashboard и запускает сборщик. Откройте
-   [Zabbix](http://127.0.0.1:8080), войдите в созданную учётную запись и смените
-   начальный пароль, если он ещё не менялся. Для функциональной проверки
-   изолированного сценария используйте
-   [инструкцию по сценариям](docs/demonstrations.md).
-
-## Какой способ развёртывания выбрать
-
-Для полного сценария OPLA с тремя гостями, XDP/eBPF, Suricata и Zabbix выбирайте
-**локальную QEMU-лабораторию на выделенном Linux-хосте**. Это единственный
-встроенный шаблон топологии проекта. Не запускайте его на рабочем компьютере
-или сервере с ценными сетевыми/Docker workloads без отдельного допуска.
-
-| Вариант | Для чего подходит | Порядок и ограничения |
-|---|---|---|
-| Локальная QEMU-лаборатория | Полный учебный стенд `attacker`/`victim`/`client` и dashboard Zabbix | Следуйте [быстрому старту выше](#быстрый-старт) и [руководству оператора](docs/operator-guide.md). Создание меняет host network и создаёт VM-диски. |
-| Подготовка QEMU-хоста через Ansible | Установка host-зависимостей на отдельной машине | Это только подготовка хоста. Затем отдельно выполняются [bootstrap, сборка образов и запуск](#установка-и-запуск); playbook не создаёт лабораторию. |
-| Security node через Ansible | Отдельный Debian 13 узел с XDP, Suricata и локальной телеметрией | Это серверный профиль, а не трёх-VМ шаблон; требуется отдельный интерфейс для исследуемого трафика. Смотрите [варианты SSH/local/VPN/bastion и их ограничения](docs/deployment.md). |
-| Своя удалённая инфраструктура | Узлы и адреса, задаваемые владельцем окружения | Используйте пользовательский [deployment manifest](docs/deployment.md). OPLA проверяет inventory и строит connectivity plan; это не автоматическое развёртывание произвольной распределённой топологии. |
-
-Подробности о доверенной установке, обновлении CLI и различии checkout/`/opt`
-собраны в [руководстве по локальной установке](docs/local-system-install.md).
-Текущие роли, ограничения приёмки и признаки состояния описаны в
-[руководстве оператора](docs/operator-guide.md) и [runtime readiness](docs/runtime-readiness.md).
-
-## Удалить все лаборатории
-
-Вставьте блок целиком в Bash. Он выводит найденные ID, требует ввести
-`DELETE-ALL-LABS`, затем для каждого зарегистрированного корректного стенда
-останавливает его collector и VM и вызывает штатный проверяющий executor.
-При первой ошибке блок прекращает работу: оставшиеся лаборатории не затрагиваются.
+**1. Подготовьте образы трёх ролей.**
 
 ```bash
-set -euo pipefail
-LAB_LIST="$(opla lab list)"
-LAB_IDS="$(printf '%s\n' "$LAB_LIST" | python3 -c '
-import re, sys
-ids = []
-for line in sys.stdin:
-    fields = line.split()
-    if fields and re.fullmatch(r"lab-[A-Za-z0-9]{4,32}", fields[0]):
-        if len(fields) < 2 or fields[1] == "INVALID":
-            raise SystemExit("BLOCKED: есть некорректная запись lab; проверьте opla lab list")
-        ids.append(fields[0])
-print("\n".join(ids))
-')"
-if [[ -z "$LAB_IDS" ]]; then
-  echo 'Зарегистрированных лабораторий нет.'
-  exit 0
-fi
-printf 'Будут безвозвратно удалены эти лаборатории и их VM-диски:\n%s\n' "$LAB_IDS"
-read -r -p 'Для подтверждения введите DELETE-ALL-LABS: ' CONFIRM_ALL
-[[ "$CONFIRM_ALL" == DELETE-ALL-LABS ]] || { echo 'Отменено.'; exit 1; }
-while IFS= read -r LAB_ID; do
-  [[ -n "$LAB_ID" ]] || continue
-  command opla lab select "$LAB_ID"
-  opla monitoring stop
-  opla lab stop
-  command opla lab delete "$LAB_ID" --confirm-lab "$LAB_ID"
-done <<< "$LAB_IDS"
-opla lab list
+make bootstrap
+make images
 ```
 
-Удаляются только лаборатории, перечисленные в `opla lab list`, и принадлежащие
-им ресурсы после ownership-проверок. Если executor отвечает `BLOCKED`, не
-обходите отказ командами `rm`, `nft flush`, `docker prune` или ручным удалением
-каталога. Скрипт не удаляет `images/*.qcow2`, reports, backups, общий
-Zabbix/PostgreSQL volume или историю dashboard. Для сохранения базы мониторинга
-это ожидаемое поведение. Чтобы удалить только один lab, используйте
-`opla lab delete lab-XXXXXXXX --confirm-lab lab-XXXXXXXX`.
+Victim image содержит Suricata, PyYAML, nginx и BPF toolchain; attacker —
+hping3, nmap, arp-scan, yersinia и tcpdump. Готовые проверенные образы
+переиспользуются. Для прерванной сборки — [восстановление images](docs/user-guide/commands.md).
 
-## Основные команды
+**2. Установите проверенный snapshot и CLI.**
 
-| Задача | Команда |
+```bash
+python3 bin/opla-system-install.py --source "$PWD"
+sudo python3 bin/opla-system-install.py --source "$PWD" --install \
+  --destination /opt/opla --expected-sha256 DIGEST
+python3 /opt/opla/bin/opla-cli-install.py install
+sudo install -d -o root -g root -m 0755 /var/lib/opla
+```
+
+Замените `DIGEST` выводом первой команды после review. Установка копирует код
+и образы в **новый** root-owned каталог. Для обновления существующей версии
+выберите другой путь и используйте его в дальнейших командах.
+[Установка и обновление](docs/local-system-install.md). Checkout и `/opt` независимы.
+
+**3. Создайте лабораторию и выберите напечатанный ID.**
+
+```bash
+opla lab create --confirm-host-changes
+opla lab list
+opla lab select lab-XXXXXXXX
+opla lab ready
+```
+
+`lab-XXXXXXXX` в примерах заменяется реальным ID. Ожидается `cloud-init done`
+для всех трёх VM. Если `LAB_DIR` задан в окружении, он имеет приоритет над
+сохранённым выбором.
+
+**4. Активируйте защиту и мониторинг.**
+
+```bash
+opla lab activate lab-XXXXXXXX
+opla xdp stats
+opla ids status
+```
+
+Активация настраивает гостевые модули, Zabbix/PostgreSQL, dashboard и collector.
+Provisioning запросит учётные данные Zabbix. Откройте [локальный Zabbix](http://127.0.0.1:8080),
+смените начальный пароль и проверьте свежесть Latest data выбранного host.
+[Руководство по Zabbix](docs/zabbix-guide.md).
+
+**5. Выполните конечный сценарий.**
+
+```bash
+opla scenario check syn-scan-baseline --lab lab-XXXXXXXX
+opla scenario run syn-scan-baseline --lab lab-XXXXXXXX --confirm lab-XXXXXXXX
+```
+
+Сохраните report directory из вывода. Для вывода о доступности на всём
+интервале нужна [непрерывная проверка с client](docs/task-client-coverage.md).
+[Пошаговый учебный опыт](docs/methodology.md).
+
+## Что показывает опыт
+
+![Сохранённые результаты SYN и отдельного HTTP burst](assets/demo/results.png)
+
+Карточка построена из [пользовательского transcript от 24.10.2026](assets/demo/observed-results.json).
+В SYN-опыте counters выросли на **2003 SYN**, **300 pass**, **1703 drop**;
+отдельный HTTP burst дал **11 ответов 200** и **189 ответов 429**.
+Фоновые SYN могут влиять на counters. Эти числа не являются измерением pps,
+гарантией предотвращения атаки или доказательством непрерывной доступности.
+
+Suricata evidence и полный dashboard в этой исторической записи не показаны.
+Текущая конфигурация стенда описана отдельно от записанного опыта.
+[Текстовая версия результатов](assets/demo/results.txt) ·
+[Offline CLI/evidence-worker demo](assets/demo/services/README.md) ·
+[Все демонстрации](docs/demonstrations.md).
+
+## Ежедневные команды
+
+| Действие | Команда |
 |---|---|
-| Список / выбор лаборатории | `opla lab list` · `opla lab select lab-XXXXXXXX` |
-| Статус / диагностика | `opla lab status` · `opla system doctor` |
-| Остановить, сохранив диски | `opla lab stop` |
-| Запустить сохранённый стенд | `opla lab start` · `opla lab ready` |
-| Защитные счётчики / IDS | `opla xdp stats` · `opla ids status` |
-| Сценарии | `opla scenario check syn-scan-baseline --lab lab-XXXXXXXX` |
-| Остановить общий monitoring stack | `opla monitoring down` |
+| Выбрать лабораторию | `opla lab list` → `opla lab select lab-XXXXXXXX` |
+| Проверить VM / guest readiness | `opla lab status` · `opla lab ready` |
+| Проверить защиту | `opla xdp stats` · `opla ids status` |
+| Проверить Suricata marker | `opla ids test` |
+| Остановить сбор метрик | `opla monitoring stop` |
+| Остановить VM, сохранив диски | `opla lab stop` |
+| Продолжить работу | `opla lab start` → `opla lab ready` |
 
-`lab stop` сохраняет VM-диски; удаление требует отдельного подтверждения.
-Zabbix/PostgreSQL — общие для лабораторий и не останавливаются при удалении
-одного lab. Не запускайте `docker compose down --volumes`, если хотите сохранить
-БД и историю метрик.
+### Удалить все лаборатории
+
+Для одного стенда после сохранения результатов:
+
+```bash
+opla monitoring stop
+opla lab stop
+opla lab delete lab-XXXXXXXX --confirm-lab lab-XXXXXXXX
+```
+
+Для массового удаления используйте [готовый Bash-блок с подтверждением](docs/data-lifecycle.md#9-удалить-все-зарегистрированные-лаборатории).
+Он останавливается при первой ошибке ownership-проверок. Shared Zabbix, история
+БД и role images сохраняются. [Backup и восстановление](docs/backup-restore.md).
 
 ## Почтовые уведомления
 
-Почта — отдельная опциональная интеграция поверх событий Zabbix. При первом
-подключении пользователь сам задаёт от одного до двадцати адресов-получателей.
-Один сохранённый Gmail app password используется только как SMTP-учётная запись
-отправителя; получать письма можно на адреса любых почтовых провайдеров.
-Конфигурация находится в `~/.config/opla/alerts.json`, очереди и cursors
-разделены по стендам в `~/.local/state/opla-alerts/labs/<LAB_ID>/`, служба
-systemd пользователя называется `opla-alerts.service`.
-
-Проверить сохранённое состояние без вывода секретов:
-
-```bash
-systemctl --user is-active opla-alerts.service
-python3 /opt/opla/monitoring/alert_delivery.py status
-stat -c '%a %n' "$HOME/.config/opla/alerts.json"
-```
-
-Интеграция отправляет почту через локальный Tor SOCKS5 `127.0.0.1:9050`.
-Сборщик автоматически читает выбранный `opla lab select lab-...` и обращается к
-Zabbix host `opla-<полный-ID-стенда>`. При переключении выбора он переключает
-Zabbix-цель и очередь этого стенда; перезапускать службу не требуется. События
-и курсоры сохраняются отдельно для каждого стенда и продолжат обработку, когда
-он будет выбран снова. Уже начатая SMTP-отправка может завершиться после
-переключения выбора. Существующая legacy-очередь будет переиспользована только
-если её старый host точно совпадает с выбранным стендом. Удаление стенда не удаляет почтовую конфигурацию,
-очереди и не отключает службу. Для работы нужны Zabbix API token, Gmail app
-password и запущенный локальный Tor SOCKS endpoint; секреты хранятся в
-пользовательском файле с режимом `0600`.
-
-Первичная настройка на установленной копии (только если `alerts.json` ещё нет):
-
-```bash
-python3 /opt/opla/monitoring/alert_delivery.py configure
-python3 /opt/opla/monitoring/alert_delivery.py test
-python3 /opt/opla/monitoring/alerts_service.py install
-```
-
-Сначала выберите существующий стенд командой `opla lab select lab-...`.
-`configure` запросит Gmail sender, список адресов через запятую, Zabbix API
-token и Gmail app password. Проверит, что локальный Zabbix содержит host
-выбранного стенда. Дальше служба сама следует за выбором lab. Команда `test`
-отправляет настоящее тестовое письмо получателям. Если `alerts.json` уже есть,
-`configure` откажется перезаписывать его: сохраните файл и очередь, если хотите
-переходить на новую установку, и не копируйте секреты в репозиторий. Старые
-конфигурации с фиксированным `host` продолжают работать, когда lab не выбран;
-при наличии выбора выбранная лаборатория имеет приоритет. Старый общий queue
-файл сохраняется; если его сохранённый host совпадает с выбранным lab, OPLA
-продолжит использовать эту очередь, иначе оставит её без изменений и создаст
-отдельную очередь выбранного стенда.
+Получатели задаются пользователем — от 1 до 20 адресов. Gmail используется как
+SMTP sender через локальный Tor SOCKS5; это факультативная интеграция.
+Worker следует за выбранным lab и ведёт отдельные очереди.
 
 ### После создания API token в Zabbix
 
-В Zabbix 7.0 API token создаётся в разделе **User settings → API tokens**;
-в зависимости от роли управление также доступно через **Users → API tokens**.
-Значение token показывается только при создании — сразу сохраните его в
-менеджер секретов. Token наследует права назначенного пользователя: для OPLA
-нужны доступ к host выбранной лаборатории и чтение событий/problems через API.
-Смотрите [официальную документацию Zabbix по User settings и API tokens](https://www.zabbix.com/documentation/7.0/en/manual/web_interface/user_profile)
-и [справочник Zabbix API](https://www.zabbix.com/documentation/7.0/en/manual/api).
-
-Затем:
-
-1. Выберите lab, чей host уже создан в Zabbix:
-
-   ```bash
-   opla lab select lab-XXXXXXXX
-   ```
-
-2. Если `~/.config/opla/alerts.json` **ещё не существует**, запустите первичную
-   настройку. Вставьте token только в скрытый интерактивный prompt:
-
-   ```bash
-   python3 /opt/opla/monitoring/alert_delivery.py configure
-   ```
-
-   Введите Gmail sender, адреса получателей через запятую, API token и Gmail
-   app password. Не вставляйте token в командную строку, issue или Git.
-
-3. Если `alerts.json` **уже существует**, не запускайте `configure`: он намеренно
-   не перезаписывает секреты. Для изменения только получателей используйте
-   `recipients`, затем переустановите/перезапустите службу:
-
-   ```bash
-   python3 /opt/opla/monitoring/alert_delivery.py recipients
-   python3 /opt/opla/monitoring/alerts_service.py install
-   ```
-
-   Эта команда сохраняет текущие API/SMTP secrets.
-
-   Если нужно заменить сохранённый API token, сначала выберите правильный lab,
-   затем запустите отдельное действие. Оно проверит token на API версии 7.0,
-   доступ к выбранному host, problems и events и только затем сохранит его:
-
-   ```bash
-   python3 /opt/opla/monitoring/alert_delivery.py api-token
-   python3 /opt/opla/monitoring/alerts_service.py install
-   ```
-
-   Token запрашивается скрыто; не вставляйте его в shell history.
-
-4. Для настоящего тестового письма worker не должен уже держать очередь:
-
-   ```bash
-   systemctl --user stop opla-alerts.service
-   python3 /opt/opla/monitoring/alert_delivery.py test
-   python3 /opt/opla/monitoring/alerts_service.py install
-   ```
-
-   Успех `test` показывает принятие SMTP-сервером, но не подтверждает появление
-   письма во входящих. После установки проверьте выбранную цель через
-   `python3 /opt/opla/monitoring/alert_delivery.py status` и журнал через
-   `journalctl --user -u opla-alerts.service -n 50 --no-pager`.
-
-Если CLI в `/opt/opla` сообщает, что `recipients` — недопустимое действие,
-там стоит старая копия проекта. Git checkout сам не обновляет root-owned
-установку; используйте [процедуру обновления в новый snapshot](docs/local-system-install.md#обновление-установленного-cli).
-
-Команда ручной проверки `alert_delivery.py test` отправляет реальное тестовое
-письмо заданным получателям; запускайте её только когда это ожидаемо. Статус SMTP
-`accepted` означает, что SMTP сервер принял сообщение, а не подтверждение его
-появления во входящих.
-
-Чтобы позже заменить список адресов, выполните интерактивную команду. Она
-атомарно обновит только список, сохранив API token и SMTP secret:
+Для новой конфигурации запустите `alert_delivery.py configure`. Если
+`~/.config/opla/alerts.json` уже существует, замените token без повторного setup:
 
 ```bash
-python3 /opt/opla/monitoring/alert_delivery.py recipients
+python3 /opt/opla/monitoring/alert_delivery.py api-token
 python3 /opt/opla/monitoring/alerts_service.py install
 ```
 
-Введите полный новый список через запятую. Повторный `install` перезапустит
-работающую пользовательскую службу, чтобы она загрузила обновлённые адреса.
+Смена списка адресов — действие `recipients`. Token и Gmail app password
+вводятся скрыто. [Полная настройка, тест письма и диагностика API](monitoring/README.md#пошаговая-настройка-уведомлений).
+Если установленная копия не знает этих действий, сначала
+[обновите snapshot](docs/local-system-install.md#обновление-установленного-cli).
 
-В проекте есть также альтернативный путь через штатный Zabbix email media type
-(`monitoring/configure-mail.py`). Не включайте оба пути одновременно, если не
-нужны дублирующие письма. Удаление lab не отзывает Gmail app password или
-Zabbix API token; отзывайте их отдельно, если интеграция больше не нужна.
+## Учебный комплект
 
-## Как устроен проект
+| Материал | Содержание |
+|---|---|
+| [Методические указания](docs/methodology.md) | Теория, две схемы, установка, опыт и восстановление |
+| [ФОС](docs/fos.md) | 5 практических заданий, 12 вопросов самопроверки, тест из 15 вопросов |
+| [Шаблон отчёта](docs/report-template.md) | Результаты, fingerprints, client coverage и выводы |
+| [Соответствие ТЗ](docs/requirements-traceability.md) | Требования исходного PDF и условия итоговой приёмки |
+| [Средства и лицензии](docs/software.md) | Версии, назначение, установка и незакрытые лицензионные проверки |
 
-```mermaid
-flowchart LR
-  A[attacker VM<br/>hping3 · nmap · yersinia] -->|изолированный data bridge| V[victim VM<br/>XDP/eBPF · nginx · Suricata]
-  C[client VM<br/>HTTP probes] -->|изолированный data bridge| V
-  V -->|management NIC| M[host collector]
-  M --> Z[Zabbix dashboard<br/>PostgreSQL]
-  O[host OPLA CLI] -->|management network / SSH| V
+`make docs` собирает студенческий PDF. Ключ преподавателя собирается отдельно
+через `make docs-teacher`. Нужны локальные зависимости из
+[tools/requirements-docs.txt](tools/requirements-docs.txt). [Каталог документации](docs/README.md).
+
+## Способы развёртывания
+
+**Полный встроенный стенд — локальный QEMU/KVM attacker/victim/client.**
+Ansible может [подготовить QEMU-хост](docs/deployment.md#1-подготовка-локального-qemu-хоста)
+или настроить [отдельный Debian 13 security node](docs/deployment.md).
+Server profile имеет свой scope; это отдельная конфигурация от учебных трёх VM.
+Доступ к удалённому узлу описан для SSH, bastion и уже настроенного VPN.
+[Выбор платформы и ограничения](docs/platform-compatibility.md).
+
+## Проверки и статус
+
+```bash
+python3 -m compileall -q bin tests
+make check
+make acceptance-offline
+python3 tools/check-documentation.py
 ```
 
-У каждой VM отдельные data и management интерфейсы. Тестовые инструменты
-attacker предназначены только для изолированной лаборатории. XDP фильтрует
-часть IPv4/TCP SYN и предоставляет scan policy; Suricata работает отдельно как
-IDS/IPS. Счётчик XDP сам по себе не доказывает, что Suricata обнаружила событие
-или что все метрики дошли до Zabbix.
+Offline-проверки не заменяют KVM, verifier на реальном ядре и live-доставку в
+Zabbix. Чистая полная апробация и лицензионная сверка точных сборок остаются
+отдельными условиями приёмки. [Проверки и source hashes](docs/evidence/chat-integration-20261030.json) ·
+[Runtime readiness](docs/runtime-readiness.md) · [Протокол приёмки](docs/acceptance.md).
 
-## Технологии и первичные ресурсы
+## Технологии и первичные источники
 
-Ссылки ведут на документацию проектов и upstream-инструментов. Версии в
-документации могут отличаться от закреплённых пакетных версий стенда.
+| Слой | Документация |
+|---|---|
+| Виртуализация и ОС | [QEMU](https://www.qemu.org/docs/master/system/index.html) · [KVM](https://docs.kernel.org/virt/kvm/) · [Debian Cloud](https://cloud.debian.org/images/cloud/) |
+| Защита ядра | [Linux BPF](https://docs.kernel.org/bpf/) · [XDP](https://docs.ebpf.io/linux/program-type/BPF_PROG_TYPE_XDP/) · [libbpf](https://github.com/libbpf/libbpf) |
+| IDS и HTTP | [Suricata 7.0](https://docs.suricata.io/en/suricata-7.0.10/) · [nginx limit_req](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html) |
+| Мониторинг | [Zabbix 7.0](https://www.zabbix.com/documentation/7.0/en/manual) · [API](https://www.zabbix.com/documentation/7.0/en/manual/api) · [PostgreSQL](https://www.postgresql.org/docs/16/) |
+| Управление | [nftables](https://netfilter.org/projects/nftables/) · [OpenSSH](https://www.openssh.com/manual.html) · [systemd](https://www.freedesktop.org/software/systemd/man/latest/) |
+| Сборка и поставка | [Docker Compose](https://docs.docker.com/compose/) · [Ansible](https://docs.ansible.com/) · [GitLab CI](https://docs.gitlab.com/ci/) |
 
-| Технология | Использование в OPLA | Документация |
-|---|---|---|
-| [Debian Cloud](https://cloud.debian.org/images/cloud/) | Основа guest role images | [Cloud images](https://cloud.debian.org/images/cloud/) |
-| [QEMU](https://www.qemu.org/docs/master/system/index.html) + [KVM](https://www.kernel.org/doc/html/latest/virt/kvm/index.html) | Три локальные VM, QMP, QCOW2 и ускорение виртуализации | [QEMU System Emulation](https://www.qemu.org/docs/master/system/index.html) · [Linux KVM](https://www.kernel.org/doc/html/latest/virt/kvm/index.html) |
-| [Linux eBPF/XDP](https://docs.ebpf.io/linux/program-type/BPF_PROG_TYPE_XDP/) | Ранняя обработка пакетов на victim, XDP maps и счётчики | [XDP program type](https://docs.ebpf.io/linux/program-type/BPF_PROG_TYPE_XDP/) · [kernel BPF docs](https://docs.kernel.org/bpf/) |
-| [Suricata](https://docs.suricata.io/en/suricata-7.0.10/) | IDS/IPS, правила и EVE JSON события | [Suricata 7.0 guide](https://docs.suricata.io/en/suricata-7.0.10/) |
-| [Zabbix 7.0](https://www.zabbix.com/documentation/7.0/en/manual) | Items, triggers, graphs, dashboard и уведомления | [Zabbix 7.0 manual](https://www.zabbix.com/documentation/7.0/en/manual) · [API](https://www.zabbix.com/documentation/7.0/en/manual/api) |
-| [Docker Compose](https://docs.docker.com/compose/) + [PostgreSQL](https://www.postgresql.org/docs/) | Общие контейнеры Zabbix и постоянное хранилище БД | [Compose docs](https://docs.docker.com/compose/) · [PostgreSQL docs](https://www.postgresql.org/docs/) |
-| [nftables](https://wiki.nftables.org/wiki-nftables/index.php/Main_Page) | Изолированные bridge/TAP сети и host firewall policy | [nftables HOWTO](https://wiki.nftables.org/wiki-nftables/index.php/Main_Page) |
-| [systemd](https://www.freedesktop.org/software/systemd/man/latest/) + [OpenSSH](https://www.openssh.com/manual.html) | QEMU/user services и управление гостями по management SSH | [systemd manuals](https://www.freedesktop.org/software/systemd/man/latest/) · [OpenSSH manuals](https://www.openssh.com/manual.html) |
-| [Nmap](https://nmap.org/book/man.html), [Yersinia](https://github.com/tomac/yersinia), [hping3](https://www.kali.org/tools/hping3/), [arp-scan](https://github.com/royhills/arp-scan), [tcpdump](https://www.tcpdump.org/) | Инструменты генерации и наблюдения трафика внутри attacker/test network | Upstream manuals и репозитории проектов |
-| [Tor Project](https://support.torproject.org/) + [curl](https://curl.se/docs/manpage.html) | SMTP уведомления через локальный SOCKS5 proxy | [Tor support](https://support.torproject.org/) · [curl manual](https://curl.se/docs/manpage.html) |
-| [GitLab CI/CD](https://docs.gitlab.com/ci/) + [Python](https://docs.python.org/3/) | Проверки, сборка и orchestration tooling | [GitLab CI docs](https://docs.gitlab.com/ci/) · [Python docs](https://docs.python.org/3/) |
+[Полный список средств](docs/software.md) · [Источники теории](docs/sources.md) ·
+[Версии и воспроизводимость](docs/versions.md).
 
-## Проверки и границы результата
+## Помощь и участие
 
-Статические проверки и offline-тесты не запускают полноценную цепочку KVM →
-XDP verifier → Suricata → сценарий → Zabbix. Не называйте стенд готовым только
-потому, что QEMU запущен или health endpoint отвечает. Перед live-экспериментом
-проверьте XDP/IDS, client HTTP probe, свежесть данных Zabbix и evidence сценария.
+Начните с [диагностики](docs/operations.md) и [справочника CLI](docs/user-guide/commands.md).
+В [GitLab issue](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/issues) приложите
+commit, шаги воспроизведения и обезличенный вывод; секреты и private keys не публикуются.
 
-Подробные документы:
-
-- [Установка и обновление](docs/local-system-install.md)
-- [Руководство оператора](docs/operator-guide.md)
-- [Справочник команд](docs/user-guide/commands.md)
-- [Топология и требования хоста](docs/test-host-spec.md)
-- [Zabbix и метрики](docs/zabbix-guide.md) · [каталог метрик](docs/metrics-catalog.md)
-- [Сценарии и демонстрации](docs/demonstrations.md)
-- [Удаление и жизненный цикл данных](docs/data-lifecycle.md)
-- [Безопасность и модель доверия](docs/security-model.md)
-- [Приёмка и runtime readiness](docs/acceptance.md) · [статус runtime](docs/runtime-readiness.md)
-- [Вся документация](docs/README.md)
-
-## Участие и лицензия
-
-Перед изменениями ознакомьтесь с [CONTRIBUTING](CONTRIBUTING.md) и
-[SECURITY](SECURITY.md). Запускайте `make check` для переносимых проверок;
-они не заменяют live-приёмку на отдельном тестовом хосте. См. также
-[GitLab CI](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines),
-[лицензию](LICENSE) и [лицензионные пояснения](LICENSING.md).
+[CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md) ·
+[Лицензия проекта](LICENSE) · [Лицензии компонентов](LICENSING.md) ·
+[История изменений](docs/CHANGELOG.md).
