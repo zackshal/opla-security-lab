@@ -1,6 +1,6 @@
 ![OPLA — лаборатория безопасности Linux](assets/demo/banner.svg)
 
-# OPLA Security Lab
+# OPLA — лаборатория безопасности Linux
 
 ### От сетевой нагрузки — к обнаружению, защите и проверяемому результату
 
@@ -22,23 +22,23 @@ Suricata, nginx и Zabbix в воспроизводимый сценарий и�
 
 [![GitLab CI](https://gitlab.com/k3rnel_co0n/opla-security-lab/badges/main/pipeline.svg)](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines)
 [![GitHub Actions](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml/badge.svg)](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml)
-[![License](https://img.shields.io/badge/license-MIT_%2B_GPL--2.0-245de8?style=flat-square)](LICENSING.md)
+[![Лицензия](https://img.shields.io/badge/лицензия-MIT_%2B_GPL--2.0-245de8?style=flat-square)](LICENSING.md)
 
 [![C / eBPF](https://img.shields.io/badge/C%20%2F%20eBPF-XDP-245de8?style=for-the-badge&labelColor=172b49&logo=c&logoColor=white)](xdp/README.md)
-[![Python](https://img.shields.io/badge/Python-automation-3776AB?style=for-the-badge&labelColor=172b49&logo=python&logoColor=white)](bin/)
-[![Bash](https://img.shields.io/badge/Bash-scripts-4EAA25?style=for-the-badge&labelColor=172b49&logo=gnubash&logoColor=white)](bin/)
+[![Python](https://img.shields.io/badge/Python-автоматизация-3776AB?style=for-the-badge&labelColor=172b49&logo=python&logoColor=white)](bin/)
+[![Bash](https://img.shields.io/badge/Bash-скрипты-4EAA25?style=for-the-badge&labelColor=172b49&logo=gnubash&logoColor=white)](bin/)
 [![QEMU](https://img.shields.io/badge/QEMU-KVM-FF6600?style=for-the-badge&labelColor=172b49&logo=qemu&logoColor=white)](docs/architecture.md)
-[![nftables](https://img.shields.io/badge/nftables-isolation-526580?style=for-the-badge&labelColor=172b49)](docs/security-model.md)
+[![nftables](https://img.shields.io/badge/nftables-изоляция-526580?style=for-the-badge&labelColor=172b49)](docs/security-model.md)
 [![nginx](https://img.shields.io/badge/nginx-HTTP-009639?style=for-the-badge&labelColor=172b49&logo=nginx&logoColor=white)](docs/methodology.md)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-storage-4169E1?style=for-the-badge&labelColor=172b49&logo=postgresql&logoColor=white)](monitoring/README.md)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-хранилище-4169E1?style=for-the-badge&labelColor=172b49&logo=postgresql&logoColor=white)](monitoring/README.md)
 [![Suricata](https://img.shields.io/badge/Suricata-IDS%20%2F%20IPS-EF3B2D?style=for-the-badge&labelColor=172b49)](docs/user-guide/commands.md)
-[![Zabbix](https://img.shields.io/badge/Zabbix-monitoring-D40000?style=for-the-badge&labelColor=172b49&logo=zabbix&logoColor=white)](docs/zabbix-guide.md)
-[![Ansible](https://img.shields.io/badge/Ansible-deployment-EE0000?style=for-the-badge&labelColor=172b49&logo=ansible&logoColor=white)](ansible/README.md)
+[![Zabbix](https://img.shields.io/badge/Zabbix-мониторинг-D40000?style=for-the-badge&labelColor=172b49&logo=zabbix&logoColor=white)](docs/zabbix-guide.md)
+[![Ansible](https://img.shields.io/badge/Ansible-развёртывание-EE0000?style=for-the-badge&labelColor=172b49&logo=ansible&logoColor=white)](ansible/README.md)
 
 </div>
 
-Технологические badges обозначают состав проекта. Фактические версии
-фиксируются в [протоколе среды](docs/versions.md); CI badges относятся к
+Технологические бейджи обозначают состав проекта. Фактические версии
+фиксируются в [протоколе среды](docs/versions.md); бейджи CI относятся к
 соответствующим репозиториям и не доказывают синхронность GitHub и GitLab.
 
 > **Проверка на хосте автора, 31.10.2026: 986 тестов, 970 прошли, 16 пропущены.**
@@ -51,7 +51,6 @@ Suricata, nginx и Zabbix в воспроизводимый сценарий и�
 <details>
 <summary><strong>Навигация по проекту</strong></summary>
 
-
 - [Что изучается](#что-изучается)
 - [Как устроен опыт](#как-устроен-опыт)
 - [Демонстрация](#демонстрация)
@@ -62,7 +61,8 @@ Suricata, nginx и Zabbix в воспроизводимый сценарий и�
 - [Способы развёртывания](#способы-развёртывания)
 - [Почтовые уведомления](#почтовые-уведомления)
 - [Частые вопросы](#частые-вопросы)
-- [Источники](#технологии-и-первичные-источники) · [Участие и лицензии](#помощь-и-участие)
+- [Технологии и первичные источники](#технологии-и-первичные-источники)
+- [Об авторе](#об-авторе)
 
 </details>
 
@@ -396,16 +396,16 @@ Git pull обновляет исходники; пользовательский
 [Полный список средств](docs/software.md) · [Источники теории](docs/sources.md) ·
 [Версии и воспроизводимость](docs/versions.md).
 
-## Помощь и участие
+## Об авторе
 
-Начните с [диагностики](docs/operations.md) и [справочника CLI](docs/user-guide/commands.md).
-В [GitLab issue](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/issues) приложите
-commit, шаги воспроизведения и обезличенный вывод. Секреты и private keys не публикуются.
+**Разработчик:** Захар Шалашов  
+**Учебное заведение:** РТУ МИРЭА, БББО-01-23  
+**Дисциплина:** «Обнаружение, предупреждение и ликвидация последствий компьютерных атак»
 
-[CONTRIBUTING](CONTRIBUTING.md) ·
-[Лицензия проекта](LICENSE) · [Лицензии компонентов](LICENSING.md) ·
-[История изменений](docs/CHANGELOG.md).
+Все учебные материалы, исходный код, конфигурации и документация подготовлены
+лично автором. Проект распространяется под лицензией MIT; `xdp/xdp_ddos_protect.c`
+распространяется под GPL-2.0. Лицензии зависимостей рассматриваются отдельно,
+см. [LICENSING](LICENSING.md).
 
-
-Лицензия в корне — MIT; `xdp/xdp_ddos_protect.c` — GPL-2.0. Лицензии
-зависимостей рассматриваются отдельно, см. [LICENSING](LICENSING.md).
+[CONTRIBUTING](CONTRIBUTING.md) · [Лицензия проекта](LICENSE) ·
+[Лицензии компонентов](LICENSING.md) · [История изменений](docs/CHANGELOG.md).
