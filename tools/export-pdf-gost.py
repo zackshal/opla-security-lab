@@ -255,7 +255,7 @@ def make_table(data, widths):
     return table_style(table, len(data))
 
 
-def table_flow(rows):
+def table_flow(rows, title=None):
     """Подпись слева; длинные таблицы разбиваются по строкам с явной пометкой продолжения."""
     ncols = max(map(len, rows))
     rows = [row + [''] * (ncols - len(row)) for row in rows]
@@ -277,7 +277,7 @@ def table_flow(rows):
 
     CONTEXT['tables'] += 1
     table_number = CONTEXT['tables']
-    title = clean_heading_for_caption(CONTEXT['section']) or 'Данные'
+    title = title or clean_heading_for_caption(CONTEXT['section']) or 'Данные'
     first_caption = Paragraph(
         inline(f'Таблица {table_number} — {title}'),
         STYLES['tablecaption']
@@ -360,6 +360,7 @@ def markdown(path):
     lines = path.read_text(encoding='utf-8').splitlines()
     flow = []
     i = 0
+    table_title = None
     while i < len(lines):
         line = lines[i].strip()
         if not line or line == '---':
@@ -376,6 +377,16 @@ def markdown(path):
             i += 1
             continue
 
+        explicit_caption = re.match(r'^Таблица\s+\d+\s*[—–-]\s*(.+)$', line)
+        if explicit_caption:
+            next_line = i + 1
+            while next_line < len(lines) and not lines[next_line].strip():
+                next_line += 1
+            if next_line < len(lines) and lines[next_line].strip().startswith('|'):
+                table_title = explicit_caption[1]
+                i = next_line
+                continue
+
         if line.startswith('|'):
             raw_rows = []
             while i < len(lines) and lines[i].strip().startswith('|'):
@@ -387,7 +398,8 @@ def markdown(path):
                     raw_rows.append(row)
                 i += 1
             if raw_rows:
-                flow.extend(table_flow(raw_rows))
+                flow.extend(table_flow(raw_rows, title=table_title))
+                table_title = None
             continue
 
         heading = re.match(r'^(#{1,6})\s+(.*)', line)
@@ -442,7 +454,21 @@ def markdown(path):
             i += 1
         add_paragraph(flow, ' '.join(chunk))
 
-    return flow
+    # Keep headings with the first actual content block, including blocks that
+    # already use KeepTogether (figures, tables and short paragraphs).
+    grouped = []
+    pending = []
+    for item in flow:
+        if isinstance(item, Paragraph) and item.style.name in ('h1', 'h2', 'h3'):
+            pending.append(item)
+        elif pending:
+            content = item._content if isinstance(item, KeepTogether) else [item]
+            grouped.append(KeepTogether(pending + content))
+            pending = []
+        else:
+            grouped.append(item)
+    grouped.extend(pending)
+    return grouped
 
 
 SPECS = {

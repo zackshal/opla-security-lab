@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-labelledby="title desc">
 <title id="title">OPLA — лаборатория безопасности Linux</title><desc id="desc">Три виртуальные машины, две изолированные сети, наблюдаемые результаты экспериментов.</desc>
-<rect width="1280" height="300" rx="18" fill="#f3f6fb"/>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#e8f0ff"/><stop offset="1" stop-color="#f3f6fb"/></linearGradient></defs>
+<rect width="1280" height="300" rx="18" fill="url(#bg)"/>
 <rect x="32" y="32" width="6" height="236" rx="3" fill="#245de8"/>
 <text x="64" y="67" font-family="sans-serif" font-size="15" letter-spacing="2" fill="#526580">LINUX SECURITY LAB / УЧЕБНЫЙ ПРОЕКТ</text>
 <text x="60" y="143" font-family="sans-serif" font-size="70" font-weight="700" fill="#172b49">OPLA</text>
