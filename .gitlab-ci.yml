@@ -21,8 +21,9 @@ variables:
 portable:
   stage: test
   before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils
+    - set -o pipefail
+    - apt-get update -qq
+    - "apt-get install -y -qq --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils 2>&1 | sed '/^W: Tried to start delayed item/d'"
   script:
     - mkdir -p reports/ci
     - bash -o pipefail -c 'make check 2>&1 | tee reports/ci/check.log'
@@ -34,8 +35,9 @@ portable:
 configuration:
   stage: test
   before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends python3 python3-yaml suricata ansible-core
+    - set -o pipefail
+    - apt-get update -qq
+    - "apt-get install -y -qq --no-install-recommends python3 python3-yaml suricata ansible-core 2>&1 | sed '/^W: Tried to start delayed item/d'"
   script:
     - suricata -V
     - python3 tools/check-suricata.py
@@ -77,13 +79,13 @@ delivery:
 
 live_acceptance:
   stage: live-acceptance
-  tags: [opla-live-runner]        # только выделенный self-hosted runner
-  when: manual                    # запускается вручную из UI
-  interruptible: false            # нельзя прервать на середине
-  timeout: 2h                     # bootstrap+images+scenario+recovery
-  resource_group: opla-live       # запрет параллельных прогонов
+  tags: [opla-live-runner]
+  when: manual
+  interruptible: false
+  timeout: 2h
+  resource_group: opla-live
   environment:
-    name: live-lab                # можно включить Protected environment
+    name: live-lab
     action: prepare
   needs:
     - job: portable
@@ -95,6 +97,7 @@ live_acceptance:
     OPLA_SKIP_RECOVERY: "0"
     OPLA_LAB_PREFIX: "live"
     OPLA_KEEP_LAB: "0"
+    # OPLA_ZABBIX_USER / OPLA_ZABBIX_PASSWORD — masked CI variables.
   script:
     - chmod +x ci/live/run-live-acceptance.sh ci/live/cleanup-stale-labs.sh ci/live/lib/*.sh
     - bash ci/live/run-live-acceptance.sh
@@ -137,7 +140,8 @@ deploy-staging:
       allow_failure: false
     - when: never
   before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends ansible-core openssh-client ca-certificates
+    - set -o pipefail
+    - apt-get update -qq
+    - "apt-get install -y -qq --no-install-recommends ansible-core openssh-client ca-certificates 2>&1 | sed '/^W: Tried to start delayed item/d'"
   script:
     - bash ci/deploy.sh

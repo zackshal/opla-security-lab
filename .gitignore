@@ -43,3 +43,13 @@ bridge-backup-*/
 # Teacher-only answers: keep local, never add to new public commits.
 # This does not untrack an already tracked file or remove it from Git history.
 docs/teacher-key.md
+
+# Internal / private docs — kept local only
+AGENTS.md
+PLANS.md
+SECURITY.md
+
+# Internal / agent / policy docs — kept local only
+AGENTS.md
+PLANS.md
+SECURITY.md
