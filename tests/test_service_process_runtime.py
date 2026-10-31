@@ -39,15 +39,37 @@ def require_unix_socket_support(test_case):
     """Mark socket acceptance blocked when this sandbox denies local AF_UNIX."""
     with tempfile.TemporaryDirectory() as temp:
         probe_path = Path(temp) / 'capability.sock'
-        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        probe = None
         try:
+            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             probe.bind(str(probe_path))
         except PermissionError as exc:
             if exc.errno == errno.EPERM:
-                test_case.skipTest('sandbox denies AF_UNIX bind (EPERM); socket runtime not tested')
+                test_case.skipTest('sandbox denies AF_UNIX create/bind (EPERM); socket runtime not tested')
             raise
         finally:
-            probe.close()
+            if probe is not None:
+                probe.close()
+
+
+class SocketCapabilityTests(unittest.TestCase):
+    def test_creation_denied_is_explicit_skip(self):
+        with patch.object(socket, 'socket', side_effect=PermissionError(errno.EPERM, 'denied')):
+            with self.assertRaisesRegex(unittest.SkipTest, 'socket runtime not tested'):
+                require_unix_socket_support(self)
+
+    def test_bind_denied_closes_probe(self):
+        with patch.object(socket, 'socket') as factory:
+            factory.return_value.bind.side_effect = PermissionError(errno.EPERM, 'denied')
+            with self.assertRaises(unittest.SkipTest):
+                require_unix_socket_support(self)
+            factory.return_value.close.assert_called_once_with()
+
+    def test_unexpected_error_is_not_hidden(self):
+        with patch.object(socket, 'socket', side_effect=OSError(errno.EMFILE, 'too many files')):
+            with self.assertRaises(OSError) as error:
+                require_unix_socket_support(self)
+            self.assertEqual(error.exception.errno, errno.EMFILE)
 
 
 class ServiceRuntimeTests(unittest.IsolatedAsyncioTestCase):

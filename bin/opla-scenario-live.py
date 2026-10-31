@@ -88,8 +88,10 @@ def parse_os_release(raw):
     return values.get("ID"), values.get("VERSION_ID")
 
 
-def read_executor_authorization(path=AUTH_FILE):
+def read_executor_authorization(path=None):
     """Read the administrator's opt-in marker without following links."""
+    if path is None:
+        path = AUTH_FILE
     path = Path(path)
     try:
         parent = path.parent.lstat()

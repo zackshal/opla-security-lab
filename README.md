@@ -2,19 +2,105 @@
 
 # OPLA Security Lab
 
-**Практическая работа по обнаружению, предупреждению и ликвидации последствий компьютерных атак.**
+### От сетевой нагрузки — к обнаружению, защите и проверяемому результату
 
-OPLA — изолированный Linux-стенд для изучения eBPF/XDP, Suricata, nginx и Zabbix.
-Три виртуальные машины позволяют создать конечную нагрузку, наблюдать решения
-защиты и проверить HTTP с независимого клиента. Результат работы — отчёт с
-командами, исходными данными и обоснованными выводами.
+Учебная лаборатория по дисциплине **«Обнаружение, предупреждение и ликвидация
+последствий компьютерных атак»**. OPLA объединяет три Linux-ВМ, eBPF/XDP,
+Suricata, nginx и Zabbix в воспроизводимый сценарий исследования сетевых атак.
 
-[Быстрый старт](#быстрый-старт) · [Методичка](docs/methodology.md) ·
-[Документация](docs/README.md) · [Соответствие ТЗ](docs/requirements-traceability.md) ·
-[Вопросы и ответы](#частые-вопросы)
+Студент создаёт ограниченную нагрузку, наблюдает работу защиты, проверяет
+доступность HTTP с независимого клиента и составляет отчёт на основе
+счётчиков, событий и измерений. Исходники, конфигурации и методические
+материалы находятся в одном репозитории.
 
-[![GitLab pipeline](https://gitlab.com/k3rnel_co0n/opla-security-lab/badges/main/pipeline.svg)](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines)
-[![Лицензии компонентов](https://img.shields.io/badge/license-MIT_%2B_GPL-245de8?style=flat-square)](LICENSING.md)
+[Начать работу](#быстрый-старт) · [Методичка](docs/methodology.md) ·
+[Документация](docs/README.md) · [Статус проверки](#проверки-и-статус) ·
+[Что осталось до сдачи](docs/completion-checklist.md) ·
+[Преподавателю](docs/teacher-guide.md)
+
+<div align="center">
+
+[![GitLab CI](https://gitlab.com/k3rnel_co0n/opla-security-lab/badges/main/pipeline.svg)](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/pipelines)
+[![GitHub Actions](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml/badge.svg)](https://github.com/zackshal/opla-security-lab/actions/workflows/check.yml)
+[![License](https://img.shields.io/badge/license-MIT_%2B_GPL--2.0-245de8?style=flat-square)](LICENSING.md)
+
+[![C / eBPF](https://img.shields.io/badge/C%20%2F%20eBPF-XDP-245de8?style=for-the-badge&labelColor=172b49&logo=c&logoColor=white)](xdp/README.md)
+[![Python](https://img.shields.io/badge/Python-automation-3776AB?style=for-the-badge&labelColor=172b49&logo=python&logoColor=white)](bin/)
+[![Bash](https://img.shields.io/badge/Bash-scripts-4EAA25?style=for-the-badge&labelColor=172b49&logo=gnubash&logoColor=white)](bin/)
+[![QEMU](https://img.shields.io/badge/QEMU-KVM-FF6600?style=for-the-badge&labelColor=172b49&logo=qemu&logoColor=white)](docs/architecture.md)
+[![nftables](https://img.shields.io/badge/nftables-isolation-526580?style=for-the-badge&labelColor=172b49)](docs/security-model.md)
+[![nginx](https://img.shields.io/badge/nginx-HTTP-009639?style=for-the-badge&labelColor=172b49&logo=nginx&logoColor=white)](docs/methodology.md)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-storage-4169E1?style=for-the-badge&labelColor=172b49&logo=postgresql&logoColor=white)](monitoring/README.md)
+[![Suricata](https://img.shields.io/badge/Suricata-IDS%20%2F%20IPS-EF3B2D?style=for-the-badge&labelColor=172b49)](docs/user-guide/commands.md)
+[![Zabbix](https://img.shields.io/badge/Zabbix-monitoring-D40000?style=for-the-badge&labelColor=172b49&logo=zabbix&logoColor=white)](docs/zabbix-guide.md)
+[![Ansible](https://img.shields.io/badge/Ansible-deployment-EE0000?style=for-the-badge&labelColor=172b49&logo=ansible&logoColor=white)](ansible/README.md)
+
+</div>
+
+Технологические badges обозначают состав проекта. Фактические версии
+фиксируются в [протоколе среды](docs/versions.md); CI badges относятся к
+соответствующим репозиториям и не доказывают синхронность GitHub и GitLab.
+
+> **Проверка на хосте автора, 31.10.2026: 986 тестов — OK, без пропусков.**
+> Пройдены проверки пакетов и документации. Полный запуск с нуля, kernel
+> verifier и живучесть под реальной нагрузкой требуют отдельной приёмки.
+> [Результат автора](docs/evidence/author-verification-20261031.md) ·
+> [Предыдущий аудит в ограниченной среде](docs/verification-2026-10-31.md).
+
+<details>
+<summary><strong>🧭 Навигация по проекту</strong></summary>
+
+
+- [Что изучается](#что-изучается)
+- [Как устроен опыт](#как-устроен-опыт)
+- [Демонстрация](#демонстрация)
+- [Быстрый старт](#быстрый-старт)
+- [Ежедневные команды](#ежедневные-команды)
+- [Учебный комплект](#учебный-комплект)
+- [Проверки и статус](#проверки-и-статус)
+- [Способы развёртывания](#способы-развёртывания)
+- [Почтовые уведомления](#почтовые-уведомления)
+- [Частые вопросы](#частые-вопросы)
+- [Источники](#технологии-и-первичные-источники) · [Участие и лицензии](#помощь-и-участие)
+
+</details>
+
+## Что изучается
+
+| Направление | Практический результат |
+|---|---|
+| eBPF/XDP | Ограничение новых IPv4 TCP SYN, политика сканирования, анализ pass/drop |
+| Suricata IDS/IPS | Правила обнаружения, события EVE, проверка выбранного режима защиты |
+| nginx | Ограничение HTTP-запросов и сравнение ответов 200/429 |
+| Независимый клиент | Доступность и задержка HTTP до, во время и после нагрузки |
+| Zabbix | Сбор метрик, события и сопоставление наблюдений |
+| Эксплуатация | Создание, остановка, восстановление и контролируемое удаление стенда |
+
+Это учебный стенд с ограниченной моделью угроз. Он не заявляет защиту от
+произвольного DDoS или готовность к эксплуатации в production.
+
+## Как устроен опыт
+
+1. **Создать нагрузку.** Attacker отправляет конечный поток в изолированную data network.
+2. **Наблюдать решение.** XDP предоставляет counters, Suricata — EVE alerts, nginx — HTTP-ответы.
+3. **Проверить результат.** Client измеряет доступность, Zabbix показывает метрики, отчёт связывает evidence.
+
+| Роль | Назначение |
+|---|---|
+| **attacker** | Генерация конечного тестового трафика внутри лаборатории |
+| **victim** | HTTP-сервис, XDP и Suricata |
+| **client** | Независимая проверка HTTP |
+
+Управление SSH отделено от защищаемой сети данных. Адреса выделяет allocator;
+значения на схеме иллюстративны.
+
+![Три роли и отдельные data/management сети](docs/figures/topology.svg)
+
+XDP ограничивает IPv4 TCP SYN и поддерживает scan policy. Suricata обнаруживает
+события; блокировка требует отдельно проверенного IPS-режима. nginx ограничивает
+HTTP-запросы. Текущий каталог Zabbix содержит **49 items, 23 triggers и 5 страниц**.
+[Каталог метрик](docs/metrics-catalog.md) · [Путь пакета](docs/figures/packet-path.svg) ·
+[Модель доверия](docs/security-model.md).
 
 ## Демонстрация
 
@@ -25,39 +111,29 @@ OPLA — изолированный Linux-стенд для изучения eBP
 [Статичный кадр](assets/demo/overview-poster.png) · [Данные и происхождение](assets/demo/README.md) ·
 [Текстовый результат](assets/demo/results.txt).
 
-<details>
-<summary><strong>Содержание README</strong></summary>
+### Что показывает опыт
 
-- [Возможности и устройство](#как-устроен-опыт)
-- [Требования и запуск](#быстрый-старт)
-- [Результаты экспериментов](#что-показывает-опыт)
-- [Команды управления](#ежедневные-команды)
-- [Уведомления и API token](#почтовые-уведомления)
-- [Учебные материалы](#учебный-комплект)
-- [Проверки и статус](#проверки-и-статус)
-- [Частые вопросы](#частые-вопросы)
-- [Источники и участие](#технологии-и-первичные-источники)
+![Сохранённые результаты SYN и отдельного HTTP burst](assets/demo/results.png)
 
-</details>
+Карточка построена из [пользовательского transcript от 24.10.2026](assets/demo/observed-results.json).
+В SYN-опыте counters выросли на **2003 SYN**, **300 pass**, **1703 drop**;
+отдельный HTTP burst дал **11 ответов 200** и **189 ответов 429**.
+Фоновые SYN могут влиять на counters. Эти числа не являются измерением pps,
+гарантией предотвращения атаки или доказательством непрерывной доступности.
 
-## Как устроен опыт
-
-1. **Создать нагрузку.** Attacker отправляет конечный поток в изолированную data network.
-2. **Наблюдать решение.** XDP предоставляет counters, Suricata — EVE alerts, nginx — HTTP-ответы.
-3. **Проверить результат.** Client измеряет доступность, Zabbix показывает метрики, отчёт связывает evidence.
-
-![Три роли и отдельные data/management сети](docs/figures/topology.svg)
-
-XDP ограничивает IPv4 TCP SYN и поддерживает scan policy. Suricata обнаруживает
-события; блокировка требует отдельно проверенного IPS-режима. nginx ограничивает
-HTTP-запросы. Текущий каталог Zabbix содержит **49 items, 23 triggers и 5 страниц**.
-[Каталог метрик](docs/metrics-catalog.md) · [Путь пакета](docs/figures/packet-path.svg) ·
-[Модель доверия](docs/security-model.md).
+Suricata evidence и полный dashboard в этой исторической записи не показаны.
+Сравнивайте данные только внутри одного опыта: результат SYN и HTTP burst
+не объединяется в одну временную серию.
+[Текстовая версия результатов](assets/demo/results.txt) ·
+[Offline CLI/evidence-worker demo](assets/demo/services/README.md) ·
+[Все демонстрации](docs/demonstrations.md).
 
 ## Быстрый старт
 
-Нужны Linux x86_64, systemd, KVM, QEMU/libguestfs, cloud-init tooling, nftables,
-Python/PyYAML, Make, OpenSSH, Docker Engine и Compose. Create проверяет минимум
+Целевой профиль встроенного стенда — **Debian 12/13, x86_64, QEMU/KVM**.
+Нужны systemd, QEMU/libguestfs, cloud-init tooling, nftables, Python/PyYAML,
+Make, OpenSSH, Docker Engine и Compose. Поддержка других ОС и архитектур
+не подтверждена; подробности в [матрице платформ](docs/platform-compatibility.md). Create проверяет минимум
 **5 GiB MemAvailable**. Для полного опыта ориентир — 12 GiB RAM и 30 GiB
 свободного диска; это запас для планирования, а не измеренный минимум. [Полные требования](docs/test-host-spec.md) и
 [подготовка host-зависимостей](docs/deployment.md#1-подготовка-локального-qemu-хоста).
@@ -75,7 +151,18 @@ git clone https://gitlab.com/k3rnel_co0n/opla-security-lab.git
 cd opla-security-lab
 ```
 
-Затем проверьте исходники и выполните шаги ниже:
+Сначала подготовьте зависимости по [инструкции хоста](docs/deployment.md#1-подготовка-локального-qemu-хоста).
+`make bootstrap` скачивает базовый образ; эта команда **не устанавливает
+зависимости хоста**. Проверьте исходники обычным пользователем:
+
+```bash
+python3 -m compileall -q bin tests
+make check
+python3 tools/check-documentation.py
+```
+
+Для этих проверок нужны Python/PyYAML, Bash, Make и C-компилятор. Причины
+`skipped` сохраняются в протоколе. После проверки переходите к развёртыванию.
 
 **1. Подготовьте образы трёх ролей.**
 
@@ -98,7 +185,7 @@ python3 /opt/opla/bin/opla-cli-install.py install
 sudo install -d -o root -g root -m 0755 /var/lib/opla
 ```
 
-Замените `DIGEST` выводом первой команды после review. Установка копирует код
+Замените `DIGEST` напечатанным SHA-256 после просмотра исходников. Установка копирует код
 и образы в **новый** root-owned каталог. Для обновления существующей версии
 выберите другой путь и используйте его в дальнейших командах.
 [Установка и обновление](docs/local-system-install.md). Checkout и `/opt` независимы.
@@ -125,7 +212,7 @@ opla ids status
 ```
 
 Активация настраивает гостевые модули, Zabbix/PostgreSQL, dashboard и collector.
-Provisioning запросит учётные данные Zabbix. Откройте [локальный Zabbix](http://127.0.0.1:8080),
+Настройка запросит учётные данные Zabbix. Откройте [локальный Zabbix](http://127.0.0.1:8080),
 смените начальный пароль и проверьте свежесть Latest data выбранного host.
 [Руководство по Zabbix](docs/zabbix-guide.md).
 
@@ -136,26 +223,9 @@ opla scenario check syn-scan-baseline --lab lab-XXXXXXXX
 opla scenario run syn-scan-baseline --lab lab-XXXXXXXX --confirm lab-XXXXXXXX
 ```
 
-Сохраните report directory из вывода. Для вывода о доступности на всём
+Сохраните каталог результатов, указанный в выводе. Для вывода о доступности на всём
 интервале нужна [непрерывная проверка с client](docs/task-client-coverage.md).
 [Пошаговый учебный опыт](docs/methodology.md).
-
-## Что показывает опыт
-
-![Сохранённые результаты SYN и отдельного HTTP burst](assets/demo/results.png)
-
-Карточка построена из [пользовательского transcript от 24.10.2026](assets/demo/observed-results.json).
-В SYN-опыте counters выросли на **2003 SYN**, **300 pass**, **1703 drop**;
-отдельный HTTP burst дал **11 ответов 200** и **189 ответов 429**.
-Фоновые SYN могут влиять на counters. Эти числа не являются измерением pps,
-гарантией предотвращения атаки или доказательством непрерывной доступности.
-
-Suricata evidence и полный dashboard в этой исторической записи не показаны.
-Сравнивайте данные только внутри одного опыта: результат SYN и HTTP burst
-не объединяется в одну временную серию.
-[Текстовая версия результатов](assets/demo/results.txt) ·
-[Offline CLI/evidence-worker demo](assets/demo/services/README.md) ·
-[Все демонстрации](docs/demonstrations.md).
 
 ## Ежедневные команды
 
@@ -169,9 +239,10 @@ Suricata evidence и полный dashboard в этой исторической
 | Остановить VM, сохранив диски | `opla lab stop` |
 | Продолжить работу | `opla lab start` → `opla lab ready` |
 
-### Удалить все лаборатории
+### Завершение работы и удаление
 
-Для одного стенда после сохранения результатов:
+Обычная остановка через `opla lab stop` сохраняет диски. Следующий блок
+**безвозвратно удаляет выбранный стенд**; выполняйте его после сохранения результатов:
 
 ```bash
 opla monitoring stop
@@ -182,6 +253,74 @@ opla lab delete lab-XXXXXXXX --confirm-lab lab-XXXXXXXX
 Для массового удаления используйте [готовый Bash-блок с подтверждением](docs/data-lifecycle.md#9-удалить-все-зарегистрированные-лаборатории).
 Он останавливается при первой ошибке ownership-проверок. Shared Zabbix, история
 БД и role images сохраняются. [Backup и восстановление](docs/backup-restore.md).
+
+## Учебный комплект
+
+| Материал | Содержание |
+|---|---|
+| [Методические указания](docs/methodology.md) | Теория, две схемы, установка, опыт и восстановление |
+| [ФОС](docs/fos.md) | 5 практических заданий, 12 вопросов самопроверки, тест из 15 вопросов |
+| [Шаблон отчёта](docs/report-template.md) | Результаты, fingerprints, client coverage и выводы |
+| [Соответствие ТЗ](docs/requirements-traceability.md) | Требования исходного PDF и условия итоговой приёмки |
+| [Средства и лицензии](docs/software.md) | Версии, назначение, установка и незакрытые лицензионные проверки |
+
+Сборка трёх публичных PDF — методички, инженерного отчёта и портфолио:
+
+```bash
+make docs-deps
+make docs
+```
+
+`make docs-deps` создаёт локальное окружение и скачивает закреплённые Python-зависимости;
+нужны доступ к сети и шрифты Liberation/DejaVu. Результат — каталог
+`release-artifacts/public/`. Если зависимости уже установлены, достаточно `make docs`.
+
+Ключ преподавателя хранится отдельно и не входит в публичный clone. При наличии
+локального `docs/teacher-key.md` он собирается через `make docs-teacher` в приватный
+каталог. [Правила публикации](docs/release.md) · [Все документы](docs/README.md).
+
+## Проверки и статус
+
+Результаты относятся к проверке архива от **31.10.2026**, а не к каждому
+последующему commit. [Подробный отчёт](docs/verification-2026-10-31.md) и
+[машиночитаемая запись](docs/evidence/archive-verification-20261031.json)
+содержат область проверки и контрольные суммы.
+
+| Проверка | Результат | Граница подтверждения |
+|---|---|---|
+| Основной набор на хосте автора | 986 тестов прошли, без пропусков | Вывод предоставлен автором после исправления пути маркера |
+| Жизненный цикл | 118 тестов прошли | Подмножество основного набора, не дополнительные 118 |
+| C packet harness | PASS | Проверка логики пакетов вне ядра |
+| Документы | Проверены ссылки, примеры CLI и сборка PDF | Не подтверждает выполнение команд на стенде |
+| Полная приёмка | **BLOCKED** | Нужен чистый live-прогон трёх ВМ |
+
+Повторить автономные проверки:
+
+```bash
+python3 -m compileall -q bin tests
+make check
+make acceptance-offline
+python3 tools/check-documentation.py
+git diff --check
+```
+
+В предыдущем ограниченном окружении аудита недоступны Unix-сокеты; часть тестов требует запуска обычным
+пользователем. На подходящем Linux-хосте эти проверки необходимо выполнить,
+а не переносить причины пропуска автоматически.
+
+KVM, verifier/attach реального ядра, IDS/IPS под нагрузкой, Zabbix API и
+восстановление после сбоя требуют отдельной проверки. Порядок завершения:
+[чек-лист сдачи](docs/completion-checklist.md) → [E2E-план](docs/e2e-test-plan.md) →
+[протокол](docs/run-protocol.md) → [матрица требований ТЗ](docs/requirements-traceability.md).
+
+## Способы развёртывания
+
+**Полный встроенный стенд — локальный QEMU/KVM attacker/victim/client.**
+Ansible может [подготовить QEMU-хост](docs/deployment.md#1-подготовка-локального-qemu-хоста)
+или настроить [отдельный Debian 13 security node](docs/deployment.md).
+Server profile имеет свой scope; это отдельная конфигурация от учебных трёх VM.
+Доступ к удалённому узлу описан для SSH, bastion и уже настроенного VPN.
+[Выбор платформы и ограничения](docs/platform-compatibility.md).
 
 ## Почтовые уведомления
 
@@ -204,58 +343,14 @@ python3 /opt/opla/monitoring/alerts_service.py install
 Если установленная копия не знает этих действий, сначала
 [обновите snapshot](docs/local-system-install.md#обновление-установленного-cli).
 
-## Учебный комплект
-
-| Материал | Содержание |
-|---|---|
-| [Методические указания](docs/methodology.md) | Теория, две схемы, установка, опыт и восстановление |
-| [ФОС](docs/fos.md) | 5 практических заданий, 12 вопросов самопроверки, тест из 15 вопросов |
-| [Шаблон отчёта](docs/report-template.md) | Результаты, fingerprints, client coverage и выводы |
-| [Соответствие ТЗ](docs/requirements-traceability.md) | Требования исходного PDF и условия итоговой приёмки |
-| [Средства и лицензии](docs/software.md) | Версии, назначение, установка и незакрытые лицензионные проверки |
-
-`make docs` собирает студенческий PDF. Ключ преподавателя собирается отдельно
-через `make docs-teacher`. Нужны локальные зависимости из
-[tools/requirements-docs.txt](tools/requirements-docs.txt). [Каталог документации](docs/README.md).
-
-## Способы развёртывания
-
-**Полный встроенный стенд — локальный QEMU/KVM attacker/victim/client.**
-Ansible может [подготовить QEMU-хост](docs/deployment.md#1-подготовка-локального-qemu-хоста)
-или настроить [отдельный Debian 13 security node](docs/deployment.md).
-Server profile имеет свой scope; это отдельная конфигурация от учебных трёх VM.
-Доступ к удалённому узлу описан для SSH, bastion и уже настроенного VPN.
-[Выбор платформы и ограничения](docs/platform-compatibility.md).
-
-## Проверки и статус
-
-```bash
-python3 -m compileall -q bin tests
-make check
-make acceptance-offline
-python3 tools/check-documentation.py
-```
-
-Offline-проверки не заменяют KVM, verifier на реальном ядре и live-доставку в
-Zabbix. Чистая полная апробация и лицензионная сверка точных сборок остаются
-отдельными условиями приёмки. [Сохранённый offline-отчёт и hashes](docs/evidence/chat-integration-20261030.json) ·
-[Runtime readiness](docs/runtime-readiness.md) · [Протокол приёмки](docs/acceptance.md).
-
-## Технологии и первичные источники
-
-| Слой | Документация |
-|---|---|
-| Виртуализация и ОС | [QEMU](https://www.qemu.org/docs/master/system/index.html) · [KVM](https://docs.kernel.org/virt/kvm/) · [Debian Cloud](https://cloud.debian.org/images/cloud/) |
-| Защита ядра | [Linux BPF](https://docs.kernel.org/bpf/) · [XDP](https://docs.ebpf.io/linux/program-type/BPF_PROG_TYPE_XDP/) · [libbpf](https://github.com/libbpf/libbpf) |
-| IDS и HTTP | [Suricata 7.0](https://docs.suricata.io/en/suricata-7.0.10/) · [nginx limit_req](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html) |
-| Мониторинг | [Zabbix 7.0](https://www.zabbix.com/documentation/7.0/en/manual) · [API](https://www.zabbix.com/documentation/7.0/en/manual/api) · [PostgreSQL](https://www.postgresql.org/docs/16/) |
-| Управление | [nftables](https://netfilter.org/projects/nftables/) · [OpenSSH](https://www.openssh.com/manual.html) · [systemd](https://www.freedesktop.org/software/systemd/man/latest/) |
-| Сборка и поставка | [Docker Compose](https://docs.docker.com/compose/) · [Ansible](https://docs.ansible.com/) · [GitLab CI](https://docs.gitlab.com/ci/) |
-
-[Полный список средств](docs/software.md) · [Источники теории](docs/sources.md) ·
-[Версии и воспроизводимость](docs/versions.md).
-
 ## Частые вопросы
+
+**Можно ли развернуть стенд без QCOW2 из архива?**
+
+Да, recipe предусмотрен: `make bootstrap` скачивает базовый Debian-образ,
+`make images` подготавливает три роли. Нужны зависимости, сеть и место на диске.
+Текущий `latest` может дать новые пакеты, поэтому сохраняйте фактические hashes
+и manifests; повторная сборка не гарантирует побайтового совпадения старых образов.
 
 **Почему `recipients` или `api-token` не распознаётся?**
 
@@ -286,6 +381,20 @@ Git pull обновляет исходники; пользовательский
 приёмки нужны чистый live-прогон, точные manifests версий/лицензий и согласование
 преподавателя. [Последовательная проверка шести критериев ТЗ](docs/requirements-traceability.md#5-последовательная-проверка-критериев-приёмки).
 
+## Технологии и первичные источники
+
+| Слой | Документация |
+|---|---|
+| Виртуализация и ОС | [QEMU](https://www.qemu.org/docs/master/system/index.html) · [KVM](https://docs.kernel.org/virt/kvm/) · [Debian Cloud](https://cloud.debian.org/images/cloud/) |
+| Защита ядра | [Linux BPF](https://docs.kernel.org/bpf/) · [XDP](https://docs.ebpf.io/linux/program-type/BPF_PROG_TYPE_XDP/) · [libbpf](https://github.com/libbpf/libbpf) |
+| IDS и HTTP | [Suricata 7.0](https://docs.suricata.io/en/suricata-7.0.10/) · [nginx limit_req](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html) |
+| Мониторинг | [Zabbix 7.0](https://www.zabbix.com/documentation/7.0/en/manual) · [API](https://www.zabbix.com/documentation/7.0/en/manual/api) · [PostgreSQL](https://www.postgresql.org/docs/16/) |
+| Управление | [nftables](https://netfilter.org/projects/nftables/) · [OpenSSH](https://www.openssh.com/manual.html) · [systemd](https://www.freedesktop.org/software/systemd/man/latest/) |
+| Сборка и поставка | [Docker Compose](https://docs.docker.com/compose/) · [Ansible](https://docs.ansible.com/) · [GitLab CI](https://docs.gitlab.com/ci/) |
+
+[Полный список средств](docs/software.md) · [Источники теории](docs/sources.md) ·
+[Версии и воспроизводимость](docs/versions.md).
+
 ## Помощь и участие
 
 Начните с [диагностики](docs/operations.md) и [справочника CLI](docs/user-guide/commands.md).
@@ -295,3 +404,8 @@ commit, шаги воспроизведения и обезличенный вы
 [CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md) ·
 [Лицензия проекта](LICENSE) · [Лицензии компонентов](LICENSING.md) ·
 [История изменений](docs/CHANGELOG.md).
+
+
+Разработчик учебных материалов — **Шалашов Захар**, РТУ МИРЭА, БББО-01-23.
+Лицензия в корне — MIT; `xdp/xdp_ddos_protect.c` — GPL-2.0. Лицензии
+зависимостей рассматриваются отдельно, см. [LICENSING](LICENSING.md).
