@@ -6,7 +6,7 @@ workflow:
     - if: '$CI_COMMIT_BRANCH'
     - if: '$CI_COMMIT_TAG'
 
-stages: [test, build, package, deploy]
+stages: [test, build, package, live-acceptance, deploy]
 
 default:
   image: debian:13-slim
@@ -74,6 +74,50 @@ delivery:
     name: 'opla-bpf-$CI_COMMIT_SHORT_SHA'
     expire_in: 30 days
     paths: [dist/opla-bpf-*.tar.gz, dist/delivery.sha256]
+
+live_acceptance:
+  stage: live-acceptance
+  tags: [opla-live-runner]        # только выделенный self-hosted runner
+  when: manual                    # запускается вручную из UI
+  interruptible: false            # нельзя прервать на середине
+  timeout: 2h                     # bootstrap+images+scenario+recovery
+  resource_group: opla-live       # запрет параллельных прогонов
+  environment:
+    name: live-lab                # можно включить Protected environment
+    action: prepare
+  needs:
+    - job: portable
+    - job: configuration
+    - job: bpf-build
+      artifacts: false
+  variables:
+    OPLA_SCENARIO: syn-scan-baseline
+    OPLA_SKIP_RECOVERY: "0"
+    OPLA_LAB_PREFIX: "live"
+    OPLA_KEEP_LAB: "0"
+  script:
+    - chmod +x ci/live/run-live-acceptance.sh ci/live/cleanup-stale-labs.sh ci/live/lib/*.sh
+    - bash ci/live/run-live-acceptance.sh
+    - |
+      set -e
+      VERIFICATION="live-acceptance-output/verification.json"
+      if [ ! -f "$VERIFICATION" ]; then
+        echo "ERROR: $VERIFICATION not produced"; exit 1
+      fi
+      STATUS="$(python3 -c 'import json;print(json.load(open("'"$VERIFICATION"'"))["overall_status"])')"
+      echo "live-acceptance overall_status=$STATUS"
+      cat "$VERIFICATION"
+      [ "$STATUS" = "PASS" ]
+  artifacts:
+    when: always
+    name: "opla-live-$CI_COMMIT_SHORT_SHA"
+    expire_in: 1 year
+    paths:
+      - live-acceptance-output/
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+      when: manual
+    - when: never
 
 deploy-staging:
   stage: deploy

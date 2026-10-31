@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OPLA live-acceptance manifest",
+  "type": "object",
+  "required": ["schema_version","commit","lab","steps","artifacts","overall_status"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "platform":  {"enum": ["gitlab","github","local"]},
+    "commit":    {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "git_dirty": {"type": "boolean"},
+    "lab": {
+      "type": "object",
+      "required": ["id","scenario"],
+      "properties": {
+        "id":       {"type": "string", "pattern": "^lab-[A-Za-z0-9]{8}$"},
+        "scenario": {"type": "string"}
+      }
+    },
+    "started_at":  {"type": "string"},
+    "finished_at": {"type": "string"},
+    "preflight":   {"type": "object"},
+    "recovery":    {"type": "string"},
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name","status","duration_s","exit_code"],
+        "properties": {
+          "name":      {"type": "string"},
+          "status":    {"enum": ["PASS","FAIL"]},
+          "duration_s":{"type": "integer"},
+          "exit_code": {"type": "integer"}
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path","size","sha256"],
+        "properties": {
+          "path":  {"type": "string"},
+          "size":  {"type": "integer"},
+          "sha256":{"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
+    },
+    "overall_status": {"enum": ["PASS","BLOCKED"]},
+    "blockers":       {"type": "array", "items": {"type": "string"}},
+    "zabbix":         {"enum": ["OK","SKIPPED"]},
+    "verified_at":    {"type": "string"}
+  }
+}
