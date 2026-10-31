@@ -49,7 +49,7 @@ Suricata, nginx и Zabbix в воспроизводимый сценарий и�
 > [Предыдущий аудит в ограниченной среде](docs/verification-2026-10-31.md).
 
 <details>
-<summary><strong>🧭 Навигация по проекту</strong></summary>
+<summary><strong>Навигация по проекту</strong></summary>
 
 
 - [Что изучается](#что-изучается)
@@ -402,11 +402,10 @@ Git pull обновляет исходники; пользовательский
 В [GitLab issue](https://gitlab.com/k3rnel_co0n/opla-security-lab/-/issues) приложите
 commit, шаги воспроизведения и обезличенный вывод. Секреты и private keys не публикуются.
 
-[CONTRIBUTING](CONTRIBUTING.md) · [SECURITY](SECURITY.md) ·
+[CONTRIBUTING](CONTRIBUTING.md) ·
 [Лицензия проекта](LICENSE) · [Лицензии компонентов](LICENSING.md) ·
 [История изменений](docs/CHANGELOG.md).
 
 
-Разработчик учебных материалов — **Шалашов Захар**, РТУ МИРЭА, БББО-01-23.
 Лицензия в корне — MIT; `xdp/xdp_ddos_protect.c` — GPL-2.0. Лицензии
 зависимостей рассматриваются отдельно, см. [LICENSING](LICENSING.md).
