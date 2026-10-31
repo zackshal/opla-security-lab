@@ -1,0 +1,42 @@
+name: Live Acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "OPLA scenario"
+        required: true
+        default: "syn-scan-baseline"
+      skip_recovery:
+        description: "Skip stop/start recovery drill"
+        type: boolean
+        default: false
+
+jobs:
+  live:
+    runs-on: [self-hosted, linux, x64, opla-live]
+    environment:
+      name: live-lab
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mark scripts executable
+        run: |
+          chmod +x ci/live/run-live-acceptance.sh ci/live/cleanup-stale-labs.sh
+      - name: Preflight
+        run: bash ci/live/lib/preflight.sh
+        env:
+          OUTPUT_DIR: ${{ github.workspace }}/live-acceptance-output
+      - name: Live acceptance
+        run: bash ci/live/run-live-acceptance.sh
+        env:
+          OPLA_SCENARIO: ${{ inputs.scenario }}
+          OPLA_SKIP_RECOVERY: ${{ inputs.skip_recovery && '1' || '0' }}
+          OPLA_LAB_PREFIX: live
+          # OPLA_ZABBIX_USER / OPLA_ZABBIX_PASSWORD — из repo Secrets
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-acceptance-${{ github.sha }}
+          path: live-acceptance-output/
+          retention-days: 365
