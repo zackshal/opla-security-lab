@@ -140,6 +140,13 @@ fake_dpkg_query() {
         self.assertTrue({"hping3", "nmap", "arp-scan", "yersinia", "tcpdump"}
                         <= module.ROLE_PACKAGES["attacker"])
 
+    def test_prepare_image_declares_backports_before_suricata_install(self):
+        source = (ROOT / "bin/prepare-image.sh").read_text()
+        source_line = "deb http://deb.debian.org/debian bookworm-backports main"
+        self.assertIn(source_line, source)
+        self.assertLess(source.index(source_line),
+                        source.index("apt-get -y -t bookworm-backports install"))
+
 
 if __name__ == "__main__":
     unittest.main()

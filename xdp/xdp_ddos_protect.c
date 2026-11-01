@@ -40,7 +40,9 @@ struct {
 #define SCAN_WINDOW_NS 60000000000ULL
 #define SCAN_BLOCK_NS 30000000000ULL
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
+    // Bound source state with kernel-managed eviction so a new client does
+    // not inherit a permanent drop after MAX_SOURCES is reached.
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
     __uint(max_entries, MAX_SOURCES);
     __type(key, __u32);
     __type(value, struct window);

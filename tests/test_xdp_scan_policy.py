@@ -52,6 +52,11 @@ class PolicyTests(unittest.TestCase):
         self.attachment_patch.start()
         self.addCleanup(self.attachment_patch.stop)
 
+    def test_syn_window_source_uses_bounded_lru_map(self):
+        source = (ROOT / 'xdp/xdp_ddos_protect.c').read_text()
+        self.assertIn('__uint(type, BPF_MAP_TYPE_LRU_HASH);', source)
+        self.assertIn('kernel-managed eviction', source)
+
     def test_source_map_reports_ttl_from_new_value(self):
         blob = bytearray(56)
         blob[24:32] = (40_000_000_000).to_bytes(8, sys.byteorder)

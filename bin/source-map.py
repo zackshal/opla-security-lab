@@ -42,7 +42,7 @@ def main():
     now = time.monotonic_ns()
     result = sorted((decode(row, now) for row in rows), key=lambda x: x['window_count'], reverse=True)
     print(json.dumps({'entries': len(rows), 'capacity': capacity, 'sources': result[:a.limit],
-                      'note': 'Window age is not last-seen age; no automatic eviction.'}, indent=2))
+                      'note': 'Window age is not last-seen age; the kernel LRU map evicts entries at capacity.'}, indent=2))
 
 if __name__ == '__main__':
     main()

@@ -126,6 +126,11 @@ PY
   virt-customize -a "$output.part" --upload \
     "$proxy_tmp/99opla-proxy:/etc/apt/apt.conf.d/99opla-proxy"
 fi
+# The generic Debian cloud image does not promise a backports source. Add the
+# exact supported Bookworm suite before any package installation so the
+# victim's Suricata/libhtp dependency set is reproducible.
+virt-customize -a "$output.part" --run-command \
+  "printf '%s\\n' 'deb http://deb.debian.org/debian bookworm-backports main' > /etc/apt/sources.list.d/opla-bookworm-backports.list"
 # Verify every requested package inside the image before publishing it.
 # The package list is defined by the selected VM role above.
 verify_command=$(cat <<'GUEST_VERIFY'
