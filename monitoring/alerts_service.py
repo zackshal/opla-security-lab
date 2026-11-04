@@ -5,10 +5,49 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 
 def quote(value):
     return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%') + '"'
+
+
+def write_unit(unit, executable, worker, selection):
+    """Atomically install the user unit without following a target symlink."""
+    unit = Path(unit)
+    unit.parent.mkdir(parents=True, exist_ok=True)
+    content = f'''[Unit]
+Description=OPLA Zabbix email notifications through Tor
+After=default.target
+
+[Service]
+Type=simple
+Environment=OPLA_LAB_SELECTION={quote(selection)}
+ExecStart={quote(executable)} {quote(worker)} run
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=110
+UMask=0077
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target
+'''
+    fd, temporary = tempfile.mkstemp(prefix=f'.{unit.name}.', dir=unit.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, unit)
+        os.chmod(unit, 0o600)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def main():
@@ -28,24 +67,7 @@ def main():
         config_home = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
         selection = Path(os.environ.get(
             'OPLA_LAB_SELECTION', str(config_home / 'opla/selected-lab'))).expanduser().absolute()
-        unit.write_text(f'''[Unit]
-Description=OPLA Zabbix email notifications through Tor
-After=default.target
-
-[Service]
-Type=simple
-Environment=OPLA_LAB_SELECTION={quote(selection)}
-ExecStart={quote(sys.executable)} {quote(worker)} run
-Restart=on-failure
-RestartSec=15
-TimeoutStopSec=110
-UMask=0077
-NoNewPrivileges=yes
-
-[Install]
-WantedBy=default.target
-''')
-        os.chmod(unit, 0o600)
+        write_unit(unit, sys.executable, worker, selection)
     subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
     if args.action == 'install':
         subprocess.run(['systemctl', '--user', 'enable', 'opla-alerts.service'], check=True)

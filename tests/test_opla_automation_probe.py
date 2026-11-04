@@ -7,6 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class AutomationProbeTests(unittest.TestCase):
 
+    def test_ansible_venv_default_is_not_ephemeral(self):
+        source = (ROOT / "bin/opla-automation.sh").read_text()
+        self.assertIn(
+            '"${OPLA_ANSIBLE_VENV:-$HOME/.local/share/opla-acceptance/ansible-venv}"',
+            source,
+        )
+        self.assertNotIn("/tmp/opla-ansible.RDp8NwWE", source)
+
     def test_probe_dispatch_is_read_only(self):
         source = (
             ROOT / "bin/opla-automation.sh"

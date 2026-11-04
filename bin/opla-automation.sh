@@ -9,7 +9,9 @@ MODE="${1:-validate}"
 STATE_DIR="$HOME/.local/state/opla-automation"
 TEST_DIR="$HOME/.local/share/opla-acceptance/debian12-amd64"
 INVENTORY="$TEST_DIR/inventory.yml"
-VENV_DIR="${OPLA_ANSIBLE_VENV:-/tmp/opla-ansible.RDp8NwWE}"
+# Keep the default deterministic and user-local; CI or an operator may still
+# provide an isolated environment explicitly through OPLA_ANSIBLE_VENV.
+VENV_DIR="${OPLA_ANSIBLE_VENV:-$HOME/.local/share/opla-acceptance/ansible-venv}"
 
 mkdir -p -m 700 "$STATE_DIR"
 

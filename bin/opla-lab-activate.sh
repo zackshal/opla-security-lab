@@ -46,6 +46,11 @@ python3 bin/state.py "$lab_dir" LAB_ID >/dev/null || {
     exit 2
 }
 export LAB_DIR="$lab_dir"
+: "${OPLA_ENABLE_MONITORING:=1}"
+case "$OPLA_ENABLE_MONITORING" in
+    0|1) ;;
+    *) echo 'BLOCKED: OPLA_ENABLE_MONITORING must be 0 or 1' >&2; exit 2 ;;
+esac
 
 step() {
     local label="$1"
@@ -54,13 +59,19 @@ step() {
     "$@"
 }
 
-echo "Активация стенда $lab_id: настройка защиты, Zabbix dashboard и сборщика."
+echo "Активация стенда $lab_id: настройка защиты и optional monitoring profile."
 step "Guest protection and telemetry" make --no-print-directory lab-configure "LAB=$lab_id" "CONFIRM=$confirmation"
-step "Start Zabbix stack" make --no-print-directory monitoring-up
-step "Create or update dashboard objects" make --no-print-directory monitoring-configure
-step "Start per-lab telemetry collector" make --no-print-directory monitoring-start
+if [[ "$OPLA_ENABLE_MONITORING" == 1 ]]; then
+    step "Start Zabbix stack" make --no-print-directory monitoring-up
+    step "Create or update dashboard objects" make --no-print-directory monitoring-configure
+    step "Start per-lab telemetry collector" make --no-print-directory monitoring-start
+else
+    echo "SKIPPED: Zabbix/PostgreSQL and per-lab collector disabled by OPLA_ENABLE_MONITORING=0"
+fi
 
 echo
-echo "PASS: защита и сбор telemetry настроены."
-echo "Zabbix: http://127.0.0.1:8080"
-echo "Панель: OPLA (5 страниц); первая загрузка Latest data может занять несколько интервалов."
+echo "PASS: защита настроена. Monitoring profile: OPLA_ENABLE_MONITORING=$OPLA_ENABLE_MONITORING"
+if [[ "$OPLA_ENABLE_MONITORING" == 1 ]]; then
+    echo "Zabbix: http://127.0.0.1:8080"
+    echo "Панель: OPLA (5 страниц); первая загрузка Latest data может занять несколько интервалов."
+fi
