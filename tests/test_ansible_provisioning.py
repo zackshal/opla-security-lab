@@ -3,7 +3,10 @@
 import unittest
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    raise unittest.SkipTest("PyYAML unavailable; Ansible YAML tests skipped")
 
 
 ROOT = Path(__file__).resolve().parents[1]

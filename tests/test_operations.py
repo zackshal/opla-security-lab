@@ -9,6 +9,11 @@ import threading
 import unittest
 from unittest.mock import patch
 
+try:
+    import yaml  # noqa: F401
+except ImportError:
+    yaml = None
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'bin'))
 from qmp import QMP
@@ -226,6 +231,7 @@ class MailTests(unittest.TestCase):
         self.assertEqual(calls['action.update']['filter']['conditions'][0]['value'],'10')
         self.assertEqual(len(calls['action.update']['recovery_operations']),1)
 
+@unittest.skipUnless(yaml is not None, "PyYAML unavailable; Suricata YAML tests skipped")
 class SuricataTransactionTests(unittest.TestCase):
     def test_managed_unit_requires_root_owner_and_nonwritable_mode(self):
         manager = module('suricata_unit_metadata', 'security/suricata/manage.py')
