@@ -135,7 +135,7 @@ def banner(out):
 <text x="74" y="202" font-family="sans-serif" font-size="25" fill="#a7a5bc">Наблюдать. Защищать. Объяснять.</text>
 <text x="74" y="244" font-family="monospace" font-size="17" fill="#6d38ff">eBPF/XDP · Suricata · nginx · Zabbix</text>
 <g font-family="monospace"><rect x="782" y="44" width="208" height="102" rx="14" fill="#11131d" stroke="#303653"/><rect x="1010" y="44" width="226" height="102" rx="14" fill="#11131d" stroke="#303653"/><rect x="782" y="166" width="454" height="110" rx="14" fill="#11131d" stroke="#303653"/>
-<text x="810" y="83" font-size="30" font-weight="700" fill="#10b83c">3 VM</text><text x="810" y="117" font-size="14" fill="#a7a5bc">attacker / victim / client</text>
+<text x="810" y="83" font-size="30" font-weight="700" fill="#10b83c">3 VM</text><text x="810" y="117" font-size="12" fill="#a7a5bc">attacker · victim · client</text>
 <text x="1038" y="83" font-size="30" font-weight="700" fill="#ff5a0a">2 NET</text><text x="1038" y="117" font-size="14" fill="#a7a5bc">data + management</text>
 <text x="810" y="207" font-size="17" font-weight="700" fill="#f3f2ff">packet → decision → evidence</text><text x="810" y="240" font-size="14" fill="#a7a5bc">bounded load / reproducible report</text></g>
 </svg>'''

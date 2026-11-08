@@ -23,7 +23,7 @@ portable:
   before_script:
     - set -o pipefail
     - apt-get update -qq
-    - "apt-get install -y -qq --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils 2>&1 | sed '/^W: Tried to start delayed item/d'"
+    - "apt-get install -y -qq --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils jq 2>&1 | sed '/^W: Tried to start delayed item/d'"
   script:
     - mkdir -p reports/ci
     - bash -o pipefail -c 'make check 2>&1 | tee reports/ci/check.log'

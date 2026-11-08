@@ -96,6 +96,12 @@ class LiveAcceptanceContracts(unittest.TestCase):
         self.assertIn("docker compose version", preflight)
         self.assertIn('"docker_compose"', verifier)
 
+    def test_portable_ci_jobs_install_jq_for_live_contracts(self):
+        github = self.read(".github/workflows/check.yml")
+        gitlab = self.read(".gitlab-ci.yml")
+        self.assertRegex(github, r"python3-yaml qemu-utils jq")
+        self.assertRegex(gitlab, r"python3-yaml qemu-utils jq")
+
     def test_dry_run_never_enters_host_or_lifecycle_probes(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "live-output"

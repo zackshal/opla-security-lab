@@ -1,12 +1,12 @@
 {
-  "renderer_sha256": "43e35263f58fc175b8b6a8421f63b109bf4b70fb7b58e0c45ad57a3899593833",
+  "renderer_sha256": "5d470a877058a8a0c9eba70f8ec281766c1ab776a97bdb553b78e256756ab056",
   "source": "observed-results.json",
   "source_sha256": "5cfb50a1e0a6cdfc04136134c28b034480fc08a1f5e7ead46291770867d39a9e",
   "provenance": "User terminal output, not independently rerun; video is assembled from saved output.",
   "animation_timing": "illustrative; not execution time",
   "live_execution_performed": false,
   "artifacts": {
-    "banner.svg": "73b43c544773870f35258aaeed270120cf1914d2e5fdf621ca0f0e4d0a716e4d",
+    "banner.svg": "36d6c31c23656a100ff86bbb5b2d946a5542223b4e42a4551fadd7c5888aaed4",
     "overview.svg": "6fecb50ff5eb35c54d7700fc58e31969c34819b296153b3be82810b9ce91ee4b",
     "results.svg": "d7b47bf7628ebc8bf2843331e3e7c087bde07f5238c3442ac84cced1bf46a24d",
     "results.png": "916c8afbc670ab7b85a114cb211551efce21916b156e41050f1d0a9012987cab",

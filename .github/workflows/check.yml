@@ -46,7 +46,7 @@ jobs:
       - name: Install portable dependencies
         run: |
           apt-get -o APT::Update::Error-Mode=any update
-          apt-get install -y --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils
+          apt-get install -y --no-install-recommends gcc libc6-dev linux-libc-dev make python3 python3-yaml qemu-utils jq
       - name: Run portable checks
         shell: bash
         run: |

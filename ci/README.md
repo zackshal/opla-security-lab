@@ -12,4 +12,4 @@ GitHub Actions uses hosted runners with Debian containers and read-only reposito
 
 GitLab staging deployment requires `OPLA_DEPLOY_ENABLED=1`, protected default branch, a manual job, and a separate runner tagged `opla-deploy`. Protected File variables are `OPLA_DEPLOY_INVENTORY`, `OPLA_DEPLOY_VARS`, `OPLA_SSH_PRIVATE_KEY`, `OPLA_SSH_KNOWN_HOSTS`; check `deploy.sh` before configuring them. Host key checking stays enabled. Deployment has not been accepted on a real server.
 
-The initial public release used a fresh Git history. Reviewed source-path history can be attached later with an ours merge, without changing the current public tree or pushing old PDF/report/runtime paths. See ../docs/git-history.md. The private GitLab history remains unchanged.
+The public branch contains the reviewed source tree; private audit notes and historical release bookkeeping stay outside the repository.

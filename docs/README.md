@@ -23,7 +23,7 @@
 
 ## Архитектура и подтверждение
 
-- [Текущий аудит 31.10.2026](verification-2026-10-31.md): результаты тестов, исправления и незакрытые критерии.
+- Текущий статус и результаты проверок смотрите через `make check`; исторические audit-файлы не входят в public clone.
 
 
 - [Краткая архитектура](architecture.md), [сервисное управление](service-management-architecture.md), [ADR](adr-microservice-architecture.md).
@@ -39,7 +39,7 @@
 
 - [Engineering workflow](engineering-workflow.md), [offline lifecycle](offline-lifecycle.md).
 - [Ansible deployment](deployment.md), [релиз](release.md), [CI/CD](ci-cd-release-practices.md).
-- [CHANGELOG](CHANGELOG.md), [история Git](git-history.md).
+- [CHANGELOG](CHANGELOG.md).
 
 ## Как читать документы
 
