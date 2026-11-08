@@ -124,11 +124,16 @@ def write_artifacts(directory, data):
     (directory / 'README.md').write_text('\n'.join(markdown), encoding='utf-8')
     width = max(1000, max(len(line) for line in lines) * 8 + 40)
     height = len(lines) * 21 + 40
-    texts = ''.join(f'<text x="20" y="{30 + index * 21}" fill="{ "#86efac" if line.startswith("$") else "#e2e8f0" }">{html.escape(line)}</text>'
+    texts = ''.join(f'<text x="52" y="{112 + index * 21}" fill="{ "#4ad9d0" if line.startswith("$") else "#f3f2ff" }">{html.escape(line)}</text>'
                     for index, line in enumerate(lines))
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
-           '<title>OPLA actual local service demo with synthetic evidence</title>'
-           f'<rect width="100%" height="100%" fill="#0f172a"/><g font-family="monospace" font-size="13">{texts}</g></svg>\n')
+    height += 88
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">'
+           '<title id="title">OPLA local service demo</title><desc id="desc">Recorded CLI output with synthetic evidence; no VM operations.</desc>'
+           '<defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#161a29"/></pattern></defs>'
+           f'<rect width="100%" height="100%" fill="#090a10"/><rect width="100%" height="100%" fill="url(#grid)"/>'
+           f'<rect x="24" y="24" width="{width-48}" height="{height-48}" rx="16" fill="#11131d" stroke="#303653"/><rect x="24" y="24" width="{width-48}" height="6" rx="3" fill="#4ad9d0"/>'
+           '<g font-family="monospace"><text x="52" y="68" font-size="18" font-weight="700" fill="#f3f2ff">OPLA // SERVICE REPLAY</text><text x="52" y="91" font-size="13" fill="#a7a5bc">synthetic evidence / local process boundary / no VM operations</text>'
+           f'{texts}</g></svg>\n')
     (directory / 'terminal.svg').write_text(svg, encoding='utf-8')
 
 

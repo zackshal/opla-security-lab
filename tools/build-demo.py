@@ -8,9 +8,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 FONTS = Path('/usr/share/fonts/truetype/dejavu')
-BG, PANEL, LINE = '#f3f6fb', '#ffffff', '#d7e0ed'
-WHITE, MUTED = '#172b49', '#526580'
-CYAN, GREEN, AMBER, RED = '#245de8', '#067647', '#a54c00', '#b42318'
+BG, PANEL, LINE = '#090a10', '#11131d', '#303653'
+PANEL_ALT, INK, MUTED = '#1a1d2a', '#f3f2ff', '#a7a5bc'
+CYAN, GREEN, AMBER, RED = '#4ad9d0', '#10b83c', '#ff5a0a', '#ff1825'
+PURPLE = '#6d38ff'
 W, H = 1080, 660
 
 
@@ -19,7 +20,7 @@ def font(size, mono=False, bold=False):
     return ImageFont.truetype(str(FONTS / (name + ('-Bold' if bold else '') + '.ttf')), size)
 
 
-def text(draw, xy, value, size=20, fill=WHITE, mono=False, bold=False):
+def text(draw, xy, value, size=20, fill=INK, mono=False, bold=False):
     draw.text(xy, value, font=font(size, mono, bold), fill=fill)
 
 
@@ -30,12 +31,17 @@ def box(draw, bounds, fill=PANEL, outline=LINE, radius=15):
 def canvas(index, title, subtitle):
     img = Image.new('RGB', (W, H), BG)
     d = ImageDraw.Draw(img)
-    text(d, (38, 25), 'OPLA / ЛАБОРАТОРИЯ БЕЗОПАСНОСТИ', 15, CYAN, bold=True)
-    text(d, (855, 25), 'ПАКЕТ → РЕШЕНИЕ', 15, MUTED)
-    text(d, (38, 65), title, 33, bold=True)
+    for x in range(0, W, 32):
+        d.line((x, 0, x, H), fill='#0d1b2d')
+    for y in range(0, H, 32):
+        d.line((0, y, W, y), fill='#0d1b2d')
+    d.rectangle((0, 0, W, 6), fill=CYAN)
+    text(d, (38, 25), 'OPLA // SECURITY LAB', 15, CYAN, mono=True, bold=True)
+    text(d, (855, 25), 'OFFLINE / ARCHIVE', 15, MUTED, mono=True)
+    text(d, (38, 65), title, 33, INK, bold=True)
     text(d, (38, 112), subtitle, 17, MUTED)
     d.line((38, 595, 1042, 595), fill=LINE)
-    text(d, (38, 615), 'АРХИВНЫЙ ОПЫТ / вывод оператора, 24.10.2026 / визуализация записи', 15, MUTED)
+    text(d, (38, 615), 'ARCHIVE / OPERATOR OUTPUT / 24.10.2026 / ARCHIVED OUTPUT', 15, MUTED, mono=True)
     for i in range(4):
         d.rounded_rectangle((918+i*32, 620, 938+i*32, 625), radius=2,
                             fill=CYAN if index == i else LINE)
@@ -55,7 +61,7 @@ def terminal(d, lines, visible, y=313):
     text(d, (125, y+13), 'сохранённый вывод / выбранные строки', 14, '#b9c9e1')
     for i, line in enumerate(lines[:visible]):
         text(d, (60, y+55+i*32), line, 19,
-             '#83dbf6' if line.startswith('$') else '#edf3ff', mono=True)
+             CYAN if line.startswith('$') else INK, mono=True)
 
 
 def draw_scene(scene, step, data):
@@ -119,16 +125,19 @@ def draw_scene(scene, step, data):
 
 def banner(out):
     # Native SVG: static, self-contained and rendered by GitLab/GitHub without scripts.
-    svg = '''<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-labelledby="title desc">
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
 <title id="title">OPLA — лаборатория безопасности Linux</title><desc id="desc">Три виртуальные машины, две изолированные сети, наблюдаемые результаты экспериментов.</desc>
-<rect width="1280" height="300" rx="18" fill="#f3f6fb"/>
-<rect x="32" y="32" width="6" height="236" rx="3" fill="#245de8"/>
-<text x="64" y="67" font-family="sans-serif" font-size="15" letter-spacing="2" fill="#526580">LINUX SECURITY LAB / УЧЕБНЫЙ ПРОЕКТ</text>
-<text x="60" y="143" font-family="sans-serif" font-size="70" font-weight="700" fill="#172b49">OPLA</text>
-<text x="64" y="190" font-family="sans-serif" font-size="26" fill="#172b49">Наблюдать. Защищать. Объяснять.</text>
-<text x="64" y="239" font-family="sans-serif" font-size="19" fill="#526580">eBPF/XDP · Suricata · nginx · Zabbix</text>
-<g fill="#ffffff" stroke="#d7e0ed"><rect x="806" y="44" width="164" height="88" rx="12"/><rect x="998" y="44" width="234" height="88" rx="12"/><rect x="806" y="160" width="426" height="96" rx="12"/></g>
-<g font-family="sans-serif" fill="#172b49"><text x="828" y="82" font-weight="700" font-size="29">3 VM</text><text x="828" y="111" font-size="15">три роли</text><text x="1020" y="82" font-weight="700" font-size="29">2 сети</text><text x="1020" y="111" font-size="15">data + management</text><text x="828" y="198" font-size="18" font-weight="700">Пакет → решение → доказательство</text><text x="828" y="230" font-size="16" fill="#526580">Конечная нагрузка и проверяемый отчёт</text></g>
+<defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#161a29" stroke-width="1"/></pattern><linearGradient id="glow" x1="0" x2="1"><stop stop-color="#4ad9d0" stop-opacity=".24"/><stop offset="1" stop-color="#6d38ff" stop-opacity=".03"/></linearGradient></defs>
+<rect width="1280" height="320" rx="20" fill="#090a10"/><rect width="1280" height="320" rx="20" fill="url(#grid)"/><rect width="1280" height="7" rx="3" fill="#4ad9d0"/>
+<rect x="40" y="44" width="700" height="232" rx="16" fill="url(#glow)" stroke="#303653"/>
+<text x="70" y="78" font-family="monospace" font-size="15" letter-spacing="2" fill="#4ad9d0">OPLA // SECURITY LAB</text>
+<text x="70" y="158" font-family="sans-serif" font-size="76" font-weight="700" fill="#f3f2ff">OPLA</text>
+<text x="74" y="202" font-family="sans-serif" font-size="25" fill="#a7a5bc">Наблюдать. Защищать. Объяснять.</text>
+<text x="74" y="244" font-family="monospace" font-size="17" fill="#6d38ff">eBPF/XDP · Suricata · nginx · Zabbix</text>
+<g font-family="monospace"><rect x="782" y="44" width="208" height="102" rx="14" fill="#11131d" stroke="#303653"/><rect x="1010" y="44" width="226" height="102" rx="14" fill="#11131d" stroke="#303653"/><rect x="782" y="166" width="454" height="110" rx="14" fill="#11131d" stroke="#303653"/>
+<text x="810" y="83" font-size="30" font-weight="700" fill="#10b83c">3 VM</text><text x="810" y="117" font-size="14" fill="#a7a5bc">attacker / victim / client</text>
+<text x="1038" y="83" font-size="30" font-weight="700" fill="#ff5a0a">2 NET</text><text x="1038" y="117" font-size="14" fill="#a7a5bc">data + management</text>
+<text x="810" y="207" font-size="17" font-weight="700" fill="#f3f2ff">packet → decision → evidence</text><text x="810" y="240" font-size="14" fill="#a7a5bc">bounded load / reproducible report</text></g>
 </svg>'''
     (out / 'banner.svg').write_text(svg+'\n')
 
@@ -179,10 +188,13 @@ def main():
         f"Отдельный HTTP burst: {h['requests']} запросов; HTTP 200={h['http_200']}; HTTP 429={h['http_429']}\n"
         'Наблюдения не подтверждают полное предотвращение, непрерывную доступность client,\n'
         'готовность Suricata или чистое развёртывание текущей версии.\n')
-    names=['banner.svg','results.png','results.txt','overview.gif','overview-poster.png']
+    # The SVG cards are dependency-free and are kept alongside the optional
+    # Pillow-rendered старый GIF/PNG artifacts.
+    names=['banner.svg','overview.svg','results.svg','results.png','results.txt',
+           'overview.gif','overview-poster.png']
     manifest={'renderer_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               'source':'observed-results.json','source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
-              'provenance':data['provenance'],'animation_timing':'editorial; not execution time',
+              'provenance':data['provenance'],'animation_timing':'illustrative; not execution time',
               'live_execution_performed':False,
               'artifacts':{name:hashlib.sha256((out/name).read_bytes()).hexdigest() for name in names}}
     (out/'media-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')

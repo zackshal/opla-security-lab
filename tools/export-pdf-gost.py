@@ -543,7 +543,7 @@ def main():
             Paragraph(subtitle, STYLES['covermeta']),
             Spacer(1, 1.5 * cm),
             Paragraph('Шалашов Захар / БББО-01-23', STYLES['covermeta']),
-            Paragraph('Студент 4-го курса бакалавриата, направление «Информационная безопасность»', STYLES['covermeta']),
+            Paragraph('Исполнитель 4-го курса бакалавриата, направление «Информационная безопасность»', STYLES['covermeta']),
             Paragraph('Москва, 2026', STYLES['covermeta']),
             Spacer(1, cm),
             Paragraph(

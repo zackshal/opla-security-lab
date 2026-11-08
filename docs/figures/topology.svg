@@ -1,8 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
-<rect width="900" height="420" fill="white"/><g font-family="sans-serif" text-anchor="middle" fill="#172b45">
-<rect x="40" y="40" width="220" height="80" rx="10" fill="#eef4fa" stroke="#334155"/><text x="150" y="85">attacker</text><text x="150" y="108" font-size="14">data traffic</text>
-<rect x="340" y="40" width="220" height="80" rx="10" fill="#eef4fa" stroke="#334155"/><text x="450" y="85">victim</text><text x="450" y="108" font-size="14">XDP / Suricata / nginx</text>
-<rect x="640" y="40" width="220" height="80" rx="10" fill="#eef4fa" stroke="#334155"/><text x="750" y="85">client</text><text x="750" y="108" font-size="14">HTTP evidence</text>
-<path d="M260 80h80M560 80h80" stroke="#334155" stroke-width="3" marker-end="url(#a)"/>
-<rect x="170" y="220" width="560" height="90" rx="10" fill="#f8fafc" stroke="#334155"/><text x="450" y="260">QEMU/KVM host</text><text x="450" y="285" font-size="14">separate management bridge and data bridge</text></g>
-<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8z" fill="#334155"/></marker></defs></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500" viewBox="0 0 1000 500" role="img" aria-labelledby="title desc">
+<title id="title">OPLA dual-network topology</title><desc id="desc">Attacker, victim and client share an isolated data network; management is separate.</desc>
+<defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#161a29"/></pattern><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#4ad9d0"/></marker></defs>
+<rect width="1000" height="500" rx="20" fill="#090a10"/><rect width="1000" height="500" rx="20" fill="url(#grid)"/><rect width="1000" height="7" rx="3" fill="#4ad9d0"/>
+<g font-family="monospace"><text x="42" y="48" font-size="16" fill="#4ad9d0">OPLA // TOPOLOGY / 02</text><text x="760" y="48" font-size="14" fill="#a7a5bc">OFFLINE CONTRACT</text>
+<rect x="44" y="82" width="912" height="188" rx="16" fill="#11131d" stroke="#303653"/><text x="70" y="116" font-size="15" fill="#ff5a0a">DATA NETWORK / isolated /29</text>
+<g fill="#1a1d2a" stroke="#303653"><rect x="78" y="145" width="224" height="88" rx="12"/><rect x="388" y="145" width="224" height="88" rx="12"/><rect x="698" y="145" width="224" height="88" rx="12"/></g>
+<g fill="#f3f2ff" text-anchor="middle"><text x="190" y="178" font-size="22" font-weight="700">attacker</text><text x="190" y="207" font-size="14" fill="#a7a5bc">bounded traffic</text><text x="500" y="178" font-size="22" font-weight="700">victim</text><text x="500" y="207" font-size="14" fill="#a7a5bc">XDP / IDS / nginx</text><text x="810" y="178" font-size="22" font-weight="700">client</text><text x="810" y="207" font-size="14" fill="#a7a5bc">HTTP evidence</text></g>
+<path d="M302 189H380M612 189H690" stroke="#4ad9d0" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="44" y="310" width="912" height="128" rx="16" fill="#11131d" stroke="#303653"/><text x="70" y="345" font-size="15" fill="#6d38ff">MANAGEMENT NETWORK / separate bridge</text><text x="70" y="389" font-size="19" fill="#f3f2ff">SSH → collector → Zabbix → report</text><text x="70" y="416" font-size="14" fill="#a7a5bc">Management identity never substitutes for data-plane evidence.</text></g>
+</svg>
