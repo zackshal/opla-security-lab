@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+<rect width="900" height="420" fill="white"/><g font-family="sans-serif" text-anchor="middle" fill="#172b45">
+<rect x="40" y="40" width="220" height="80" rx="10" fill="#eef4fa" stroke="#334155"/><text x="150" y="85">attacker</text><text x="150" y="108" font-size="14">data traffic</text>
+<rect x="340" y="40" width="220" height="80" rx="10" fill="#eef4fa" stroke="#334155"/><text x="450" y="85">victim</text><text x="450" y="108" font-size="14">XDP / Suricata / nginx</text>
+<rect x="640" y="40" width="220" height="80" rx="10" fill="#eef4fa" stroke="#334155"/><text x="750" y="85">client</text><text x="750" y="108" font-size="14">HTTP evidence</text>
+<path d="M260 80h80M560 80h80" stroke="#334155" stroke-width="3" marker-end="url(#a)"/>
+<rect x="170" y="220" width="560" height="90" rx="10" fill="#f8fafc" stroke="#334155"/><text x="450" y="260">QEMU/KVM host</text><text x="450" y="285" font-size="14">separate management bridge and data bridge</text></g>
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8z" fill="#334155"/></marker></defs></svg>

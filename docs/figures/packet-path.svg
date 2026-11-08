@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300">
+<rect width="900" height="300" fill="white"/><g font-family="sans-serif" text-anchor="middle" fill="#172b45">
+<rect x="40" y="90" width="180" height="70" rx="10" fill="#eef4fa" stroke="#334155"/><text x="130" y="132">Ethernet / IPv4</text>
+<rect x="280" y="90" width="180" height="70" rx="10" fill="#eef4fa" stroke="#334155"/><text x="370" y="132">TCP SYN checks</text>
+<rect x="520" y="90" width="160" height="70" rx="10" fill="#eef4fa" stroke="#334155"/><text x="600" y="132">source window</text>
+<rect x="740" y="90" width="120" height="70" rx="10" fill="#eef4fa" stroke="#334155"/><text x="800" y="132">PASS / DROP</text>
+<path d="M220 125h60M460 125h60M680 125h60" stroke="#334155" stroke-width="3" marker-end="url(#a)"/></g>
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8z" fill="#334155"/></marker></defs></svg>

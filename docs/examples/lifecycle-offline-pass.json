@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "mode": "offline",
+  "actual_execution": false,
+  "live_status": "NOT TESTED",
+  "lab_id": "lab-offline123",
+  "status": "PASS",
+  "exit_code": 0,
+  "steps": {
+    "preflight": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "preflight"},
+        "probe": {"lab_id": "lab-offline123", "dependencies": true, "images": true, "management_separate": true}
+      },
+      "finished_at": "<timestamp>"
+    },
+    "create": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "create"},
+        "probe": {"lab_id": "lab-offline123", "ownership": true, "registry": true, "three_vms": true, "cloud_init": true}
+      },
+      "finished_at": "<timestamp>"
+    },
+    "configure": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "configure"},
+        "probe": {"lab_id": "lab-offline123", "ownership": true, "xdp_loaded": true, "suricata_active": true}
+      },
+      "finished_at": "<timestamp>"
+    },
+    "health": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "health"},
+        "probe": {"lab_id": "lab-offline123", "ownership": true, "xdp_loaded": true, "suricata_active": true, "client_alive": true}
+      },
+      "finished_at": "<timestamp>"
+    },
+    "scenario": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "scenario"},
+        "probe": {"lab_id": "lab-offline123", "ownership": true, "bounded_traffic": true, "client_alive": true}
+      },
+      "finished_at": "<timestamp>"
+    },
+    "telemetry": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "telemetry"},
+        "probe": {"lab_id": "lab-offline123", "ownership": true, "xdp_counters": true, "suricata_events": true, "correlation": true}
+      },
+      "finished_at": "<timestamp>"
+    },
+    "report": {
+      "status": "PASS",
+      "attempts": 1,
+      "started_at": "<timestamp>",
+      "evidence": {
+        "action": {"lab_id": "lab-offline123", "source": "fake", "operation": "report"},
+        "probe": {"lab_id": "lab-offline123", "ownership": true, "report_generated": true, "evidence_complete": true}
+      },
+      "finished_at": "<timestamp>"
+    }
+  }
+}
